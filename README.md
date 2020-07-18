@@ -16,7 +16,10 @@ stages:
        commands:
         - echo "test"
 ```
-$> yip -s test <entity.yaml>
+
+
+     $> yip -s test yip1.yaml
+     $> yip -s test https://..
 
 - Simple
 - Small scope, pluggable, extensible
