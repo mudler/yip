@@ -21,6 +21,7 @@ import (
 	"io/ioutil"
 	"net/url"
 	"os"
+	"path/filepath"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/twpayne/go-vfs"
@@ -57,6 +58,7 @@ For example:
 			return errors.New("yip needs at least one path or url as argument")
 		}
 
+		// Read yamls from STDIN
 		if fromStdin {
 			str, err := ioutil.ReadAll(os.Stdin)
 			if err != nil {
@@ -69,24 +71,53 @@ For example:
 			}
 
 			return runner.Apply(stage, *config, vfs.OSFS)
-		} else {
-			for _, source := range args {
-				_, err := url.ParseRequestURI(source)
-				if err != nil {
-					config, err = schema.LoadFromFile(source)
-				} else {
-					config, err = schema.LoadFromUrl(source)
-				}
+		}
 
+		for _, source := range args {
+
+			// Load yamls in a directory
+			if f, err := vfs.OSFS.Stat(source); err == nil && f.IsDir() {
+				err := filepath.Walk(source,
+					func(path string, info os.FileInfo, err error) error {
+						if err != nil {
+							return err
+						}
+						if path == source {
+							return nil
+						}
+						config, err = schema.LoadFromFile(path)
+						if err != nil {
+							return err
+						}
+						if err = runner.Apply(stage, *config, vfs.OSFS); err != nil {
+							return err
+						}
+
+						return nil
+					})
 				if err != nil {
 					errs = multierror.Append(errs, err)
-					continue
 				}
 
-				if err = runner.Apply(stage, *config, vfs.OSFS); err != nil {
-					errs = multierror.Append(errs, err)
-					continue
-				}
+				continue
+			}
+
+			// Parse urls/file
+			_, err := url.ParseRequestURI(source)
+			if err != nil {
+				config, err = schema.LoadFromFile(source)
+			} else {
+				config, err = schema.LoadFromUrl(source)
+			}
+
+			if err != nil {
+				errs = multierror.Append(errs, err)
+				continue
+			}
+
+			if err = runner.Apply(stage, *config, vfs.OSFS); err != nil {
+				errs = multierror.Append(errs, err)
+				continue
 			}
 		}
 
