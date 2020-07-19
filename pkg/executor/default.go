@@ -19,7 +19,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/ionrock/procs"
+	resolvconf "github.com/moby/libnetwork/resolvconf"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/twpayne/go-vfs"
 )
@@ -31,29 +33,33 @@ type DefaultExecutor struct{}
 // Apply applies a yip Config file by creating files and running commands defined.
 func (e *DefaultExecutor) Apply(stage string, s schema.YipConfig, fs vfs.FS) error {
 	currentStages, _ := s.Stages[stage]
-
+	var errs error
 	for _, stage := range currentStages {
 		for _, file := range stage.Files {
 			fmt.Println("Creating file", file.Path)
 			fsfile, err := fs.Create(file.Path)
 			if err != nil {
 				fmt.Println(err)
+				errs = multierror.Append(errs, err)
 				continue
 			}
 
 			_, err = fsfile.WriteString(file.Content)
 			if err != nil {
 				fmt.Println(err)
+				errs = multierror.Append(errs, err)
 				continue
 			}
 			err = fs.Chmod(file.Path, os.FileMode(file.Permissions))
 			if err != nil {
 				fmt.Println(err)
+				errs = multierror.Append(errs, err)
 				continue
 			}
 			err = fs.Chown(file.Path, file.Owner, file.Group)
 			if err != nil {
 				fmt.Println(err)
+				errs = multierror.Append(errs, err)
 				continue
 			}
 		}
@@ -65,11 +71,22 @@ func (e *DefaultExecutor) Apply(stage string, s schema.YipConfig, fs vfs.FS) err
 			err := p.Run()
 			if err != nil {
 				fmt.Println(err)
+				errs = multierror.Append(errs, err)
 				continue
 			}
 			out, _ := p.Output()
 			fmt.Println(string(out))
 		}
 	}
-	return nil
+
+	if len(s.Dns.Nameservers) != 0 {
+		path := s.Dns.Path
+		if path == "" {
+			path = "/etc/resolv.conf"
+		}
+		_, err := resolvconf.Build(path, s.Dns.Nameservers, s.Dns.DnsSearch, s.Dns.DnsOptions)
+		errs = multierror.Append(errs, err)
+	}
+
+	return errs
 }

@@ -31,6 +31,7 @@ import (
 var _ = Describe("Executor", func() {
 	Context("Loading entities via yaml", func() {
 		def := NewExecutor("default")
+
 		It("Creates files", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/tmp/test/bar": "boo"})
 			Expect(err).Should(BeNil())
@@ -44,8 +45,7 @@ var _ = Describe("Executor", func() {
 				}},
 			}}
 
-			err = def.Apply("foo", config, fs)
-			Expect(err).Should(BeNil())
+			def.Apply("foo", config, fs)
 			file, err := fs.Open("/tmp/test/foo")
 			Expect(err).ShouldNot(HaveOccurred())
 
@@ -86,6 +86,27 @@ var _ = Describe("Executor", func() {
 
 			Expect(string(b)).Should(Equal("bar"))
 
+		})
+
+		It("Set DNS", func() {
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/tmp/test/bar": "boo"})
+			Expect(err).Should(BeNil())
+			temp := fs.TempDir()
+
+			defer cleanup()
+
+			config := schema.YipConfig{Dns: schema.DNS{Path: temp + "/foo", Nameservers: []string{"8.8.8.8"}}}
+
+			def.Apply("foo", config, fs)
+			file, err := os.Open(temp + "/foo")
+			Expect(err).ShouldNot(HaveOccurred())
+
+			b, err := ioutil.ReadAll(file)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			Expect(string(b)).Should(Equal("nameserver 8.8.8.8\n"))
 		})
 	})
 })

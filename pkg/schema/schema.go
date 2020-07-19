@@ -36,8 +36,16 @@ type Stage struct {
 	Files    []File   `yaml:"files"`
 }
 
+type DNS struct {
+	Nameservers []string `yaml:"nameservers"`
+	DnsSearch   []string `yaml:"search"`
+	DnsOptions  []string `yaml:"options"`
+	Path        string   `yaml:"path"`
+}
+
 type YipConfig struct {
 	Stages map[string][]Stage `yaml:"stages"`
+	Dns    DNS                `yaml:"dns"`
 }
 
 // LoadFromFile loads a yip config from a YAML file
