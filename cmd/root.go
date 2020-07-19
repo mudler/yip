@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"os"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/twpayne/go-vfs"
 
 	"github.com/mudler/yip/pkg/executor"
@@ -46,25 +47,31 @@ For example:
 		exec, _ := cmd.Flags().GetString("executor")
 		runner := executor.NewExecutor(exec)
 		var config *schema.EApplyConfig
-		var err error
-
-		if len(args) != 1 {
-			return errors.New("yip accepts only one argument a url or a path")
+		var errs error
+		if len(args) == 0 {
+			return errors.New("yip needs at least one path or url as argument")
 		}
 
-		source := args[0]
-		_, err = url.ParseRequestURI(source)
-		if err != nil {
-			config, err = schema.LoadFromFile(source)
-		} else {
-			config, err = schema.LoadFromUrl(source)
+		for _, source := range args {
+			_, err := url.ParseRequestURI(source)
+			if err != nil {
+				config, err = schema.LoadFromFile(source)
+			} else {
+				config, err = schema.LoadFromUrl(source)
+			}
+
+			if err != nil {
+				errs = multierror.Append(errs, err)
+				continue
+			}
+
+			if err = runner.Apply(stage, *config, vfs.OSFS); err != nil {
+				errs = multierror.Append(errs, err)
+				continue
+			}
 		}
 
-		if err != nil {
-			return err
-		}
-
-		return runner.Apply(stage, *config, vfs.OSFS)
+		return errs
 	},
 }
 
