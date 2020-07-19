@@ -8,10 +8,12 @@ import (
 	"github.com/mudler/yip/pkg/schema"
 )
 
+// Executor an executor applies a yip config
 type Executor interface {
-	Apply(string, schema.EApplyConfig, vfs.FS) error
+	Apply(string, schema.YipConfig, vfs.FS) error
 }
 
+// NewExecutor returns an executor from the stringified version of it.
 func NewExecutor(s string) Executor {
 	switch strings.ToLower(s) {
 	default:

@@ -24,13 +24,15 @@ import (
 	"github.com/twpayne/go-vfs"
 )
 
+// DefaultExecutor is the default yip Executor.
+// It simply creates file and executes command for a linux executor
 type DefaultExecutor struct{}
 
-func (e *DefaultExecutor) Apply(stage string, s schema.EApplyConfig, fs vfs.FS) error {
+// Apply applies a yip Config file by creating files and running commands defined.
+func (e *DefaultExecutor) Apply(stage string, s schema.YipConfig, fs vfs.FS) error {
 	currentStages, _ := s.Stages[stage]
 
 	for _, stage := range currentStages {
-
 		for _, file := range stage.Files {
 			fmt.Println("Creating file", file.Path)
 			fsfile, err := fs.Create(file.Path)

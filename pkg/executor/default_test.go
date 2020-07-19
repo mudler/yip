@@ -37,7 +37,7 @@ var _ = Describe("Executor", func() {
 
 			defer cleanup()
 
-			config := schema.EApplyConfig{Stages: map[string][]schema.Stage{
+			config := schema.YipConfig{Stages: map[string][]schema.Stage{
 				"foo": []schema.Stage{{
 					Commands: []string{},
 					Files:    []schema.File{{Path: "/tmp/test/foo", Content: "Test", Permissions: 0777}},
@@ -68,7 +68,7 @@ var _ = Describe("Executor", func() {
 			f, _ := os.Create(temp + "/foo")
 			f.WriteString("Test")
 
-			config := schema.EApplyConfig{Stages: map[string][]schema.Stage{
+			config := schema.YipConfig{Stages: map[string][]schema.Stage{
 				"foo": []schema.Stage{{
 					Commands: []string{"sed -i 's/Test/bar/g' " + temp + "/foo"},
 				}},

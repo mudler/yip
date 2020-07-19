@@ -36,18 +36,25 @@ type Stage struct {
 	Files    []File   `yaml:"files"`
 }
 
-type EApplyConfig struct {
+type YipConfig struct {
 	Stages map[string][]Stage `yaml:"stages"`
 }
 
-func LoadFromFile(s string) (*EApplyConfig, error) {
+// LoadFromFile loads a yip config from a YAML file
+func LoadFromFile(s string) (*YipConfig, error) {
 	yamlFile, err := ioutil.ReadFile(s)
 	if err != nil {
 		return nil, err
 	}
 
-	var yamlConfig EApplyConfig
-	err = yaml.Unmarshal(yamlFile, &yamlConfig)
+	return LoadFromYaml(yamlFile)
+}
+
+// LoadFromYaml loads a yip config from bytes
+func LoadFromYaml(b []byte) (*YipConfig, error) {
+
+	var yamlConfig YipConfig
+	err := yaml.Unmarshal(b, &yamlConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +62,8 @@ func LoadFromFile(s string) (*EApplyConfig, error) {
 	return &yamlConfig, nil
 }
 
-func LoadFromUrl(s string) (*EApplyConfig, error) {
+// LoadFromUrl loads a yip config from a url
+func LoadFromUrl(s string) (*YipConfig, error) {
 	resp, err := http.Get(s)
 	if err != nil {
 		return nil, err
@@ -65,11 +73,5 @@ func LoadFromUrl(s string) (*EApplyConfig, error) {
 	buf := bytes.NewBuffer([]byte{})
 	_, err = io.Copy(buf, resp.Body)
 
-	var yamlConfig EApplyConfig
-	err = yaml.Unmarshal(buf.Bytes(), &yamlConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	return &yamlConfig, nil
+	return LoadFromYaml(buf.Bytes())
 }

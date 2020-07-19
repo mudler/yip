@@ -18,6 +18,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/url"
 	"os"
 
@@ -35,39 +36,57 @@ var entityFile string
 var rootCmd = &cobra.Command{
 	Use:   "yip",
 	Short: "Modern go system configurator",
-	Long: `Eapply loads distro-agnostic yaml in a cloud-init and applies them.
+	Long: `yip loads cloud-init style yamls and applies them in the system.
 
 For example:
 
-	$> yip -s initramfs https://<yip.yaml>
-	$> yip -s initramfs <yip.yaml>
+	$> yip -s initramfs https://<yip.yaml> <definition.yaml> ...
+	$> yip -s initramfs <yip.yaml> <yip2.yaml> ...
+	$> cat def.yaml | yip -
 `,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		stage, _ := cmd.Flags().GetString("stage")
 		exec, _ := cmd.Flags().GetString("executor")
 		runner := executor.NewExecutor(exec)
-		var config *schema.EApplyConfig
+		fromStdin := len(args) == 1 && args[0] == "-"
+
+		var config *schema.YipConfig
 		var errs error
+
 		if len(args) == 0 {
 			return errors.New("yip needs at least one path or url as argument")
 		}
 
-		for _, source := range args {
-			_, err := url.ParseRequestURI(source)
+		if fromStdin {
+			str, err := ioutil.ReadAll(os.Stdin)
 			if err != nil {
-				config, err = schema.LoadFromFile(source)
-			} else {
-				config, err = schema.LoadFromUrl(source)
+				return errors.New("Failed reading from stdin")
 			}
 
+			config, err = schema.LoadFromYaml(str)
 			if err != nil {
-				errs = multierror.Append(errs, err)
-				continue
+				return err
 			}
 
-			if err = runner.Apply(stage, *config, vfs.OSFS); err != nil {
-				errs = multierror.Append(errs, err)
-				continue
+			return runner.Apply(stage, *config, vfs.OSFS)
+		} else {
+			for _, source := range args {
+				_, err := url.ParseRequestURI(source)
+				if err != nil {
+					config, err = schema.LoadFromFile(source)
+				} else {
+					config, err = schema.LoadFromUrl(source)
+				}
+
+				if err != nil {
+					errs = multierror.Append(errs, err)
+					continue
+				}
+
+				if err = runner.Apply(stage, *config, vfs.OSFS); err != nil {
+					errs = multierror.Append(errs, err)
+					continue
+				}
 			}
 		}
 
