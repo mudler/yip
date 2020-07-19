@@ -23,12 +23,10 @@ stages:
 - Simple
 - Small scope, pluggable, extensible
 
-
-     $> yip -s test yip1.yaml yip2.yaml
-     $> yip -s test https://..
-
-
-
+```bash
+$> yip -s test yip1.yaml yip2.yaml
+$> yip -s test https://..
+```
 
 Yip uses a simple, yet powerful distro-agnostic cloud-init style format for the definition.
 
@@ -57,7 +55,7 @@ stages:
 Now we can execute it:
 
 ```bash
-$>cat myfile.yaml | yip -
+$> cat myfile.yaml | yip -
 ```
 
 That's it! by default `yip` uses the default stage and the `default` executor, but you can customize its execution.
