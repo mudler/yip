@@ -89,6 +89,10 @@ github.com/mitchellh/go-homedir v1.1.0/go.mod h1:SfyaCUpYCn1Vlf4IUYiD9fPX4A5wJrk
 github.com/mitchellh/mapstructure v1.1.2/go.mod h1:FVVH3fgwuzCH5S8UJGiWEs2h04kUh9fWfEaFds41c1Y=
 github.com/moby/libnetwork v0.8.0-dev.2.0.20200612180813-9e99af28df21 h1:/LhFUdssuwR4Rvv/BMmsVWOCC/Qwffmalgd/qVxjHDM=
 github.com/moby/libnetwork v0.8.0-dev.2.0.20200612180813-9e99af28df21/go.mod h1:RQTqDxGZChsPHosY8R3ZL2THYWUuW8X5SRhiBNoTY5I=
+github.com/mudler/entities v0.0.0-20200413160801-afbad3ea3dc6 h1:AXh5hDgujjoTH8oyOlyoMYUo/0NABii53ATsQTd7aDc=
+github.com/mudler/entities v0.0.0-20200413160801-afbad3ea3dc6/go.mod h1:8r3wDDcN+YselfkAo10IP+ymYYDjQtag8u+GYG3PprI=
+github.com/mudler/entities v0.0.0-20200720163828-8efd0b0b1802 h1:HxdWV+mR6OM00Vwh1mslsjmX1dYuChyo662ZZPBfN+o=
+github.com/mudler/entities v0.0.0-20200720163828-8efd0b0b1802/go.mod h1:8r3wDDcN+YselfkAo10IP+ymYYDjQtag8u+GYG3PprI=
 github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=
 github.com/oklog/ulid v1.3.1/go.mod h1:CirwcVhetQ6Lv90oh/F+FBtV6XMibvdAFo93nm5qn4U=
 github.com/onsi/ginkgo v1.6.0/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+WWjE=

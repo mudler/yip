@@ -17,13 +17,13 @@ package executor
 
 import (
 	"fmt"
-	"os"
-
 	"github.com/hashicorp/go-multierror"
 	"github.com/ionrock/procs"
 	resolvconf "github.com/moby/libnetwork/resolvconf"
+	entities "github.com/mudler/entities/pkg/entities"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/twpayne/go-vfs"
+	"os"
 )
 
 // DefaultExecutor is the default yip Executor.
@@ -85,8 +85,42 @@ func (e *DefaultExecutor) Apply(stage string, s schema.YipConfig, fs vfs.FS) err
 			path = "/etc/resolv.conf"
 		}
 		_, err := resolvconf.Build(path, s.Dns.Nameservers, s.Dns.DnsSearch, s.Dns.DnsOptions)
-		errs = multierror.Append(errs, err)
+		if err != nil {
+			errs = multierror.Append(errs, err)
+		}
 	}
 
+	if len(s.EnsureEntities) > 0 {
+		entityParser := entities.Parser{}
+		for _, e := range s.EnsureEntities {
+			decodedE, err := entityParser.ReadEntityFromBytes([]byte(e.Entity))
+			if err != nil {
+				errs = multierror.Append(errs, err)
+				continue
+			}
+			err = decodedE.Apply(e.Path)
+			if err != nil {
+				errs = multierror.Append(errs, err)
+				continue
+			}
+		}
+	}
+
+	if len(s.DeleteEntities) > 0 {
+		entityParser := entities.Parser{}
+		for _, e := range s.DeleteEntities {
+			decodedE, err := entityParser.ReadEntityFromBytes([]byte(e.Entity))
+			if err != nil {
+				errs = multierror.Append(errs, err)
+				continue
+			}
+			err = decodedE.Delete(e.Path)
+			if err != nil {
+				errs = multierror.Append(errs, err)
+				continue
+			}
+		}
+	}
 	return errs
 }
+

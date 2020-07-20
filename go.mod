@@ -12,6 +12,7 @@ require (
 	github.com/ishidawataru/sctp v0.0.0-20191218070446-00ab2ac2db07 // indirect
 	github.com/kr/pretty v0.2.0 // indirect
 	github.com/moby/libnetwork v0.8.0-dev.2.0.20200612180813-9e99af28df21
+	github.com/mudler/entities v0.0.0-20200720163828-8efd0b0b1802
 	github.com/onsi/ginkgo v1.12.0
 	github.com/onsi/gomega v1.9.0
 	github.com/phayes/permbits v0.0.0-20190612203442-39d7c581d2ee // indirect

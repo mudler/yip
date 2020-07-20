@@ -108,5 +108,68 @@ var _ = Describe("Executor", func() {
 
 			Expect(string(b)).Should(Equal("nameserver 8.8.8.8\n"))
 		})
+		It("Get Users", func() {
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/tmp/test/bar": ""})
+			Expect(err).Should(BeNil())
+			temp := fs.TempDir()
+			f, err := os.Create(temp + "/foo")
+			Expect(err).Should(BeNil())
+			_, err = f.WriteString("nm-openconnect:x:979:\n")
+			Expect(err).Should(BeNil())
+			defer cleanup()
+
+			config := schema.YipConfig{EnsureEntities: []schema.YipEntity{{
+				Path: temp + "/foo",
+				Entity: `kind: "group"
+group_name: "foo"
+password: "xx"
+gid: 1
+users: "one,two,tree"
+`,
+			}}}
+			err = def.Apply("foo", config, fs)
+			Expect(err).ShouldNot(HaveOccurred())
+			file, err := os.Open(temp + "/foo")
+			Expect(err).ShouldNot(HaveOccurred())
+
+			b, err := ioutil.ReadAll(file)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			Expect(string(b)).Should(Equal("nm-openconnect:x:979:\nfoo:xx:1:one,two,tree\n"))
+		})
+
+		It("Deletes Users", func() {
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/tmp/test/bar": ""})
+			Expect(err).Should(BeNil())
+			temp := fs.TempDir()
+			f, err := os.Create(temp + "/foo")
+			Expect(err).Should(BeNil())
+			_, err = f.WriteString("nm-openconnect:x:979:\nfoo:xx:1:one,two,tree\n")
+			Expect(err).Should(BeNil())
+			defer cleanup()
+
+			config := schema.YipConfig{DeleteEntities: []schema.YipEntity{{
+				Path: temp + "/foo",
+				Entity: `kind: "group"
+group_name: "foo"
+password: "xx"
+gid: 1
+users: "one,two,tree"
+`,
+			}}}
+			err = def.Apply("foo", config, fs)
+			Expect(err).ShouldNot(HaveOccurred())
+			file, err := os.Open(temp + "/foo")
+			Expect(err).ShouldNot(HaveOccurred())
+
+			b, err := ioutil.ReadAll(file)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			Expect(string(b)).Should(Equal("nm-openconnect:x:979:\n"))
+		})
 	})
 })
