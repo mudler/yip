@@ -17,47 +17,118 @@ package executor
 
 import (
 	"fmt"
-	"github.com/hashicorp/go-multierror"
-	"github.com/ionrock/procs"
+	"os"
+
 	resolvconf "github.com/moby/libnetwork/resolvconf"
 	entities "github.com/mudler/entities/pkg/entities"
+
+	"github.com/hashicorp/go-multierror"
+	"github.com/ionrock/procs"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/twpayne/go-vfs"
-	"os"
 )
 
 // DefaultExecutor is the default yip Executor.
 // It simply creates file and executes command for a linux executor
 type DefaultExecutor struct{}
 
+func (e *DefaultExecutor) applyDNS(s schema.YipConfig) error {
+	path := s.Dns.Path
+	if path == "" {
+		path = "/etc/resolv.conf"
+	}
+	_, err := resolvconf.Build(path, s.Dns.Nameservers, s.Dns.DnsSearch, s.Dns.DnsOptions)
+	return err
+}
+
+func (e *DefaultExecutor) ensureEntities(s schema.YipConfig) error {
+	var errs error
+	entityParser := entities.Parser{}
+	for _, e := range s.EnsureEntities {
+		decodedE, err := entityParser.ReadEntityFromBytes([]byte(e.Entity))
+		if err != nil {
+			errs = multierror.Append(errs, err)
+			continue
+		}
+		err = decodedE.Apply(e.Path)
+		if err != nil {
+			errs = multierror.Append(errs, err)
+			continue
+		}
+	}
+	return errs
+}
+
+func (e *DefaultExecutor) deleteEntities(s schema.YipConfig) error {
+	var errs error
+	entityParser := entities.Parser{}
+	for _, e := range s.DeleteEntities {
+		decodedE, err := entityParser.ReadEntityFromBytes([]byte(e.Entity))
+		if err != nil {
+			errs = multierror.Append(errs, err)
+			continue
+		}
+		err = decodedE.Delete(e.Path)
+		if err != nil {
+			errs = multierror.Append(errs, err)
+			continue
+		}
+	}
+	return errs
+}
+
+func (e *DefaultExecutor) writeFile(file schema.File, fs vfs.FS) error {
+	fmt.Println("Creating file", file.Path)
+	fsfile, err := fs.Create(file.Path)
+	if err != nil {
+		return err
+	}
+
+	_, err = fsfile.WriteString(file.Content)
+	if err != nil {
+		return err
+
+	}
+	err = fs.Chmod(file.Path, os.FileMode(file.Permissions))
+	if err != nil {
+		return err
+
+	}
+	return fs.Chown(file.Path, file.Owner, file.Group)
+}
+
+func (e *DefaultExecutor) runProc(cmd string) (string, error) {
+	fmt.Println("Running", cmd)
+
+	p := procs.NewProcess(cmd)
+	err := p.Run()
+	if err != nil {
+		return "", err
+	}
+	out, err := p.Output()
+	return string(out), err
+}
+
 // Apply applies a yip Config file by creating files and running commands defined.
 func (e *DefaultExecutor) Apply(stage string, s schema.YipConfig, fs vfs.FS) error {
 	currentStages, _ := s.Stages[stage]
 	var errs error
+
+	if len(s.Dns.Nameservers) != 0 {
+		if err := e.applyDNS(s); err != nil {
+			errs = multierror.Append(errs, err)
+		}
+	}
+
+	if len(s.EnsureEntities) > 0 {
+		if err := e.ensureEntities(s); err != nil {
+			errs = multierror.Append(errs, err)
+		}
+	}
+
 	for _, stage := range currentStages {
 		for _, file := range stage.Files {
-			fmt.Println("Creating file", file.Path)
-			fsfile, err := fs.Create(file.Path)
-			if err != nil {
-				fmt.Println(err)
-				errs = multierror.Append(errs, err)
-				continue
-			}
-
-			_, err = fsfile.WriteString(file.Content)
-			if err != nil {
-				fmt.Println(err)
-				errs = multierror.Append(errs, err)
-				continue
-			}
-			err = fs.Chmod(file.Path, os.FileMode(file.Permissions))
-			if err != nil {
-				fmt.Println(err)
-				errs = multierror.Append(errs, err)
-				continue
-			}
-			err = fs.Chown(file.Path, file.Owner, file.Group)
-			if err != nil {
+			if err := e.writeFile(file, fs); err != nil {
 				fmt.Println(err)
 				errs = multierror.Append(errs, err)
 				continue
@@ -65,62 +136,20 @@ func (e *DefaultExecutor) Apply(stage string, s schema.YipConfig, fs vfs.FS) err
 		}
 
 		for _, cmd := range stage.Commands {
-			fmt.Println("Running", cmd)
-
-			p := procs.NewProcess(cmd)
-			err := p.Run()
+			out, err := e.runProc(cmd)
 			if err != nil {
 				fmt.Println(err)
 				errs = multierror.Append(errs, err)
 				continue
 			}
-			out, _ := p.Output()
 			fmt.Println(string(out))
 		}
 	}
 
-	if len(s.Dns.Nameservers) != 0 {
-		path := s.Dns.Path
-		if path == "" {
-			path = "/etc/resolv.conf"
-		}
-		_, err := resolvconf.Build(path, s.Dns.Nameservers, s.Dns.DnsSearch, s.Dns.DnsOptions)
-		if err != nil {
-			errs = multierror.Append(errs, err)
-		}
-	}
-
-	if len(s.EnsureEntities) > 0 {
-		entityParser := entities.Parser{}
-		for _, e := range s.EnsureEntities {
-			decodedE, err := entityParser.ReadEntityFromBytes([]byte(e.Entity))
-			if err != nil {
-				errs = multierror.Append(errs, err)
-				continue
-			}
-			err = decodedE.Apply(e.Path)
-			if err != nil {
-				errs = multierror.Append(errs, err)
-				continue
-			}
-		}
-	}
-
 	if len(s.DeleteEntities) > 0 {
-		entityParser := entities.Parser{}
-		for _, e := range s.DeleteEntities {
-			decodedE, err := entityParser.ReadEntityFromBytes([]byte(e.Entity))
-			if err != nil {
-				errs = multierror.Append(errs, err)
-				continue
-			}
-			err = decodedE.Delete(e.Path)
-			if err != nil {
-				errs = multierror.Append(errs, err)
-				continue
-			}
+		if err := e.deleteEntities(s); err != nil {
+			errs = multierror.Append(errs, err)
 		}
 	}
 	return errs
 }
-
