@@ -32,7 +32,7 @@ import (
 // It simply creates file and executes command for a linux executor
 type DefaultExecutor struct{}
 
-func (e *DefaultExecutor) applyDNS(s schema.YipConfig) error {
+func (e *DefaultExecutor) applyDNS(s schema.Stage) error {
 	path := s.Dns.Path
 	if path == "" {
 		path = "/etc/resolv.conf"
@@ -41,7 +41,7 @@ func (e *DefaultExecutor) applyDNS(s schema.YipConfig) error {
 	return err
 }
 
-func (e *DefaultExecutor) ensureEntities(s schema.YipConfig) error {
+func (e *DefaultExecutor) ensureEntities(s schema.Stage) error {
 	var errs error
 	entityParser := entities.Parser{}
 	for _, e := range s.EnsureEntities {
@@ -59,7 +59,7 @@ func (e *DefaultExecutor) ensureEntities(s schema.YipConfig) error {
 	return errs
 }
 
-func (e *DefaultExecutor) deleteEntities(s schema.YipConfig) error {
+func (e *DefaultExecutor) deleteEntities(s schema.Stage) error {
 	var errs error
 	entityParser := entities.Parser{}
 	for _, e := range s.DeleteEntities {
@@ -114,19 +114,20 @@ func (e *DefaultExecutor) Apply(stage string, s schema.YipConfig, fs vfs.FS) err
 	currentStages, _ := s.Stages[stage]
 	var errs error
 
-	if len(s.Dns.Nameservers) != 0 {
-		if err := e.applyDNS(s); err != nil {
-			errs = multierror.Append(errs, err)
-		}
-	}
-
-	if len(s.EnsureEntities) > 0 {
-		if err := e.ensureEntities(s); err != nil {
-			errs = multierror.Append(errs, err)
-		}
-	}
-
 	for _, stage := range currentStages {
+
+		if len(stage.Dns.Nameservers) != 0 {
+			if err := e.applyDNS(stage); err != nil {
+				errs = multierror.Append(errs, err)
+			}
+		}
+
+		if len(stage.EnsureEntities) > 0 {
+			if err := e.ensureEntities(stage); err != nil {
+				errs = multierror.Append(errs, err)
+			}
+		}
+
 		for _, file := range stage.Files {
 			if err := e.writeFile(file, fs); err != nil {
 				fmt.Println(err)
@@ -144,12 +145,12 @@ func (e *DefaultExecutor) Apply(stage string, s schema.YipConfig, fs vfs.FS) err
 			}
 			fmt.Println(string(out))
 		}
-	}
-
-	if len(s.DeleteEntities) > 0 {
-		if err := e.deleteEntities(s); err != nil {
-			errs = multierror.Append(errs, err)
+		if len(stage.DeleteEntities) > 0 {
+			if err := e.deleteEntities(stage); err != nil {
+				errs = multierror.Append(errs, err)
+			}
 		}
 	}
+
 	return errs
 }

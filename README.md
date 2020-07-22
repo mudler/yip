@@ -17,8 +17,33 @@ stages:
           group: 100
        commands:
         - echo "test"
+       dns:
+         path: /etc/resolv.conf
+         nameservers:
+         - 8.8.8.8
+       ensure_entities:
+       -  path: /etc/passwd
+          entity: |
+                  kind: "user"
+                  username: "foo"
+                  password: "pass"
+                  uid: 0
+                  gid: 0
+                  info: "Foo!"
+                  homedir: "/home/foo"
+                  shell: "/bin/bash"
+       delete_entities:
+       -  path: /etc/passwd
+          entity: |
+                  kind: "user"
+                  username: "foo"
+                  password: "pass"
+                  uid: 0
+                  gid: 0
+                  info: "Foo!"
+                  homedir: "/home/foo"
+                  shell: "/bin/bash"
 ```
-
 
 - Simple
 - Small scope, pluggable, extensible
@@ -33,7 +58,8 @@ Yip uses a simple, yet powerful distro-agnostic cloud-init style format for the 
 ## How it works
 
 
-Yip works in stages. You can define "stages" that you can apply in various ways and in a different enviroment (that's why *stages*). 
+Yip works in stages. You can define "stages" that you can apply in various ways and in a different enviroment (that's why *stages*).  
+Yip also support setting up system dns and integrates accounting support with [entities](https://github.com/mudler/entities)
 
 A stage is just a list of commands and files to write in the system, for example:
 

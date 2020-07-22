@@ -95,7 +95,12 @@ var _ = Describe("Executor", func() {
 
 			defer cleanup()
 
-			config := schema.YipConfig{Dns: schema.DNS{Path: temp + "/foo", Nameservers: []string{"8.8.8.8"}}}
+			config := schema.YipConfig{
+				Stages: map[string][]schema.Stage{
+					"foo": []schema.Stage{{
+						Dns: schema.DNS{Path: temp + "/foo", Nameservers: []string{"8.8.8.8"}},
+					}}},
+			}
 
 			def.Apply("foo", config, fs)
 			file, err := os.Open(temp + "/foo")
@@ -118,15 +123,19 @@ var _ = Describe("Executor", func() {
 			Expect(err).Should(BeNil())
 			defer cleanup()
 
-			config := schema.YipConfig{EnsureEntities: []schema.YipEntity{{
-				Path: temp + "/foo",
-				Entity: `kind: "group"
+			config := schema.YipConfig{
+				Stages: map[string][]schema.Stage{
+					"foo": []schema.Stage{{
+						EnsureEntities: []schema.YipEntity{{
+							Path: temp + "/foo",
+							Entity: `kind: "group"
 group_name: "foo"
 password: "xx"
 gid: 1
 users: "one,two,tree"
 `,
-			}}}
+						}}}}},
+			}
 			err = def.Apply("foo", config, fs)
 			Expect(err).ShouldNot(HaveOccurred())
 			file, err := os.Open(temp + "/foo")
@@ -150,15 +159,18 @@ users: "one,two,tree"
 			Expect(err).Should(BeNil())
 			defer cleanup()
 
-			config := schema.YipConfig{DeleteEntities: []schema.YipEntity{{
-				Path: temp + "/foo",
-				Entity: `kind: "group"
+			config := schema.YipConfig{
+				Stages: map[string][]schema.Stage{
+					"foo": []schema.Stage{{
+						DeleteEntities: []schema.YipEntity{{
+							Path: temp + "/foo",
+							Entity: `kind: "group"
 group_name: "foo"
 password: "xx"
 gid: 1
 users: "one,two,tree"
 `,
-			}}}
+						}}}}}}
 			err = def.Apply("foo", config, fs)
 			Expect(err).ShouldNot(HaveOccurred())
 			file, err := os.Open(temp + "/foo")

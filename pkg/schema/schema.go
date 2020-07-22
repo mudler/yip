@@ -20,11 +20,12 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+
 	"gopkg.in/yaml.v2"
 )
 
 type YipEntity struct {
-	Path string `yaml:"path"`
+	Path   string `yaml:"path"`
 	Entity string `yaml:"entity"`
 }
 
@@ -36,8 +37,11 @@ type File struct {
 }
 
 type Stage struct {
-	Commands []string `yaml:"commands"`
-	Files    []File   `yaml:"files"`
+	Commands       []string    `yaml:"commands"`
+	Files          []File      `yaml:"files"`
+	EnsureEntities []YipEntity `yaml:"ensure_entities"`
+	DeleteEntities []YipEntity `yaml:"delete_entities"`
+	Dns            DNS         `yaml:"dns"`
 }
 
 type DNS struct {
@@ -49,9 +53,6 @@ type DNS struct {
 
 type YipConfig struct {
 	Stages map[string][]Stage `yaml:"stages"`
-	Dns    DNS                `yaml:"dns"`
-	EnsureEntities []YipEntity `yaml:"ensure_entities"`
-	DeleteEntities []YipEntity `yaml:"delete_entities"`
 }
 
 // LoadFromFile loads a yip config from a YAML file
