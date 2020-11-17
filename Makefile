@@ -5,7 +5,7 @@ REVISION := $(shell git rev-parse --short HEAD || echo dev)
 VERSION := $(shell git describe --tags || echo $(REVISION))
 VERSION := $(shell echo $(VERSION) | sed -e 's/^v//g')
 ITTERATION := $(shell date +%s)
-BUILD_PLATFORMS ?= -osarch="linux/amd64" -osarch="linux/386" -osarch="linux/arm"
+BUILD_PLATFORMS ?= -osarch="linux/amd64" -osarch="linux/386" -osarch="linux/arm64 -osarch="linux/arm -osarch="linux/riscv64"
 ROOT_DIR:=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
 .PHONY: all
