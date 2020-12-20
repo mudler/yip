@@ -36,9 +36,17 @@ type File struct {
 	Content      string
 }
 
+type Directory struct {
+	Path         string
+	Permissions  uint32
+	Owner, Group int
+}
+
 type Stage struct {
-	Commands       []string    `yaml:"commands"`
-	Files          []File      `yaml:"files"`
+	Commands    []string    `yaml:"commands"`
+	Files       []File      `yaml:"files"`
+	Directories []Directory `yaml:"directories"`
+
 	EnsureEntities []YipEntity `yaml:"ensure_entities"`
 	DeleteEntities []YipEntity `yaml:"delete_entities"`
 	Dns            DNS         `yaml:"dns"`

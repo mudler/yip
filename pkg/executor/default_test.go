@@ -58,6 +58,25 @@ var _ = Describe("Executor", func() {
 
 		})
 
+		It("Creates dirs", func() {
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/tmp/test/bar": "boo"})
+			Expect(err).Should(BeNil())
+
+			defer cleanup()
+
+			config := schema.YipConfig{Stages: map[string][]schema.Stage{
+				"foo": []schema.Stage{{
+					Commands:    []string{},
+					Directories: []schema.Directory{{Path: "/tmp/boo", Permissions: 0777}},
+				}},
+			}}
+
+			def.Apply("foo", config, fs)
+			_, err = fs.Open("/tmp/boo")
+
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+
 		It("Run commands", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/tmp/test/bar": "boo"})
 			Expect(err).Should(BeNil())

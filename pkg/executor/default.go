@@ -80,6 +80,16 @@ func (e *DefaultExecutor) deleteEntities(s schema.Stage) error {
 	return errs
 }
 
+func (e *DefaultExecutor) writeDirectory(dir schema.Directory, fs vfs.FS) error {
+	log.Debug("Creating directory ", dir.Path)
+	err := fs.Mkdir(dir.Path, os.FileMode(dir.Permissions))
+	if err != nil {
+		return err
+	}
+
+	return fs.Chown(dir.Path, dir.Owner, dir.Group)
+}
+
 func (e *DefaultExecutor) writeFile(file schema.File, fs vfs.FS) error {
 	log.Debug("Creating file ", file.Path)
 	fsfile, err := fs.Create(file.Path)
@@ -141,6 +151,14 @@ func (e *DefaultExecutor) Apply(stageName string, s schema.YipConfig, fs vfs.FS)
 			if err := e.ensureEntities(stage); err != nil {
 				log.Error(err.Error())
 				errs = multierror.Append(errs, err)
+			}
+		}
+
+		for _, dir := range stage.Directories {
+			if err := e.writeDirectory(dir, fs); err != nil {
+				log.Error(err.Error())
+				errs = multierror.Append(errs, err)
+				continue
 			}
 		}
 
