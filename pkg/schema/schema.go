@@ -42,6 +42,7 @@ type Stage struct {
 	EnsureEntities []YipEntity `yaml:"ensure_entities"`
 	DeleteEntities []YipEntity `yaml:"delete_entities"`
 	Dns            DNS         `yaml:"dns"`
+	Name           string      `yaml:"name"`
 }
 
 type DNS struct {
@@ -52,6 +53,7 @@ type DNS struct {
 }
 
 type YipConfig struct {
+	Name   string             `yaml:"name"`
 	Stages map[string][]Stage `yaml:"stages"`
 }
 

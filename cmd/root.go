@@ -16,22 +16,44 @@
 package cmd
 
 import (
-	"errors"
-	"fmt"
 	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/twpayne/go-vfs"
-
 	"github.com/mudler/yip/pkg/executor"
 	"github.com/mudler/yip/pkg/schema"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/twpayne/go-vfs"
 )
 
 var entityFile string
+
+func fail(s string) {
+	log.Error(s)
+	os.Exit(1)
+}
+func checkErr(err error) {
+	if err != nil {
+		fail("fatal error: " + err.Error())
+	}
+}
+
+func init() {
+	switch strings.ToLower(os.Getenv("LOGLEVEL")) {
+	case "error":
+		log.SetLevel(log.ErrorLevel)
+	case "warning":
+		log.SetLevel(log.WarnLevel)
+	case "debug":
+		log.SetLevel(log.DebugLevel)
+	default:
+		log.SetLevel(log.InfoLevel)
+	}
+}
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -45,7 +67,7 @@ For example:
 	$> yip -s initramfs <yip.yaml> <yip2.yaml> ...
 	$> cat def.yaml | yip -
 `,
-	RunE: func(cmd *cobra.Command, args []string) error {
+	Run: func(cmd *cobra.Command, args []string) {
 		stage, _ := cmd.Flags().GetString("stage")
 		exec, _ := cmd.Flags().GetString("executor")
 		runner := executor.NewExecutor(exec)
@@ -55,22 +77,19 @@ For example:
 		var errs error
 
 		if len(args) == 0 {
-			return errors.New("yip needs at least one path or url as argument")
+			fail("yip needs at least one path or url as argument")
 		}
 
 		// Read yamls from STDIN
 		if fromStdin {
 			str, err := ioutil.ReadAll(os.Stdin)
-			if err != nil {
-				return errors.New("Failed reading from stdin")
-			}
+			checkErr(err)
 
 			config, err = schema.LoadFromYaml(str)
-			if err != nil {
-				return err
-			}
+			checkErr(err)
 
-			return runner.Apply(stage, *config, vfs.OSFS)
+			err = runner.Apply(stage, *config, vfs.OSFS)
+			checkErr(err)
 		}
 
 		for _, source := range args {
@@ -85,12 +104,23 @@ For example:
 						if path == source {
 							return nil
 						}
+						// Process only files
+						if info.IsDir() {
+							return nil
+						}
+						ext := filepath.Ext(path)
+						if ext != ".yaml" && ext != ".yml" {
+							return nil
+						}
 						config, err = schema.LoadFromFile(path)
 						if err != nil {
-							return err
+							errs = multierror.Append(errs, err)
+							return nil
 						}
+						log.Info("Executing", path)
 						if err = runner.Apply(stage, *config, vfs.OSFS); err != nil {
-							return err
+							errs = multierror.Append(errs, err)
+							return nil
 						}
 
 						return nil
@@ -120,18 +150,15 @@ For example:
 				continue
 			}
 		}
-
-		return errs
+		checkErr(errs)
 	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+	err := rootCmd.Execute()
+	checkErr(err)
 }
 
 func init() {

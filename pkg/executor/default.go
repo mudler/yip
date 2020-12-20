@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"os"
 
+	log "github.com/sirupsen/logrus"
+
 	resolvconf "github.com/moby/libnetwork/resolvconf"
 	entities "github.com/mudler/entities/pkg/entities"
 
@@ -37,6 +39,7 @@ func (e *DefaultExecutor) applyDNS(s schema.Stage) error {
 	if path == "" {
 		path = "/etc/resolv.conf"
 	}
+	log.Debug("Setting DNS ", path, s.Dns.Nameservers, s.Dns.DnsSearch, s.Dns.DnsOptions)
 	_, err := resolvconf.Build(path, s.Dns.Nameservers, s.Dns.DnsSearch, s.Dns.DnsOptions)
 	return err
 }
@@ -78,7 +81,7 @@ func (e *DefaultExecutor) deleteEntities(s schema.Stage) error {
 }
 
 func (e *DefaultExecutor) writeFile(file schema.File, fs vfs.FS) error {
-	fmt.Println("Creating file", file.Path)
+	log.Debug("Creating file ", file.Path)
 	fsfile, err := fs.Create(file.Path)
 	if err != nil {
 		return err
@@ -98,8 +101,7 @@ func (e *DefaultExecutor) writeFile(file schema.File, fs vfs.FS) error {
 }
 
 func (e *DefaultExecutor) runProc(cmd string) (string, error) {
-	fmt.Println("Running", cmd)
-
+	log.Info(fmt.Sprintf("Running command: '%s'", cmd))
 	p := procs.NewProcess(cmd)
 	err := p.Run()
 	if err != nil {
@@ -110,27 +112,41 @@ func (e *DefaultExecutor) runProc(cmd string) (string, error) {
 }
 
 // Apply applies a yip Config file by creating files and running commands defined.
-func (e *DefaultExecutor) Apply(stage string, s schema.YipConfig, fs vfs.FS) error {
-	currentStages, _ := s.Stages[stage]
+func (e *DefaultExecutor) Apply(stageName string, s schema.YipConfig, fs vfs.FS) error {
+	currentStages, _ := s.Stages[stageName]
 	var errs error
 
+	log.WithFields(log.Fields{
+		"name":   s.Name,
+		"stages": len(currentStages),
+		"stage":  stageName,
+	}).Info("Executing yip file")
 	for _, stage := range currentStages {
-
+		log.WithFields(log.Fields{
+			"commands":        len(stage.Commands),
+			"entities":        len(stage.EnsureEntities),
+			"nameserver":      len(stage.Dns.Nameservers),
+			"files":           len(stage.Files),
+			"delete_entities": len(stage.DeleteEntities),
+			"step":            stage.Name,
+		}).Info(fmt.Sprintf("Processing stage step '%s'", stage.Name))
 		if len(stage.Dns.Nameservers) != 0 {
 			if err := e.applyDNS(stage); err != nil {
+				log.Error(err.Error())
 				errs = multierror.Append(errs, err)
 			}
 		}
 
 		if len(stage.EnsureEntities) > 0 {
 			if err := e.ensureEntities(stage); err != nil {
+				log.Error(err.Error())
 				errs = multierror.Append(errs, err)
 			}
 		}
 
 		for _, file := range stage.Files {
 			if err := e.writeFile(file, fs); err != nil {
-				fmt.Println(err)
+				log.Error(err.Error())
 				errs = multierror.Append(errs, err)
 				continue
 			}
@@ -139,11 +155,11 @@ func (e *DefaultExecutor) Apply(stage string, s schema.YipConfig, fs vfs.FS) err
 		for _, cmd := range stage.Commands {
 			out, err := e.runProc(cmd)
 			if err != nil {
-				fmt.Println(err)
+				log.Error(err.Error())
 				errs = multierror.Append(errs, err)
 				continue
 			}
-			fmt.Println(string(out))
+			log.Info(fmt.Sprintf("Command output: %s", string(out)))
 		}
 		if len(stage.DeleteEntities) > 0 {
 			if err := e.deleteEntities(stage); err != nil {
@@ -152,5 +168,10 @@ func (e *DefaultExecutor) Apply(stage string, s schema.YipConfig, fs vfs.FS) err
 		}
 	}
 
+	log.WithFields(log.Fields{
+		"success": errs == nil,
+		"stages":  len(currentStages),
+		"stage":   stageName,
+	}).Info("Finished yip file execution")
 	return errs
 }
