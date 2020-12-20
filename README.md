@@ -100,6 +100,23 @@ stages:
 name: "Test yip!"
 ```
 
+## Filtering stages by node hostname
+
+`yip` can skip stages based on the node hostname:
+
+
+```yaml
+stages:
+  foo:
+  - name: "echo"
+    commands:
+    - echo hello
+    node: "hostname" # Node hostname
+
+name: "Test yip!"
+```
+
+---
 
 That's it! by default `yip` uses the default stage and the `default` executor, but you can customize its execution.
 

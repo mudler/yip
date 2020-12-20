@@ -85,6 +85,45 @@ var _ = Describe("Executor", func() {
 			Expect(string(b)).Should(Equal(si.Node.Hostname))
 		})
 
+		It("Filter command node execution", func() {
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/tmp/test/bar": "boo"})
+			Expect(err).Should(BeNil())
+			var si sysinfo.SysInfo
+			si.GetSysInfo()
+			defer cleanup()
+
+			config := schema.YipConfig{Stages: map[string][]schema.Stage{
+				"foo": []schema.Stage{{
+					Commands: []string{},
+					Files:    []schema.File{{Path: "/tmp/test/foo", Content: "{{.Values.node.hostname}}", Permissions: 0777}},
+					Node:     si.Node.Hostname,
+				}},
+			}}
+
+			def.Apply("foo", config, fs)
+			file, err := fs.Open("/tmp/test/foo")
+			Expect(err).ShouldNot(HaveOccurred())
+
+			b, err := ioutil.ReadAll(file)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			Expect(string(b)).Should(Equal(si.Node.Hostname))
+
+			config = schema.YipConfig{Stages: map[string][]schema.Stage{
+				"foo": []schema.Stage{{
+					Commands: []string{},
+					Files:    []schema.File{{Path: "/tmp/test/bbb", Content: "{{.Values.node.hostname}}", Permissions: 0777}},
+					Node:     "barz",
+				}},
+			}}
+
+			def.Apply("foo", config, fs)
+			_, err = fs.Open("/tmp/test/bbb")
+			Expect(err).Should(HaveOccurred())
+		})
+
 		It("Creates dirs", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/tmp/test/bar": "boo"})
 			Expect(err).Should(BeNil())

@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
 
 	resolvconf "github.com/moby/libnetwork/resolvconf"
 	entities "github.com/mudler/entities/pkg/entities"
@@ -34,6 +35,8 @@ import (
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/engine"
 )
+
+var system sysinfo.SysInfo
 
 // renderHelm renders the template string with helm
 func renderHelm(template string, values, d map[string]interface{}) (string, error) {
@@ -61,12 +64,9 @@ func renderHelm(template string, values, d map[string]interface{}) (string, erro
 }
 
 func templateSysData(s string) string {
-	var si sysinfo.SysInfo
 	interpolateOpts := map[string]interface{}{}
 
-	si.GetSysInfo()
-
-	data, err := json.Marshal(&si)
+	data, err := json.Marshal(&system)
 	if err != nil {
 		log.Warning(fmt.Sprintf("Failed marshalling '%s': %s", s, err.Error()))
 		return s
@@ -179,6 +179,8 @@ func (e *DefaultExecutor) runProc(cmd string) (string, error) {
 
 // Apply applies a yip Config file by creating files and running commands defined.
 func (e *DefaultExecutor) Apply(stageName string, s schema.YipConfig, fs vfs.FS) error {
+	system.GetSysInfo()
+
 	currentStages, _ := s.Stages[stageName]
 	var errs error
 
@@ -188,6 +190,24 @@ func (e *DefaultExecutor) Apply(stageName string, s schema.YipConfig, fs vfs.FS)
 		"stage":  stageName,
 	}).Info("Executing yip file")
 	for _, stage := range currentStages {
+
+		if len(stage.Node) > 0 {
+			matched, err := regexp.MatchString(stage.Node, system.Node.Hostname)
+			if !matched {
+				log.WithFields(log.Fields{
+					"name":  s.Name,
+					"stage": stageName,
+				}).Info(fmt.Sprintf("Skipping stage (node hostname '%s' doesn't match '%s')", system.Node.Hostname, stage.Node))
+				continue
+			}
+			if err != nil {
+				log.WithFields(log.Fields{
+					"name":  s.Name,
+					"stage": stageName,
+				}).Warning(fmt.Sprintf("Skipping invalid regex for node hostname '%s', error: %s", stage.Node, err.Error()))
+			}
+		}
+
 		log.WithFields(log.Fields{
 			"commands":        len(stage.Commands),
 			"entities":        len(stage.EnsureEntities),

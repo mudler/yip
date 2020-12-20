@@ -51,6 +51,8 @@ type Stage struct {
 	DeleteEntities []YipEntity `yaml:"delete_entities"`
 	Dns            DNS         `yaml:"dns"`
 	Name           string      `yaml:"name"`
+
+	Node string `yaml:"node"`
 }
 
 type DNS struct {
