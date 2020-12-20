@@ -84,6 +84,23 @@ Now we can execute it:
 $> cat myfile.yaml | yip -
 ```
 
+## Node-data interpolation
+
+`yip` interpolates host data retrieved by [sysinfo](https://github.com/zcalusic/sysinfo#sample-output) and are templated in the commands, file and entities  fields.
+
+This means that templating like the following is possible:
+
+```yaml
+stages:
+  foo:
+  - name: "echo"
+    commands:
+    - echo "{{.Values.node.hostname}}"
+
+name: "Test yip!"
+```
+
+
 That's it! by default `yip` uses the default stage and the `default` executor, but you can customize its execution.
 
 

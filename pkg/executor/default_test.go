@@ -23,6 +23,7 @@ import (
 	. "github.com/mudler/yip/pkg/executor"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/twpayne/go-vfs/vfst"
+	"github.com/zcalusic/sysinfo"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -56,6 +57,32 @@ var _ = Describe("Executor", func() {
 
 			Expect(string(b)).Should(Equal("Test"))
 
+		})
+
+		It("Interpolates sys info", func() {
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/tmp/test/bar": "boo"})
+			Expect(err).Should(BeNil())
+
+			defer cleanup()
+
+			config := schema.YipConfig{Stages: map[string][]schema.Stage{
+				"foo": []schema.Stage{{
+					Commands: []string{},
+					Files:    []schema.File{{Path: "/tmp/test/foo", Content: "{{.Values.node.hostname}}", Permissions: 0777}},
+				}},
+			}}
+
+			def.Apply("foo", config, fs)
+			file, err := fs.Open("/tmp/test/foo")
+			Expect(err).ShouldNot(HaveOccurred())
+
+			b, err := ioutil.ReadAll(file)
+			if err != nil {
+				log.Fatal(err)
+			}
+			var si sysinfo.SysInfo
+			si.GetSysInfo()
+			Expect(string(b)).Should(Equal(si.Node.Hostname))
 		})
 
 		It("Creates dirs", func() {

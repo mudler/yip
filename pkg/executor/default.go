@@ -16,19 +16,75 @@
 package executor
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
-	log "github.com/sirupsen/logrus"
-
 	resolvconf "github.com/moby/libnetwork/resolvconf"
 	entities "github.com/mudler/entities/pkg/entities"
+	log "github.com/sirupsen/logrus"
+	"github.com/zcalusic/sysinfo"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/ionrock/procs"
 	"github.com/mudler/yip/pkg/schema"
+	"github.com/pkg/errors"
 	"github.com/twpayne/go-vfs"
+	"helm.sh/helm/v3/pkg/chart"
+	"helm.sh/helm/v3/pkg/chartutil"
+	"helm.sh/helm/v3/pkg/engine"
 )
+
+// renderHelm renders the template string with helm
+func renderHelm(template string, values, d map[string]interface{}) (string, error) {
+	c := &chart.Chart{
+		Metadata: &chart.Metadata{
+			Name:    "",
+			Version: "",
+		},
+		Templates: []*chart.File{
+			{Name: "templates", Data: []byte(template)},
+		},
+		Values: map[string]interface{}{"Values": values},
+	}
+
+	v, err := chartutil.CoalesceValues(c, map[string]interface{}{"Values": d})
+	if err != nil {
+		return "", errors.Wrap(err, "while rendering template")
+	}
+	out, err := engine.Render(c, v)
+	if err != nil {
+		return "", errors.Wrap(err, "while rendering template")
+	}
+
+	return out["templates"], nil
+}
+
+func templateSysData(s string) string {
+	var si sysinfo.SysInfo
+	interpolateOpts := map[string]interface{}{}
+
+	si.GetSysInfo()
+
+	data, err := json.Marshal(&si)
+	if err != nil {
+		log.Warning(fmt.Sprintf("Failed marshalling '%s': %s", s, err.Error()))
+		return s
+	}
+	log.Debug(string(data))
+
+	err = json.Unmarshal(data, &interpolateOpts)
+	if err != nil {
+		log.Warning(fmt.Sprintf("Failed marshalling '%s': %s", s, err.Error()))
+		return s
+	}
+	rendered, err := renderHelm(s, map[string]interface{}{}, interpolateOpts)
+	if err != nil {
+		log.Warning(fmt.Sprintf("Failed rendering '%s': %s", s, err.Error()))
+		return s
+	}
+	return rendered
+}
 
 // DefaultExecutor is the default yip Executor.
 // It simply creates file and executes command for a linux executor
@@ -48,7 +104,7 @@ func (e *DefaultExecutor) ensureEntities(s schema.Stage) error {
 	var errs error
 	entityParser := entities.Parser{}
 	for _, e := range s.EnsureEntities {
-		decodedE, err := entityParser.ReadEntityFromBytes([]byte(e.Entity))
+		decodedE, err := entityParser.ReadEntityFromBytes([]byte(templateSysData(e.Entity)))
 		if err != nil {
 			errs = multierror.Append(errs, err)
 			continue
@@ -66,7 +122,7 @@ func (e *DefaultExecutor) deleteEntities(s schema.Stage) error {
 	var errs error
 	entityParser := entities.Parser{}
 	for _, e := range s.DeleteEntities {
-		decodedE, err := entityParser.ReadEntityFromBytes([]byte(e.Entity))
+		decodedE, err := entityParser.ReadEntityFromBytes([]byte(templateSysData(e.Entity)))
 		if err != nil {
 			errs = multierror.Append(errs, err)
 			continue
@@ -97,7 +153,7 @@ func (e *DefaultExecutor) writeFile(file schema.File, fs vfs.FS) error {
 		return err
 	}
 
-	_, err = fsfile.WriteString(file.Content)
+	_, err = fsfile.WriteString(templateSysData(file.Content))
 	if err != nil {
 		return err
 
@@ -112,7 +168,7 @@ func (e *DefaultExecutor) writeFile(file schema.File, fs vfs.FS) error {
 
 func (e *DefaultExecutor) runProc(cmd string) (string, error) {
 	log.Info(fmt.Sprintf("Running command: '%s'", cmd))
-	p := procs.NewProcess(cmd)
+	p := procs.NewProcess(templateSysData(cmd))
 	err := p.Run()
 	if err != nil {
 		return "", err
