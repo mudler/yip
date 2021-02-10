@@ -18,7 +18,9 @@ package executor
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 
 	resolvconf "github.com/moby/libnetwork/resolvconf"
@@ -175,6 +177,70 @@ func (e *DefaultExecutor) runProc(cmd string) (string, error) {
 	}
 	out, err := p.Output()
 	return string(out), err
+}
+
+func (e *DefaultExecutor) Walk(stage string, args []string, fs vfs.FS) error {
+	var errs error
+	var config *schema.YipConfig
+
+	for _, source := range args {
+		// Load yamls in a directory
+		if f, err := fs.Stat(source); err == nil && f.IsDir() {
+			err := vfs.Walk(fs, source,
+				func(path string, info os.FileInfo, err error) error {
+					if err != nil {
+						return err
+					}
+					if path == source {
+						return nil
+					}
+					// Process only files
+					if info.IsDir() {
+						return nil
+					}
+					ext := filepath.Ext(path)
+					if ext != ".yaml" && ext != ".yml" {
+						return nil
+					}
+					config, err = schema.LoadFromFile(path, fs)
+					if err != nil {
+						errs = multierror.Append(errs, err)
+						return nil
+					}
+					log.Infof("Executing %s", path)
+					if err = e.Apply(stage, *config, vfs.OSFS); err != nil {
+						errs = multierror.Append(errs, err)
+						return nil
+					}
+
+					return nil
+				})
+			if err != nil {
+				errs = multierror.Append(errs, err)
+			}
+
+			continue
+		}
+
+		// Parse urls/file
+		_, err := url.ParseRequestURI(source)
+		if err != nil {
+			config, err = schema.LoadFromFile(source, fs)
+		} else {
+			config, err = schema.LoadFromUrl(source)
+		}
+
+		if err != nil {
+			errs = multierror.Append(errs, err)
+			continue
+		}
+
+		if err = e.Apply(stage, *config, fs); err != nil {
+			errs = multierror.Append(errs, err)
+			continue
+		}
+	}
+	return errs
 }
 
 // Apply applies a yip Config file by creating files and running commands defined.

@@ -18,9 +18,9 @@ package schema
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"net/http"
 
+	"github.com/twpayne/go-vfs"
 	"gopkg.in/yaml.v2"
 )
 
@@ -68,8 +68,8 @@ type YipConfig struct {
 }
 
 // LoadFromFile loads a yip config from a YAML file
-func LoadFromFile(s string) (*YipConfig, error) {
-	yamlFile, err := ioutil.ReadFile(s)
+func LoadFromFile(s string, fs vfs.FS) (*YipConfig, error) {
+	yamlFile, err := fs.ReadFile(s)
 	if err != nil {
 		return nil, err
 	}
