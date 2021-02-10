@@ -220,6 +220,52 @@ stages:
 
 		})
 
+		It("Reports error, and executes all yip files", func() {
+
+			fs2, cleanup2, err := vfst.NewTestFS(map[string]interface{}{})
+			Expect(err).Should(BeNil())
+			temp := fs2.TempDir()
+
+			defer cleanup2()
+
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{
+				"/some/yip/01_first.yaml": `
+stages:
+  test:
+  - commands:
+    - exit 1
+`,
+				"/some/yip/02_second.yaml": `
+stages:
+  test:
+  - commands:
+    - sed -i 's/boo/bar/g' ` + temp + `/tmp/test/bar
+`,
+			})
+			Expect(err).Should(BeNil())
+			defer cleanup()
+
+			err = fs2.Mkdir("/tmp", os.ModePerm)
+			Expect(err).Should(BeNil())
+			err = fs2.Mkdir("/tmp/test", os.ModePerm)
+			Expect(err).Should(BeNil())
+
+			err = fs2.WriteFile("/tmp/test/bar", []byte(`boo`), os.ModePerm)
+			Expect(err).Should(BeNil())
+
+			err = def.Walk("test", []string{"/some/yip"}, fs)
+			Expect(err).Should(HaveOccurred())
+			file, err := os.Open(temp + "/tmp/test/bar")
+			Expect(err).ShouldNot(HaveOccurred())
+
+			b, err := ioutil.ReadAll(file)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			Expect(string(b)).Should(Equal("bar"))
+		})
+
 		It("Set DNS", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/tmp/test/bar": "boo"})
 			Expect(err).Should(BeNil())
@@ -245,6 +291,7 @@ stages:
 
 			Expect(string(b)).Should(Equal("nameserver 8.8.8.8\n"))
 		})
+
 		It("Get Users", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/tmp/test/bar": ""})
 			Expect(err).Should(BeNil())

@@ -179,6 +179,7 @@ func (e *DefaultExecutor) runProc(cmd string) (string, error) {
 	return string(out), err
 }
 
+// Walk walks directory in the file system provided and executes yipfile at the supplied stage
 func (e *DefaultExecutor) Walk(stage string, args []string, fs vfs.FS) error {
 	var errs error
 	var config *schema.YipConfig
