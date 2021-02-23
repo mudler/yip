@@ -4,26 +4,39 @@ go 1.12
 
 require (
 	github.com/apex/log v1.9.0
+	github.com/cloudflare/cfssl v1.5.0
+	github.com/docker/docker v17.12.0-ce-rc1.0.20200417035958-130b0bc6032c+incompatible // indirect
 	github.com/docker/libnetwork v0.8.0-dev.2.0.20200612180813-9e99af28df21 // indirect
-	github.com/flynn/go-shlex v0.0.0-20150515145356-3f9db97f8568 // indirect
+	github.com/google/go-cmp v0.4.1 // indirect
+	github.com/googleapis/gnostic v0.2.2 // indirect
 	github.com/hashicorp/go-multierror v1.1.0
-	github.com/ionrock/procs v0.0.0-20180102005558-f53ef5630f1a
 	github.com/ishidawataru/sctp v0.0.0-20191218070446-00ab2ac2db07 // indirect
-	github.com/kr/pretty v0.2.0 // indirect
+	github.com/joho/godotenv v1.3.0
+	github.com/json-iterator/go v1.1.9 // indirect
+	github.com/kr/text v0.2.0 // indirect
 	github.com/moby/libnetwork v0.8.0-dev.2.0.20200612180813-9e99af28df21
 	github.com/mudler/entities v0.0.0-20200720163828-8efd0b0b1802
-	github.com/mudler/luet v0.0.0-20201219172308-8371d7aa7b76
+	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/onsi/ginkgo v1.14.2
 	github.com/onsi/gomega v1.10.3
-	github.com/phayes/permbits v0.0.0-20190612203442-39d7c581d2ee // indirect
+	github.com/paultag/go-modprobe v0.0.0-20200930231701-46c7252028d3
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.6.0
-	github.com/spf13/afero v1.3.2 // indirect
 	github.com/spf13/cobra v1.0.0
-	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/twpayne/go-vfs v1.5.0
-	github.com/willdonnelly/passwd v0.0.0-20141013001024-7935dab3074c // indirect
+	github.com/vishvananda/netlink v1.1.0 // indirect
+	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f // indirect
+	github.com/willdonnelly/passwd v0.0.0-20141013001024-7935dab3074c
 	github.com/zcalusic/sysinfo v0.0.0-20200820110305-ef1bb2697bc2
+	golang.org/x/crypto v0.0.0-20201112155050-0c6587e931a9 // indirect
+	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d // indirect
+	golang.org/x/sys v0.0.0-20201113135734-0a15ea8d9b02 // indirect
+	golang.org/x/time v0.0.0-20200416051211-89c76fbcd5d1 // indirect
+	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
+	google.golang.org/protobuf v1.24.0 // indirect
+	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 	gopkg.in/yaml.v2 v2.3.0
+	gotest.tools/v3 v3.0.2 // indirect
 	helm.sh/helm/v3 v3.3.4
+	pault.ag/go/topsort v0.0.0-20160530003732-f98d2ad46e1a // indirect
 )

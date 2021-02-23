@@ -20,6 +20,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/mudler/yip/pkg/console"
 	"github.com/mudler/yip/pkg/executor"
 	"github.com/mudler/yip/pkg/schema"
 	log "github.com/sirupsen/logrus"
@@ -75,6 +76,7 @@ For example:
 		if len(args) == 0 {
 			fail("yip needs at least one path or url as argument")
 		}
+		stdConsole := console.StandardConsole{}
 
 		// Read yamls from STDIN
 		if fromStdin {
@@ -84,11 +86,11 @@ For example:
 			config, err = schema.LoadFromYaml(str)
 			checkErr(err)
 
-			err = runner.Apply(stage, *config, vfs.OSFS)
+			err = runner.Apply(stage, *config, vfs.OSFS, stdConsole)
 			checkErr(err)
 		}
 
-		checkErr(runner.Walk(stage, args, vfs.OSFS))
+		checkErr(runner.Walk(stage, args, vfs.OSFS, stdConsole))
 	},
 }
 

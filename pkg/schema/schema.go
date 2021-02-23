@@ -47,12 +47,25 @@ type Stage struct {
 	Files       []File      `yaml:"files"`
 	Directories []Directory `yaml:"directories"`
 
-	EnsureEntities []YipEntity `yaml:"ensure_entities"`
-	DeleteEntities []YipEntity `yaml:"delete_entities"`
-	Dns            DNS         `yaml:"dns"`
-	Name           string      `yaml:"name"`
+	EnsureEntities  []YipEntity         `yaml:"ensure_entities"`
+	DeleteEntities  []YipEntity         `yaml:"delete_entities"`
+	Dns             DNS                 `yaml:"dns"`
+	Hostname        string              `yaml:"hostname"`
+	Name            string              `yaml:"name"`
+	Sysctl          map[string]string   `yaml:"sysctl"`
+	SSHKeys         map[string][]string `yaml:"authorized_keys"`
+	Node            string              `yaml:"node"`
+	Users           map[string]string   `yaml:"users"`
+	Modules         []string            `yaml:"modules"`
+	Systemctl       Systemctl           `yaml:"systemctl"`
+	Environment     map[string]string   `yaml:"environment"`
+	EnvironmentFile string              `yaml:"environment_file"`
+}
 
-	Node string `yaml:"node"`
+type Systemctl struct {
+	Enable  []string `yaml:"enable"`
+	Disable []string `yaml:"disable"`
+	Mask    []string `yaml:"mask"`
 }
 
 type DNS struct {

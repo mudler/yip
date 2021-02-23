@@ -20,8 +20,11 @@ import (
 	"log"
 	"os"
 
+	"github.com/mudler/yip/pkg/console"
+
 	. "github.com/mudler/yip/pkg/executor"
 	"github.com/mudler/yip/pkg/schema"
+	consoletests "github.com/mudler/yip/tests/console"
 	"github.com/twpayne/go-vfs/vfst"
 	"github.com/zcalusic/sysinfo"
 
@@ -32,32 +35,7 @@ import (
 var _ = Describe("Executor", func() {
 	Context("Loading entities via yaml", func() {
 		def := NewExecutor("default")
-
-		It("Creates files", func() {
-			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/tmp/test/bar": "boo"})
-			Expect(err).Should(BeNil())
-
-			defer cleanup()
-
-			config := schema.YipConfig{Stages: map[string][]schema.Stage{
-				"foo": []schema.Stage{{
-					Commands: []string{},
-					Files:    []schema.File{{Path: "/tmp/test/foo", Content: "Test", Permissions: 0777}},
-				}},
-			}}
-
-			def.Apply("foo", config, fs)
-			file, err := fs.Open("/tmp/test/foo")
-			Expect(err).ShouldNot(HaveOccurred())
-
-			b, err := ioutil.ReadAll(file)
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			Expect(string(b)).Should(Equal("Test"))
-
-		})
+		testConsole := consoletests.TestConsole{}
 
 		It("Interpolates sys info", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/tmp/test/bar": "boo"})
@@ -66,13 +44,13 @@ var _ = Describe("Executor", func() {
 			defer cleanup()
 
 			config := schema.YipConfig{Stages: map[string][]schema.Stage{
-				"foo": []schema.Stage{{
+				"foo": {{
 					Commands: []string{},
 					Files:    []schema.File{{Path: "/tmp/test/foo", Content: "{{.Values.node.hostname}}", Permissions: 0777}},
 				}},
 			}}
 
-			def.Apply("foo", config, fs)
+			def.Apply("foo", config, fs, testConsole)
 			file, err := fs.Open("/tmp/test/foo")
 			Expect(err).ShouldNot(HaveOccurred())
 
@@ -100,7 +78,7 @@ var _ = Describe("Executor", func() {
 				}},
 			}}
 
-			def.Apply("foo", config, fs)
+			def.Apply("foo", config, fs, testConsole)
 			file, err := fs.Open("/tmp/test/foo")
 			Expect(err).ShouldNot(HaveOccurred())
 
@@ -119,7 +97,7 @@ var _ = Describe("Executor", func() {
 				}},
 			}}
 
-			def.Apply("foo", config, fs)
+			def.Apply("foo", config, fs, testConsole)
 			_, err = fs.Open("/tmp/test/bbb")
 			Expect(err).Should(HaveOccurred())
 		})
@@ -137,13 +115,15 @@ var _ = Describe("Executor", func() {
 				}},
 			}}
 
-			def.Apply("foo", config, fs)
+			def.Apply("foo", config, fs, testConsole)
 			_, err = fs.Open("/tmp/boo")
 
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
 		It("Run commands", func() {
+			testConsole := console.StandardConsole{}
+
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/tmp/test/bar": "boo"})
 			Expect(err).Should(BeNil())
 			temp := fs.TempDir()
@@ -159,7 +139,7 @@ var _ = Describe("Executor", func() {
 				}},
 			}}
 
-			err = def.Apply("foo", config, fs)
+			err = def.Apply("foo", config, fs, testConsole)
 			Expect(err).Should(BeNil())
 			file, err := os.Open(temp + "/foo")
 			Expect(err).ShouldNot(HaveOccurred())
@@ -174,6 +154,7 @@ var _ = Describe("Executor", func() {
 		})
 
 		It("Run yip files in sequence", func() {
+			testConsole := console.StandardConsole{}
 
 			fs2, cleanup2, err := vfst.NewTestFS(map[string]interface{}{})
 			Expect(err).Should(BeNil())
@@ -206,7 +187,7 @@ stages:
 			err = fs2.WriteFile("/tmp/test/bar", []byte(`boo`), os.ModePerm)
 			Expect(err).Should(BeNil())
 
-			err = def.Walk("test", []string{"/some/yip"}, fs)
+			err = def.Walk("test", []string{"/some/yip"}, fs, testConsole)
 			Expect(err).Should(BeNil())
 			file, err := os.Open(temp + "/tmp/test/bar")
 			Expect(err).ShouldNot(HaveOccurred())
@@ -221,6 +202,7 @@ stages:
 		})
 
 		It("Reports error, and executes all yip files", func() {
+			testConsole := console.StandardConsole{}
 
 			fs2, cleanup2, err := vfst.NewTestFS(map[string]interface{}{})
 			Expect(err).Should(BeNil())
@@ -253,7 +235,7 @@ stages:
 			err = fs2.WriteFile("/tmp/test/bar", []byte(`boo`), os.ModePerm)
 			Expect(err).Should(BeNil())
 
-			err = def.Walk("test", []string{"/some/yip"}, fs)
+			err = def.Walk("test", []string{"/some/yip"}, fs, testConsole)
 			Expect(err).Should(HaveOccurred())
 			file, err := os.Open(temp + "/tmp/test/bar")
 			Expect(err).ShouldNot(HaveOccurred())
@@ -264,32 +246,6 @@ stages:
 			}
 
 			Expect(string(b)).Should(Equal("bar"))
-		})
-
-		It("Set DNS", func() {
-			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/tmp/test/bar": "boo"})
-			Expect(err).Should(BeNil())
-			temp := fs.TempDir()
-
-			defer cleanup()
-
-			config := schema.YipConfig{
-				Stages: map[string][]schema.Stage{
-					"foo": []schema.Stage{{
-						Dns: schema.DNS{Path: temp + "/foo", Nameservers: []string{"8.8.8.8"}},
-					}}},
-			}
-
-			def.Apply("foo", config, fs)
-			file, err := os.Open(temp + "/foo")
-			Expect(err).ShouldNot(HaveOccurred())
-
-			b, err := ioutil.ReadAll(file)
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			Expect(string(b)).Should(Equal("nameserver 8.8.8.8\n"))
 		})
 
 		It("Get Users", func() {
@@ -315,7 +271,7 @@ users: "one,two,tree"
 `,
 						}}}}},
 			}
-			err = def.Apply("foo", config, fs)
+			err = def.Apply("foo", config, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 			file, err := os.Open(temp + "/foo")
 			Expect(err).ShouldNot(HaveOccurred())
@@ -350,7 +306,7 @@ gid: 1
 users: "one,two,tree"
 `,
 						}}}}}}
-			err = def.Apply("foo", config, fs)
+			err = def.Apply("foo", config, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 			file, err := os.Open(temp + "/foo")
 			Expect(err).ShouldNot(HaveOccurred())
