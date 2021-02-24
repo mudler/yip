@@ -36,5 +36,8 @@ func Systemctl(s schema.Stage, fs vfs.FS, console Console) error {
 	if err := run(s.Systemctl.Mask, "systemctl mask %s", console); err != nil {
 		errs = multierror.Append(errs, err)
 	}
+	if err := run(s.Systemctl.Start, "systemctl start %s", console); err != nil {
+		errs = multierror.Append(errs, err)
+	}
 	return errs
 }

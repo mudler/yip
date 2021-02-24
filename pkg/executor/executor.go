@@ -39,6 +39,7 @@ func NewExecutor(s string) Executor {
 				plugins.SSH,
 				plugins.User,
 				plugins.LoadModules,
+				plugins.Timesyncd,
 				plugins.Systemctl,
 				plugins.Environment,
 			},

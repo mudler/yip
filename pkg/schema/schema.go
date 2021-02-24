@@ -60,11 +60,14 @@ type Stage struct {
 	Systemctl       Systemctl           `yaml:"systemctl"`
 	Environment     map[string]string   `yaml:"environment"`
 	EnvironmentFile string              `yaml:"environment_file"`
+
+	TimeSyncd map[string]string `yaml:"timesyncd"`
 }
 
 type Systemctl struct {
 	Enable  []string `yaml:"enable"`
 	Disable []string `yaml:"disable"`
+	Start   []string `yaml:"start"`
 	Mask    []string `yaml:"mask"`
 }
 

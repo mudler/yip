@@ -16,6 +16,8 @@
 package plugins_test
 
 import (
+	"io/ioutil"
+
 	. "github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
 	consoletests "github.com/mudler/yip/tests/console"
@@ -25,28 +27,26 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Systemctl", func() {
-	Context("parsing yip file", func() {
+var _ = Describe("Timesyncd", func() {
+	Context("setting", func() {
 		testConsole := consoletests.TestConsole{}
-		BeforeEach(func() {
-			consoletests.Reset()
-		})
-		It("starts and enables services", func() {
-			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{})
+
+		It("configures timesyncd", func() {
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/etc/systemd/foo.conf": ""})
 			Expect(err).Should(BeNil())
 			defer cleanup()
 
-			err = Systemctl(schema.Stage{
-				Systemctl: schema.Systemctl{
-					Enable:  []string{"foo"},
-					Disable: []string{"bar"},
-					Mask:    []string{"baz"},
-					Start:   []string{"moz"},
-				},
+			err = Timesyncd(schema.Stage{
+				TimeSyncd: map[string]string{"NTP": "0.pool"},
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			Expect(consoletests.Commands).Should(Equal([]string{"systemctl enable foo", "systemctl disable bar", "systemctl mask baz", "systemctl start moz"}))
+			file, err := fs.Open("/etc/systemd/timesyncd.conf")
+			Expect(err).ShouldNot(HaveOccurred())
+
+			b, err := ioutil.ReadAll(file)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(string(b)).Should(Equal("[Time]\nNTP = 0.pool\n\n"))
 		})
 	})
 })
