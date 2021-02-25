@@ -12,7 +12,7 @@ import (
 // Executor an executor applies a yip config
 type Executor interface {
 	Apply(string, schema.YipConfig, vfs.FS, plugins.Console) error
-	Walk(string, []string, vfs.FS, plugins.Console) error
+	Run(string, vfs.FS, plugins.Console, ...string) error
 	Plugins([]Plugin)
 	Conditionals([]Plugin)
 }

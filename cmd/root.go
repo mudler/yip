@@ -88,9 +88,11 @@ For example:
 
 			err = runner.Apply(stage, *config, vfs.OSFS, stdConsole)
 			checkErr(err)
+
+			return
 		}
 
-		checkErr(runner.Walk(stage, args, vfs.OSFS, stdConsole))
+		checkErr(runner.Run(stage, vfs.OSFS, stdConsole, args...))
 	},
 }
 

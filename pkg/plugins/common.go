@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 	"os/exec"
 	"strings"
 	"time"
@@ -88,7 +87,7 @@ func download(url string) (string, error) {
 		time.Sleep(time.Second)
 	}
 	if err != nil {
-		return "", errors.Wrap(err, "failed while getting remote pubkey")
+		return "", errors.Wrap(err, "failed while getting file")
 	}
 	if resp.Body != nil {
 		defer resp.Body.Close()
@@ -98,12 +97,4 @@ func download(url string) (string, error) {
 	}
 	bytes, err := ioutil.ReadAll(resp.Body)
 	return string(bytes), err
-}
-
-func isUrl(s string) bool {
-	url, err := url.Parse(s)
-	if err != nil || url.Scheme == "" {
-		return false
-	}
-	return true
 }

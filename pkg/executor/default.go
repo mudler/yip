@@ -17,7 +17,6 @@ package executor
 
 import (
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 
@@ -26,6 +25,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
+	"github.com/mudler/yip/pkg/utils"
 	"github.com/twpayne/go-vfs"
 )
 
@@ -44,66 +44,90 @@ func (e *DefaultExecutor) Conditionals(p []Plugin) {
 	e.conditionals = p
 }
 
-// Walk walks directory in the file system provided and executes yipfile at the supplied stage
-func (e *DefaultExecutor) Walk(stage string, args []string, fs vfs.FS, console plugins.Console) error {
+func (e *DefaultExecutor) walkDir(stage, dir string, fs vfs.FS, console plugins.Console) error {
 	var errs error
-	var config *schema.YipConfig
 
-	for _, source := range args {
-		// Load yamls in a directory
-		if f, err := fs.Stat(source); err == nil && f.IsDir() {
-			err := vfs.Walk(fs, source,
-				func(path string, info os.FileInfo, err error) error {
-					if err != nil {
-						return err
-					}
-					if path == source {
-						return nil
-					}
-					// Process only files
-					if info.IsDir() {
-						return nil
-					}
-					ext := filepath.Ext(path)
-					if ext != ".yaml" && ext != ".yml" {
-						return nil
-					}
-					config, err = schema.LoadFromFile(path, fs)
-					if err != nil {
-						errs = multierror.Append(errs, err)
-						return nil
-					}
-					log.Infof("Executing %s", path)
-					if err = e.Apply(stage, *config, vfs.OSFS, console); err != nil {
-						errs = multierror.Append(errs, err)
-						return nil
-					}
-
-					return nil
-				})
+	err := vfs.Walk(fs, dir,
+		func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if path == dir {
+				return nil
+			}
+			// Process only files
+			if info.IsDir() {
+				return nil
+			}
+			ext := filepath.Ext(path)
+			if ext != ".yaml" && ext != ".yml" {
+				return nil
+			}
+			config, err := schema.LoadFromFile(path, fs)
 			if err != nil {
 				errs = multierror.Append(errs, err)
+				return nil
+			}
+			log.Infof("Executing %s", path)
+			if err = e.Apply(stage, *config, vfs.OSFS, console); err != nil {
+				errs = multierror.Append(errs, err)
+				return nil
 			}
 
-			continue
-		}
+			return nil
+		})
+	if err != nil {
+		errs = multierror.Append(errs, err)
+	}
+	return errs
+}
 
-		// Parse urls/file
-		_, err := url.ParseRequestURI(source)
-		if err != nil {
-			config, err = schema.LoadFromFile(source, fs)
-		} else {
-			config, err = schema.LoadFromUrl(source)
-		}
+func (e *DefaultExecutor) runRemoteFile(stage, uri string, fs vfs.FS, console plugins.Console) error {
+	config, err := schema.LoadFromUrl(uri)
+	if err != nil {
+		return err
+	}
 
-		if err != nil {
+	if err = e.Apply(stage, *config, fs, console); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (e *DefaultExecutor) runFile(stage, uri string, fs vfs.FS, console plugins.Console) error {
+	config, err := schema.LoadFromFile(uri, fs)
+	if err != nil {
+		return err
+	}
+
+	if err = e.Apply(stage, *config, fs, console); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (e *DefaultExecutor) runStage(stage, uri string, fs vfs.FS, console plugins.Console) (err error) {
+	f, err := fs.Stat(uri)
+	if err == nil && f.IsDir() {
+		// Load yamls in a directory
+		err = e.walkDir(stage, uri, fs, console)
+	} else if err == nil {
+		err = e.runFile(stage, uri, fs, console)
+	} else if utils.IsUrl(uri) {
+		err = e.runRemoteFile(stage, uri, fs, console)
+	}
+	return
+}
+
+// Run takes a list of URI to run yipfiles from. URI can be also a dir or a local path, as well as a remote
+func (e *DefaultExecutor) Run(stage string, fs vfs.FS, console plugins.Console, args ...string) error {
+	var errs error
+
+	for _, source := range args {
+		if err := e.runStage(stage, source, fs, console); err != nil {
 			errs = multierror.Append(errs, err)
-			continue
-		}
-
-		if err = e.Apply(stage, *config, fs, console); err != nil {
-			errs = multierror.Append(errs, err)
-			continue
 		}
 	}
 	return errs

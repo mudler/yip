@@ -10,6 +10,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/mudler/yip/pkg/schema"
+	"github.com/mudler/yip/pkg/utils"
 	"github.com/pkg/errors"
 	"github.com/twpayne/go-vfs"
 	passwd "github.com/willdonnelly/passwd"
@@ -82,7 +83,7 @@ func ensure(file string, fs vfs.FS) (os.FileInfo, error) {
 func authorizeSSHKey(key, file string, uid, gid int, fs vfs.FS) error {
 	var err error
 
-	if isUrl(key) {
+	if utils.IsUrl(key) {
 		key, err = getRemotePubKey(key)
 		if err != nil {
 			return errors.Wrap(err, "failed fetching ssh key")
