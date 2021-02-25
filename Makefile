@@ -8,6 +8,10 @@ ITTERATION := $(shell date +%s)
 BUILD_PLATFORMS ?= -osarch="linux/amd64" -osarch="linux/386" -osarch="linux/arm"
 ROOT_DIR:=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
+# go tool nm ./yip | grep Commit
+override LDFLAGS += -X "github.com/mudler/yip/cmd.BuildTime=$(shell date -u '+%Y-%m-%d %I:%M:%S %Z')"
+override LDFLAGS += -X "github.com/mudler/yip/cmd.BuildCommit=$(shell git rev-parse HEAD)"
+
 .PHONY: all
 all: deps build
 
@@ -49,11 +53,16 @@ deps:
 
 .PHONY: build
 build:
-	CGO_ENABLED=0 go build
+	CGO_ENABLED=0 go build -ldflags '$(LDFLAGS)'
 
 .PHONY: gox-build
 gox-build:
-	CGO_ENABLED=0 gox $(BUILD_PLATFORMS) -output="release/$(NAME)-$(VERSION)-{{.OS}}-{{.Arch}}"
+	CGO_ENABLED=0 gox $(BUILD_PLATFORMS) -ldflags '$(LDFLAGS)' -output="release/$(NAME)-$(VERSION)-{{.OS}}-{{.Arch}}"
+
+.PHONY: build-small
+build-small:
+	@$(MAKE) LDFLAGS+="-s -w" build
+	upx --brute -1 $(NAME)
 
 .PHONY: lint
 lint:

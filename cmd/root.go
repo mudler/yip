@@ -16,6 +16,7 @@
 package cmd
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -26,6 +27,18 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/twpayne/go-vfs"
+)
+
+const (
+	CLIVersion = "0.7.2"
+)
+
+// Build time and commit information.
+//
+// ⚠️ WARNING: should only be set by "-ldflags".
+var (
+	BuildTime   string
+	BuildCommit string
 )
 
 var entityFile string
@@ -55,8 +68,9 @@ func init() {
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "yip",
-	Short: "Modern go system configurator",
+	Use:     "yip",
+	Short:   "Modern go system configurator",
+	Version: fmt.Sprintf("%s-g%s %s", CLIVersion, BuildCommit, BuildTime),
 	Long: `yip loads cloud-init style yamls and applies them in the system.
 
 For example:
@@ -72,7 +86,7 @@ For example:
 		fromStdin := len(args) == 1 && args[0] == "-"
 
 		var config *schema.YipConfig
-
+		log.Infof("yip version %s", cmd.Version)
 		if len(args) == 0 {
 			fail("yip needs at least one path or url as argument")
 		}
