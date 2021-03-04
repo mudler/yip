@@ -7,10 +7,10 @@ require (
 	github.com/cloudflare/cfssl v1.5.0
 	github.com/docker/docker v17.12.0-ce-rc1.0.20200417035958-130b0bc6032c+incompatible // indirect
 	github.com/docker/libnetwork v0.8.0-dev.2.0.20200612180813-9e99af28df21 // indirect
-	github.com/google/go-cmp v0.4.1 // indirect
 	github.com/googleapis/gnostic v0.2.2 // indirect
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/ishidawataru/sctp v0.0.0-20191218070446-00ab2ac2db07 // indirect
+	github.com/itchyny/gojq v0.12.2
 	github.com/joho/godotenv v1.3.0
 	github.com/json-iterator/go v1.1.9 // indirect
 	github.com/kr/text v0.2.0 // indirect
@@ -30,7 +30,6 @@ require (
 	github.com/zcalusic/sysinfo v0.0.0-20200820110305-ef1bb2697bc2
 	golang.org/x/crypto v0.0.0-20201112155050-0c6587e931a9 // indirect
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d // indirect
-	golang.org/x/sys v0.0.0-20201113135734-0a15ea8d9b02 // indirect
 	golang.org/x/time v0.0.0-20200416051211-89c76fbcd5d1 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/protobuf v1.24.0 // indirect

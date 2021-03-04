@@ -82,6 +82,8 @@ For example:
 	Run: func(cmd *cobra.Command, args []string) {
 		stage, _ := cmd.Flags().GetString("stage")
 		exec, _ := cmd.Flags().GetString("executor")
+		dot, _ := cmd.Flags().GetBool("dotnotation")
+
 		runner := executor.NewExecutor(exec)
 		fromStdin := len(args) == 1 && args[0] == "-"
 
@@ -92,21 +94,24 @@ For example:
 		}
 		stdConsole := console.StandardConsole{}
 
-		// Read yamls from STDIN
-		if fromStdin {
+		switch {
+		case fromStdin:
 			str, err := ioutil.ReadAll(os.Stdin)
 			checkErr(err)
 
-			config, err = schema.LoadFromYaml(str)
-			checkErr(err)
+			if dot {
+				config, err = schema.LoadFromDotNotationS(string(str))
+				checkErr(err)
+			} else {
+				config, err = schema.LoadFromYaml(str)
+				checkErr(err)
+			}
 
 			err = runner.Apply(stage, *config, vfs.OSFS, stdConsole)
 			checkErr(err)
-
-			return
+		default:
+			checkErr(runner.Run(stage, vfs.OSFS, stdConsole, args...))
 		}
-
-		checkErr(runner.Run(stage, vfs.OSFS, stdConsole, args...))
 	},
 }
 
@@ -120,4 +125,5 @@ func Execute() {
 func init() {
 	rootCmd.PersistentFlags().StringP("executor", "e", "default", "Executor which applies the config")
 	rootCmd.PersistentFlags().StringP("stage", "s", "default", "Stage to apply")
+	rootCmd.PersistentFlags().BoolP("dotnotation", "d", false, "Parse stdin from dotnotation ( e.g. `stages.foo.name=..` ) ")
 }

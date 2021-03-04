@@ -17,9 +17,14 @@ package schema
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
+	"github.com/hashicorp/go-multierror"
+	"github.com/itchyny/gojq"
 	"github.com/twpayne/go-vfs"
 	"gopkg.in/yaml.v2"
 )
@@ -117,4 +122,75 @@ func LoadFromUrl(s string) (*YipConfig, error) {
 	_, err = io.Copy(buf, resp.Body)
 
 	return LoadFromYaml(buf.Bytes())
+}
+
+func jq(command string, data map[string]interface{}) (map[string]interface{}, error) {
+	query, err := gojq.Parse(command)
+	if err != nil {
+		return nil, err
+	}
+	code, err := gojq.Compile(query)
+	if err != nil {
+		return nil, err
+	}
+	iter := code.Run(data)
+
+	v, ok := iter.Next()
+	if !ok {
+		return nil, errors.New("failed getting rsult from gojq")
+	}
+	if err, ok := v.(error); ok {
+		return nil, err
+	}
+	return v.(map[string]interface{}), nil
+}
+
+func dotToYAML(v map[string]interface{}) ([]byte, error) {
+	data := map[string]interface{}{}
+	var errs error
+
+	for k, value := range v {
+		newData, err := jq(fmt.Sprintf(".%s=\"%s\"", k, value), data)
+		if err != nil {
+			errs = multierror.Append(errs, err)
+			continue
+		}
+		data = newData
+	}
+
+	out, err := yaml.Marshal(&data)
+	if err != nil {
+		errs = multierror.Append(errs, err)
+	}
+	return out, err
+}
+
+func LoadFromDotNotation(v map[string]interface{}) (*YipConfig, error) {
+	data, err := dotToYAML(v)
+	if err != nil {
+		return nil, err
+	}
+	return LoadFromYaml(data)
+}
+
+// LoadFromDotNotationS read a string in dot notation
+// e.g. foo.bar=boo
+func LoadFromDotNotationS(s string) (*YipConfig, error) {
+	v := map[string]interface{}{}
+
+	for _, item := range strings.Fields(s) {
+		parts := strings.SplitN(item, "=", 2)
+		value := "true"
+		if len(parts) > 1 {
+			value = strings.Trim(parts[1], `"`)
+		}
+		key := strings.Trim(parts[0], `"`)
+		v[key] = value
+	}
+
+	data, err := dotToYAML(v)
+	if err != nil {
+		return nil, err
+	}
+	return LoadFromYaml(data)
 }
