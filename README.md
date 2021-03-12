@@ -8,6 +8,8 @@ Simply applies a configuration to the system described with yaml files.
 stages:
    # "test" is the stage
    test:
+     - systemd_firstboot:
+         keymap: us
      - files:
         - path: /tmp/foo
           content: |
@@ -397,6 +399,18 @@ stages:
           NTP: "0.pool.org foo.pool.org"
           FallbackNTP: ""
           ...
+```
+
+### `stages.<stageID>.[<stepN>].systemd_firstboot`
+
+Runs `systemd-firstboot` with the given map
+
+```yaml
+stages:
+   default:
+     - name: "Setup Locale"
+       systemd_firstboot:
+         keymap: us
 ```
 
 ### `stages.<stageID>.[<stepN>].commands`

@@ -17,11 +17,12 @@ package schema
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/pkg/errors"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/itchyny/gojq"
@@ -66,6 +67,8 @@ type Stage struct {
 	Environment     map[string]string   `yaml:"environment"`
 	EnvironmentFile string              `yaml:"environment_file"`
 
+	SystemdFirstBoot map[string]string `yaml:"systemd_firstboot"`
+
 	TimeSyncd map[string]string `yaml:"timesyncd"`
 }
 
@@ -88,14 +91,21 @@ type YipConfig struct {
 	Stages map[string][]Stage `yaml:"stages"`
 }
 
-// LoadFromFile loads a yip config from a YAML file
-func LoadFromFile(s string, fs vfs.FS) (*YipConfig, error) {
-	yamlFile, err := fs.ReadFile(s)
-	if err != nil {
-		return nil, err
-	}
+type Loader func(s string, fs vfs.FS, m Modifier) ([]byte, error)
+type Modifier func(s []byte) ([]byte, error)
 
-	return LoadFromYaml(yamlFile)
+func Load(s string, fs vfs.FS, l Loader, m Modifier) (*YipConfig, error) {
+	if m == nil {
+		m = func(b []byte) ([]byte, error) { return b, nil }
+	}
+	if l == nil {
+		l = func(c string, fs vfs.FS, m Modifier) ([]byte, error) { return m([]byte(c)) }
+	}
+	data, err := l(s, fs, m)
+	if err != nil {
+		return nil, errors.Wrap(err, "while loading yipconfig")
+	}
+	return LoadFromYaml(data)
 }
 
 // LoadFromYaml loads a yip config from bytes
@@ -110,8 +120,17 @@ func LoadFromYaml(b []byte) (*YipConfig, error) {
 	return &yamlConfig, nil
 }
 
-// LoadFromUrl loads a yip config from a url
-func LoadFromUrl(s string) (*YipConfig, error) {
+// FromFile loads a yip config from a YAML file
+func FromFile(s string, fs vfs.FS, m Modifier) ([]byte, error) {
+	yamlFile, err := fs.ReadFile(s)
+	if err != nil {
+		return nil, err
+	}
+	return m(yamlFile)
+}
+
+// FromUrl loads a yip config from a url
+func FromUrl(s string, fs vfs.FS, m Modifier) ([]byte, error) {
 	resp, err := http.Get(s)
 	if err != nil {
 		return nil, err
@@ -120,8 +139,22 @@ func LoadFromUrl(s string) (*YipConfig, error) {
 
 	buf := bytes.NewBuffer([]byte{})
 	_, err = io.Copy(buf, resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return m(buf.Bytes())
+}
 
-	return LoadFromYaml(buf.Bytes())
+// DotNotationModifier read a byte sequence in dot notation and returns a byte sequence in yaml
+// e.g. foo.bar=boo
+func DotNotationModifier(s []byte) ([]byte, error) {
+	v := stringToMap(string(s))
+
+	data, err := dotToYAML(v)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
 }
 
 func jq(command string, data map[string]interface{}) (map[string]interface{}, error) {
@@ -165,17 +198,7 @@ func dotToYAML(v map[string]interface{}) ([]byte, error) {
 	return out, err
 }
 
-func LoadFromDotNotation(v map[string]interface{}) (*YipConfig, error) {
-	data, err := dotToYAML(v)
-	if err != nil {
-		return nil, err
-	}
-	return LoadFromYaml(data)
-}
-
-// LoadFromDotNotationS read a string in dot notation
-// e.g. foo.bar=boo
-func LoadFromDotNotationS(s string) (*YipConfig, error) {
+func stringToMap(s string) map[string]interface{} {
 	v := map[string]interface{}{}
 
 	for _, item := range strings.Fields(s) {
@@ -188,9 +211,5 @@ func LoadFromDotNotationS(s string) (*YipConfig, error) {
 		v[key] = value
 	}
 
-	data, err := dotToYAML(v)
-	if err != nil {
-		return nil, err
-	}
-	return LoadFromYaml(data)
+	return v
 }

@@ -17,47 +17,39 @@ package schema_test
 
 import (
 	. "github.com/mudler/yip/pkg/schema"
+	"github.com/twpayne/go-vfs/vfst"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
+func loadYip(s string) *YipConfig {
+	fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/yip.yaml": s})
+	Expect(err).Should(BeNil())
+	defer cleanup()
+
+	yipConfig, err := Load("/yip.yaml", fs, FromFile, DotNotationModifier)
+	Expect(err).ToNot(HaveOccurred())
+	return yipConfig
+}
+
 var _ = Describe("Schema", func() {
 	Context("Loading from dot notation", func() {
-		oneConfigwithGarbage := map[string]interface{}{
-			"stages.foo[0].name": "bar",
-			"foo.bar.baz":        "foo",
-			"foo.bar.bad":        "bar",
-			"faz.bad[0]":         "1",
-			"faz.bar[2].name":    "2",
-		}
-		twoConfigs := map[string]interface{}{
-			"stages.foo[0].name":        "bar",
-			"stages.foo[0].commands[0]": "baz",
-		}
-
 		oneConfigwithGarbageS := "stages.foo[0].name=bar boo.baz"
 		twoConfigsS := "stages.foo[0].name=bar   stages.foo[0].commands[0]=baz"
 
 		It("Reads yip file correctly", func() {
-			yipConfig, err := LoadFromDotNotation(oneConfigwithGarbage)
-			Expect(err).ToNot(HaveOccurred())
+			yipConfig := loadYip(oneConfigwithGarbageS)
 			Expect(yipConfig.Stages["foo"][0].Name).To(Equal("bar"))
 		})
 		It("Reads yip file correctly", func() {
-			yipConfig, err := LoadFromDotNotation(twoConfigs)
-			Expect(err).ToNot(HaveOccurred())
+			yipConfig := loadYip(twoConfigsS)
 			Expect(yipConfig.Stages["foo"][0].Name).To(Equal("bar"))
 			Expect(yipConfig.Stages["foo"][0].Commands[0]).To(Equal("baz"))
 		})
 
 		It("Reads yip file correctly", func() {
-			yipConfig, err := LoadFromDotNotationS(oneConfigwithGarbageS)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(yipConfig.Stages["foo"][0].Name).To(Equal("bar"))
-		})
-		It("Reads yip file correctly", func() {
-			yipConfig, err := LoadFromDotNotationS(twoConfigsS)
+			yipConfig, err := Load(twoConfigsS, nil, nil, DotNotationModifier)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(yipConfig.Stages["foo"][0].Name).To(Equal("bar"))
 			Expect(yipConfig.Stages["foo"][0].Commands[0]).To(Equal("baz"))

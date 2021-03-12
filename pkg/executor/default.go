@@ -34,6 +34,7 @@ import (
 type DefaultExecutor struct {
 	plugins      []Plugin
 	conditionals []Plugin
+	modifier     schema.Modifier
 }
 
 func (e *DefaultExecutor) Plugins(p []Plugin) {
@@ -42,6 +43,10 @@ func (e *DefaultExecutor) Plugins(p []Plugin) {
 
 func (e *DefaultExecutor) Conditionals(p []Plugin) {
 	e.conditionals = p
+}
+
+func (e *DefaultExecutor) Modifier(m schema.Modifier) {
+	e.modifier = m
 }
 
 func (e *DefaultExecutor) walkDir(stage, dir string, fs vfs.FS, console plugins.Console) error {
@@ -63,13 +68,8 @@ func (e *DefaultExecutor) walkDir(stage, dir string, fs vfs.FS, console plugins.
 			if ext != ".yaml" && ext != ".yml" {
 				return nil
 			}
-			config, err := schema.LoadFromFile(path, fs)
-			if err != nil {
-				errs = multierror.Append(errs, err)
-				return nil
-			}
-			log.Infof("Executing %s", path)
-			if err = e.Apply(stage, *config, vfs.OSFS, console); err != nil {
+
+			if err = e.run(stage, path, fs, console, schema.FromFile, e.modifier); err != nil {
 				errs = multierror.Append(errs, err)
 				return nil
 			}
@@ -82,25 +82,13 @@ func (e *DefaultExecutor) walkDir(stage, dir string, fs vfs.FS, console plugins.
 	return errs
 }
 
-func (e *DefaultExecutor) runRemoteFile(stage, uri string, fs vfs.FS, console plugins.Console) error {
-	config, err := schema.LoadFromUrl(uri)
+func (e *DefaultExecutor) run(stage, uri string, fs vfs.FS, console plugins.Console, l schema.Loader, m schema.Modifier) error {
+	config, err := schema.Load(uri, fs, l, m)
 	if err != nil {
 		return err
 	}
 
-	if err = e.Apply(stage, *config, fs, console); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (e *DefaultExecutor) runFile(stage, uri string, fs vfs.FS, console plugins.Console) error {
-	config, err := schema.LoadFromFile(uri, fs)
-	if err != nil {
-		return err
-	}
-
+	log.Infof("Executing %s", uri)
 	if err = e.Apply(stage, *config, fs, console); err != nil {
 		return err
 	}
@@ -110,14 +98,19 @@ func (e *DefaultExecutor) runFile(stage, uri string, fs vfs.FS, console plugins.
 
 func (e *DefaultExecutor) runStage(stage, uri string, fs vfs.FS, console plugins.Console) (err error) {
 	f, err := fs.Stat(uri)
-	if err == nil && f.IsDir() {
-		// Load yamls in a directory
+
+	switch {
+	case err == nil && f.IsDir():
 		err = e.walkDir(stage, uri, fs, console)
-	} else if err == nil {
-		err = e.runFile(stage, uri, fs, console)
-	} else if utils.IsUrl(uri) {
-		err = e.runRemoteFile(stage, uri, fs, console)
+	case err == nil:
+		err = e.run(stage, uri, fs, console, schema.FromFile, e.modifier)
+	case utils.IsUrl(uri):
+		err = e.run(stage, uri, fs, console, schema.FromUrl, e.modifier)
+	default:
+
+		err = e.run(stage, uri, fs, console, nil, e.modifier)
 	}
+
 	return
 }
 
@@ -146,7 +139,6 @@ func (e *DefaultExecutor) Apply(stageName string, s schema.YipConfig, fs vfs.FS,
 	}).Info("Executing yip file")
 STAGES:
 	for _, stage := range currentStages {
-
 		for _, p := range e.conditionals {
 			if err := p(stage, fs, console); err != nil {
 				log.WithFields(log.Fields{

@@ -1,8 +1,12 @@
 package plugins
 
 import (
+	"os"
+
 	"github.com/joho/godotenv"
 	"github.com/mudler/yip/pkg/schema"
+	"github.com/mudler/yip/pkg/utils"
+	"github.com/pkg/errors"
 	"github.com/twpayne/go-vfs"
 )
 
@@ -15,6 +19,10 @@ func Environment(s schema.Stage, fs vfs.FS, console Console) error {
 	environment := s.EnvironmentFile
 	if environment == "" {
 		environment = environmentFile
+	}
+
+	if err := utils.Touch(environment, os.ModePerm, fs); err != nil {
+		return errors.Wrap(err, "failed touching environment file")
 	}
 
 	content, err := fs.ReadFile(environment)

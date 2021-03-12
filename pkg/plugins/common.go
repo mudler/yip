@@ -26,6 +26,7 @@ func init() {
 type Console interface {
 	Run(string, ...func(*exec.Cmd)) (string, error)
 	Start(*exec.Cmd, ...func(*exec.Cmd)) error
+	RunTemplate([]string, string) error
 }
 
 // renderHelm renders the template string with helm

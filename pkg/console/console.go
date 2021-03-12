@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os/exec"
 
+	"github.com/hashicorp/go-multierror"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -44,4 +45,19 @@ func (s StandardConsole) Start(cmd *exec.Cmd, opts ...func(cmd *exec.Cmd)) error
 		o(cmd)
 	}
 	return cmd.Run()
+}
+
+func (s StandardConsole) RunTemplate(st []string, template string) error {
+	var errs error
+
+	for _, svc := range st {
+		out, err := s.Run(fmt.Sprintf(template, svc))
+		if err != nil {
+			log.Error(out)
+			log.Error(err.Error())
+			errs = multierror.Append(errs, err)
+			continue
+		}
+	}
+	return errs
 }

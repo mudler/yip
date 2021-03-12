@@ -87,31 +87,24 @@ For example:
 		runner := executor.NewExecutor(exec)
 		fromStdin := len(args) == 1 && args[0] == "-"
 
-		var config *schema.YipConfig
 		log.Infof("yip version %s", cmd.Version)
 		if len(args) == 0 {
 			fail("yip needs at least one path or url as argument")
 		}
 		stdConsole := console.StandardConsole{}
 
-		switch {
-		case fromStdin:
-			str, err := ioutil.ReadAll(os.Stdin)
-			checkErr(err)
-
-			if dot {
-				config, err = schema.LoadFromDotNotationS(string(str))
-				checkErr(err)
-			} else {
-				config, err = schema.LoadFromYaml(str)
-				checkErr(err)
-			}
-
-			err = runner.Apply(stage, *config, vfs.OSFS, stdConsole)
-			checkErr(err)
-		default:
-			checkErr(runner.Run(stage, vfs.OSFS, stdConsole, args...))
+		if dot {
+			runner.Modifier(schema.DotNotationModifier)
 		}
+
+		if fromStdin {
+			std, err := ioutil.ReadAll(os.Stdin)
+			checkErr(err)
+
+			args = []string{string(std)}
+		}
+
+		checkErr(runner.Run(stage, vfs.OSFS, stdConsole, args...))
 	},
 }
 
@@ -125,5 +118,5 @@ func Execute() {
 func init() {
 	rootCmd.PersistentFlags().StringP("executor", "e", "default", "Executor which applies the config")
 	rootCmd.PersistentFlags().StringP("stage", "s", "default", "Stage to apply")
-	rootCmd.PersistentFlags().BoolP("dotnotation", "d", false, "Parse stdin from dotnotation ( e.g. `stages.foo.name=..` ) ")
+	rootCmd.PersistentFlags().BoolP("dotnotation", "d", false, "Parse input in dotnotation ( e.g. `stages.foo.name=..` ) ")
 }

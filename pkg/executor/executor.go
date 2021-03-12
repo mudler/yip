@@ -15,6 +15,7 @@ type Executor interface {
 	Run(string, vfs.FS, plugins.Console, ...string) error
 	Plugins([]Plugin)
 	Conditionals([]Plugin)
+	Modifier(m schema.Modifier)
 }
 
 type Plugin func(schema.Stage, vfs.FS, plugins.Console) error
@@ -42,6 +43,7 @@ func NewExecutor(s string) Executor {
 				plugins.Timesyncd,
 				plugins.Systemctl,
 				plugins.Environment,
+				plugins.SystemdFirstboot,
 			},
 		}
 	}
