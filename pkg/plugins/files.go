@@ -29,6 +29,7 @@ func writeFile(file schema.File, fs vfs.FS) error {
 	if err != nil {
 		return err
 	}
+	defer fsfile.Close()
 
 	d := newDecoder(file.Encoding)
 	c, err := d.Decode(file.Content)

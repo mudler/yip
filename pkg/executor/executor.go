@@ -22,6 +22,7 @@ type Plugin func(schema.Stage, vfs.FS, plugins.Console) error
 
 // NewExecutor returns an executor from the stringified version of it.
 func NewExecutor(s string) Executor {
+
 	switch strings.ToLower(s) {
 	default:
 		return &DefaultExecutor{
@@ -44,6 +45,7 @@ func NewExecutor(s string) Executor {
 				plugins.Systemctl,
 				plugins.Environment,
 				plugins.SystemdFirstboot,
+				plugins.DataSources,
 			},
 		}
 	}
