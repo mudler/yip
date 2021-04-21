@@ -140,6 +140,36 @@ A yaml file can define multiple stages, which can be run from the `cli` with `-s
 
 `Yip` will execute the steps and report failures. It will exit non-zero if one of the steps failed executing. It will, however, keep running all the detected `yipfiles` and stages.
 
+## Compatibility with Cloud Init format
+
+A subset of the official [cloud-config spec](http://cloudinit.readthedocs.org/en/latest/topics/format.html#cloud-config-data) is implemented by yip. 
+
+If a yaml file starts with `#cloud-config` it is parsed as a standard cloud-init, associated it to the yip `boot` stage. For example:
+
+```yaml
+#cloud-config
+users:
+- name: "bar"
+  passwd: "foo"
+  groups: "users"
+  ssh_authorized_keys:
+  - faaapploo
+ssh_authorized_keys:
+  - asdd
+runcmd:
+- foo
+hostname: "bar"
+write_files:
+- encoding: b64
+  content: CiMgVGhpcyBmaWxlIGNvbnRyb2xzIHRoZSBzdGF0ZSBvZiBTRUxpbnV4
+  path: /foo/bar
+  permissions: "0644"
+  owner: "bar"
+```
+
+To execute it with yip, run `yip -s boot cloud-config.yaml`.
+
+
 ## Node-data interpolation
 
 `yip` interpolates host data retrieved by [sysinfo](https://github.com/zcalusic/sysinfo#sample-output) and are templated in the commands, file and entities  fields.
@@ -190,12 +220,15 @@ stages:
    default:
      - files:
         - path: /tmp/bar
+          encoding: "b64" # "base64", "gz", "gzip", "gz+base64", "gzip+base64", "gz+b64", "gzip+b64"
           content: |
                     #!/bin/sh
                     echo "test"
           permissions: 0777
           owner: 1000
           group: 100
+          # or
+          # owner_string: "user:group", or "user"
 ```
 
 ### `stages.<stageID>.[<stepN>].directories`
@@ -281,14 +314,32 @@ stages:
 
 ### `stages.<stageID>.[<stepN>].users`
 
-A map of users and password to set. Passwords can be also encrypted.
+A map of users and user info to set. Passwords can be also encrypted.
+
+The `users` parameter adds or modifies the specified list of users. Each user is an object which consists of the following fields. Each field is optional and of type string unless otherwise noted.
+In case the user is already existing, the password only will be overwritten.
+
+- **name**: Required. Login name of user
+- **gecos**: GECOS comment of user
+- **passwd**: Hash of the password to use for this user. Unencrypted strings supported too.
+- **homedir**: User's home directory. Defaults to /home/*name*
+- **no-create-home**: Boolean. Skip home directory creation.
+- **primary-group**: Default group for the user. Defaults to a new group created named after the user.
+- **groups**: Add user to these additional groups
+- **no-user-group**: Boolean. Skip default group creation.
+- **ssh-authorized-keys**: List of public SSH keys to authorize for this user
+- **system**: Create the user as a system user. No home directory will be created.
+- **no-log-init**: Boolean. Skip initialization of lastlog and faillog databases.
+- **shell**: User's login shell.
 
 ```yaml
 stages:
    default:
      - name: "Setup users"
        users: 
-          bastion: "strongpassword"
+          bastion: 
+            passwd: "strongpassword"
+            homedir: "/home/foo
 ```
 
 ### `stages.<stageID>.[<stepN>].ensure_entities`

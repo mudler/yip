@@ -37,11 +37,11 @@ var _ = Describe("User", func() {
 			defer cleanup()
 
 			err = User(schema.Stage{
-				Users: map[string]string{"foo": `$fkekofe`},
+				Users: map[string]schema.User{"foo": {PasswordHash: `$fkekofe`}},
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(consoletests.Stdin).Should(Equal("foo:$fkekofe"))
-			Expect(consoletests.Commands).Should(Equal([]string{"chpasswd", "-e"}))
+			Expect(consoletests.Commands).Should(Equal([]string{"adduser -D foo", "chpasswd", "-e"}))
 		})
 	})
 })

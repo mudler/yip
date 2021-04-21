@@ -20,8 +20,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os/user"
 	"strings"
 
+	"github.com/elotl/cloud-init/config"
 	"github.com/pkg/errors"
 
 	"github.com/hashicorp/go-multierror"
@@ -40,12 +42,34 @@ type File struct {
 	Permissions  uint32
 	Owner, Group int
 	Content      string
+	Encoding     string
+	OwnerString  string
 }
 
 type Directory struct {
 	Path         string
 	Permissions  uint32
 	Owner, Group int
+}
+
+type User struct {
+	Name              string   `yaml:"name,omitempty"`
+	PasswordHash      string   `yaml:"passwd,omitempty"`
+	SSHAuthorizedKeys []string `yaml:"ssh_authorized_keys,omitempty"`
+	GECOS             string   `yaml:"gecos,omitempty"`
+	Homedir           string   `yaml:"homedir,omitempty"`
+	NoCreateHome      bool     `yaml:"no_create_home,omitempty"`
+	PrimaryGroup      string   `yaml:"primary_group,omitempty"`
+	Groups            []string `yaml:"groups,omitempty"`
+	NoUserGroup       bool     `yaml:"no_user_group,omitempty"`
+	System            bool     `yaml:"system,omitempty"`
+	NoLogInit         bool     `yaml:"no_log_init,omitempty"`
+	Shell             string   `yaml:"shell,omitempty"`
+}
+
+func (u User) Exists() bool {
+	_, err := user.Lookup(u.Name)
+	return err == nil
 }
 
 type Stage struct {
@@ -61,7 +85,7 @@ type Stage struct {
 	Sysctl          map[string]string   `yaml:"sysctl"`
 	SSHKeys         map[string][]string `yaml:"authorized_keys"`
 	Node            string              `yaml:"node"`
-	Users           map[string]string   `yaml:"users"`
+	Users           map[string]User     `yaml:"users"`
 	Modules         []string            `yaml:"modules"`
 	Systemctl       Systemctl           `yaml:"systemctl"`
 	Environment     map[string]string   `yaml:"environment"`
@@ -94,6 +118,10 @@ type YipConfig struct {
 type Loader func(s string, fs vfs.FS, m Modifier) ([]byte, error)
 type Modifier func(s []byte) ([]byte, error)
 
+type yipLoader interface {
+	Load([]byte, vfs.FS) (*YipConfig, error)
+}
+
 func Load(s string, fs vfs.FS, l Loader, m Modifier) (*YipConfig, error) {
 	if m == nil {
 		m = func(b []byte) ([]byte, error) { return b, nil }
@@ -105,19 +133,22 @@ func Load(s string, fs vfs.FS, l Loader, m Modifier) (*YipConfig, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "while loading yipconfig")
 	}
-	return LoadFromYaml(data)
+
+	loader, err := detect(data)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid file type")
+	}
+	return loader.Load(data, fs)
 }
 
-// LoadFromYaml loads a yip config from bytes
-func LoadFromYaml(b []byte) (*YipConfig, error) {
+func detect(b []byte) (yipLoader, error) {
+	switch {
+	case config.IsCloudConfig(string(b)):
+		return cloudInit{}, nil
 
-	var yamlConfig YipConfig
-	err := yaml.Unmarshal(b, &yamlConfig)
-	if err != nil {
-		return nil, err
+	default:
+		return yipYAML{}, nil
 	}
-
-	return &yamlConfig, nil
 }
 
 // FromFile loads a yip config from a YAML file
