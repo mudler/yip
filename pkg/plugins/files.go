@@ -5,6 +5,8 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/mudler/yip/pkg/schema"
+	"github.com/mudler/yip/pkg/utils"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs"
 )
@@ -28,7 +30,13 @@ func writeFile(file schema.File, fs vfs.FS) error {
 		return err
 	}
 
-	_, err = fsfile.WriteString(templateSysData(file.Content))
+	d := newDecoder(file.Encoding)
+	c, err := d.Decode(file.Content)
+	if err != nil {
+		return errors.Wrapf(err, "failed decoding content with encoding %s", file.Encoding)
+	}
+
+	_, err = fsfile.WriteString(templateSysData(string(c)))
 	if err != nil {
 		return err
 
@@ -38,5 +46,15 @@ func writeFile(file schema.File, fs vfs.FS) error {
 		return err
 
 	}
+
+	if file.OwnerString != "" {
+		// FIXUP: Doesn't support fs. It reads real /etc/passwd files
+		uid, gid, err := utils.GetUserDataFromString(file.OwnerString)
+		if err != nil {
+			return errors.Wrap(err, "Failed getting gid")
+		}
+		return fs.Chown(file.Path, uid, gid)
+	}
+
 	return fs.Chown(file.Path, file.Owner, file.Group)
 }
