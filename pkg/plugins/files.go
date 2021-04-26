@@ -2,6 +2,7 @@ package plugins
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/mudler/yip/pkg/schema"
@@ -14,7 +15,7 @@ import (
 func EnsureFiles(s schema.Stage, fs vfs.FS, console Console) error {
 	var errs error
 	for _, file := range s.Files {
-		if err := writeFile(file, fs); err != nil {
+		if err := writeFile(file, fs, console); err != nil {
 			log.Error(err.Error())
 			errs = multierror.Append(errs, err)
 			continue
@@ -23,12 +24,36 @@ func EnsureFiles(s schema.Stage, fs vfs.FS, console Console) error {
 	return errs
 }
 
-func writeFile(file schema.File, fs vfs.FS) error {
+func writeFile(file schema.File, fs vfs.FS, console Console) error {
 	log.Debug("Creating file ", file.Path)
+	parentDir := filepath.Dir(file.Path)
+	_, err := fs.Stat(parentDir)
+	if err != nil {
+		log.Debug("Creating parent directories")
+		perm := file.Permissions
+		if perm < 0700 {
+			log.Debug("Adding execution bit to parent directory")
+			perm = perm + 0100
+		}
+		if err = EnsureDirectories(schema.Stage{
+			Directories: []schema.Directory{
+				{
+					Path:        parentDir,
+					Permissions: perm,
+					Owner:       file.Owner,
+					Group:       file.Group,
+				},
+			},
+		}, fs, console); err != nil {
+			log.Printf("Failed to write %s: %s", parentDir, err)
+			return err
+		}
+	}
 	fsfile, err := fs.Create(file.Path)
 	if err != nil {
 		return err
 	}
+	defer fsfile.Close()
 
 	d := newDecoder(file.Encoding)
 	c, err := d.Decode(file.Content)

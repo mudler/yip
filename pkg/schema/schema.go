@@ -52,6 +52,11 @@ type Directory struct {
 	Owner, Group int
 }
 
+type DataSource struct {
+	Type string `yaml:"type"`
+	Path string `yaml:"path"`
+}
+
 type User struct {
 	Name              string   `yaml:"name,omitempty"`
 	PasswordHash      string   `yaml:"passwd,omitempty"`
@@ -90,6 +95,8 @@ type Stage struct {
 	Systemctl       Systemctl           `yaml:"systemctl"`
 	Environment     map[string]string   `yaml:"environment"`
 	EnvironmentFile string              `yaml:"environment_file"`
+
+	DataSources []DataSource `yaml:"datasources"`
 
 	SystemdFirstBoot map[string]string `yaml:"systemd_firstboot"`
 

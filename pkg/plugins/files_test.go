@@ -39,8 +39,7 @@ var _ = Describe("Files", func() {
 			defer cleanup()
 
 			err = EnsureFiles(schema.Stage{
-				Commands: []string{},
-				Files:    []schema.File{{Path: "/tmp/test/foo", Content: "Test", Permissions: 0777, Owner: os.Getuid(), Group: os.Getgid()}},
+				Files: []schema.File{{Path: "/tmp/test/foo", Content: "Test", Permissions: 0777, Owner: os.Getuid(), Group: os.Getgid()}},
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 			file, err := fs.Open("/tmp/test/foo")
@@ -48,6 +47,26 @@ var _ = Describe("Files", func() {
 			if err != nil {
 				log.Fatal(err)
 			}
+
+			Expect(string(b)).Should(Equal("Test"))
+		})
+		It("creates a /testarea/dir/subdir/foo file and its parent directories", func() {
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/testarea": &vfst.Dir{Perm: 0o755}})
+			Expect(err).Should(BeNil())
+			defer cleanup()
+			_, err = fs.Stat("/testarea/dir")
+			Expect(err).NotTo(BeNil())
+			err = EnsureFiles(schema.Stage{
+				Files: []schema.File{{Path: "/testarea/dir/subdir/foo", Content: "Test", Permissions: 0640, Owner: os.Getuid(), Group: os.Getgid()}},
+			}, fs, testConsole)
+			Expect(err).ShouldNot(HaveOccurred())
+			file, err := fs.Open("/testarea/dir/subdir/foo")
+			b, err := ioutil.ReadAll(file)
+			if err != nil {
+				log.Fatal(err)
+			}
+			inf, _ := fs.Stat("/testarea/dir/subdir")
+			Expect(inf.Mode().Perm()).To(Equal(os.FileMode(int(0740))))
 
 			Expect(string(b)).Should(Equal("Test"))
 		})
