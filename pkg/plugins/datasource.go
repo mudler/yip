@@ -50,6 +50,19 @@ func DataSources(s schema.Stage, fs vfs.FS, console Console) error {
 		}
 	}
 
+	if err := EnsureDirectories(schema.Stage{
+		Directories: []schema.Directory{
+			{
+				Path:        prv.ConfigPath,
+				Permissions: 0755,
+				Owner:       os.Getuid(),
+				Group:       os.Getgid(),
+			},
+		},
+	}, fs, console); err != nil {
+		return err
+	}
+
 	var p prv.Provider
 	var userdata []byte
 	var err error
