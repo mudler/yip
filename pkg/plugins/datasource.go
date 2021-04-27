@@ -1,12 +1,12 @@
 package plugins
 
 import (
-	"encoding/json"
+	"bufio"
 	"fmt"
-	"io/ioutil"
 	"os"
+	"os/user"
 	"path"
-	"strconv"
+	"strings"
 
 	"github.com/pkg/errors"
 
@@ -19,34 +19,34 @@ import (
 func DataSources(s schema.Stage, fs vfs.FS, console Console) error {
 	var AvailableProviders = []prv.Provider{}
 
-	if len(s.DataSources) == 0 {
+	if s.DataSources.Providers == nil {
 		return nil
 	}
 
-	for _, ds := range s.DataSources {
+	for _, dSProviders := range s.DataSources.Providers {
 		switch {
-		case ds.Type == "aws":
+		case dSProviders == "aws":
 			AvailableProviders = append(AvailableProviders, prv.NewAWS())
-		case ds.Type == "gcp":
+		case dSProviders == "gcp":
 			AvailableProviders = append(AvailableProviders, prv.NewGCP())
-		case ds.Type == "hetzner":
+		case dSProviders == "hetzner":
 			AvailableProviders = append(AvailableProviders, prv.NewHetzner())
-		case ds.Type == "openstack":
+		case dSProviders == "openstack":
 			AvailableProviders = append(AvailableProviders, prv.NewOpenstack())
-		case ds.Type == "packet":
+		case dSProviders == "packet":
 			AvailableProviders = append(AvailableProviders, prv.NewPacket())
-		case ds.Type == "scaleway":
+		case dSProviders == "scaleway":
 			AvailableProviders = append(AvailableProviders, prv.NewScaleway())
-		case ds.Type == "vultr":
+		case dSProviders == "vultr":
 			AvailableProviders = append(AvailableProviders, prv.NewVultr())
-		case ds.Type == "digitalocean":
+		case dSProviders == "digitalocean":
 			AvailableProviders = append(AvailableProviders, prv.NewDigitalOcean())
-		case ds.Type == "metaldata":
+		case dSProviders == "metaldata":
 			AvailableProviders = append(AvailableProviders, prv.NewMetalData())
-		case ds.Type == "cdrom":
+		case dSProviders == "cdrom":
 			AvailableProviders = append(AvailableProviders, prv.ListCDROMs()...)
-		case ds.Type == "file":
-			AvailableProviders = append(AvailableProviders, prv.FileProvider(ds.Path))
+		case dSProviders == "file" && s.DataSources.Path != "":
+			AvailableProviders = append(AvailableProviders, prv.FileProvider(s.DataSources.Path))
 		}
 	}
 
@@ -82,55 +82,85 @@ func DataSources(s schema.Stage, fs vfs.FS, console Console) error {
 		return fmt.Errorf("No metadata/userdata found. Bye")
 	}
 
-	err = EnsureFiles(schema.Stage{
-		Files: []schema.File{
-			{
-				Path:        path.Join(prv.ConfigPath, "provider"),
-				Content:     p.String(),
-				Permissions: 0644,
-				Owner:       os.Getuid(),
-				Group:       os.Getgid(),
-			},
-		},
-	}, fs, console)
+	err = writeDataFile(path.Join(prv.ConfigPath, "provider"), p.String(), fs, console)
 	if err != nil {
 		return err
 	}
 
+	basePath := prv.ConfigPath
+	if s.DataSources.Path != "" && s.DataSources.Path != p.String() {
+		basePath = s.DataSources.Path
+	}
+
 	if userdata != nil {
-		if err := processUserData(prv.ConfigPath, userdata, fs, console); err != nil {
+		if err := processUserData(basePath, userdata, fs, console); err != nil {
 			return err
 		}
 	}
-	if _, err := os.Stat(path.Join(prv.ConfigPath, prv.Hostname)); err == nil {
-		hostname, err := ioutil.ReadFile(path.Join(prv.ConfigPath, prv.Hostname))
-		if err != nil {
+
+	//Apply the hostname if the provider extracted a hostname file
+	if _, err := fs.Stat(path.Join(prv.ConfigPath, prv.Hostname)); err == nil {
+		if err := processHostnameFile(fs, console); err != nil {
 			return err
 		}
+	}
 
-		return Hostname(schema.Stage{Hostname: string(hostname)}, fs, console)
+	//Apply the authorized_keys if the provider extracted a ssh/authorized_keys file
+	if _, err := fs.Stat(path.Join(prv.ConfigPath, prv.SSH, authorizedFile)); err == nil {
+		if err := processSSHFile(fs, console); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-// If the userdata is a json file, create a directory/file hierarchy.
-// Example:
-// {
-//    "foobar" : {
-//        "foo" : {
-//            "perm": "0644",
-//            "content": "hello"
-//        }
-// }
-// Will create foobar/foo with mode 0644 and content "hello"
-func processUserData(basePath string, data []byte, fs vfs.FS, console Console) error {
+func processHostnameFile(fs vfs.FS, console Console) error {
+	hostname, err := fs.ReadFile(path.Join(prv.ConfigPath, prv.Hostname))
+	if err != nil {
+		return err
+	}
 
-	// Always write the raw data to a file
+	return Hostname(schema.Stage{Hostname: string(hostname)}, fs, console)
+}
+
+func processSSHFile(fs vfs.FS, console Console) error {
+	auth_keys, err := fs.ReadFile(path.Join(prv.ConfigPath, prv.SSH, authorizedFile))
+	if err != nil {
+		return err
+	}
+	var keys []string
+	var line string
+	usr, err := user.Current()
+	if err != nil {
+		return errors.Wrap(err, "could not get current user info")
+	}
+
+	scanner := bufio.NewScanner(strings.NewReader(string(auth_keys)))
+	for scanner.Scan() {
+		line = strings.TrimSpace(scanner.Text())
+		if line != "" && !strings.HasPrefix(line, "#") {
+			keys = append(keys, line)
+		}
+	}
+	return SSH(schema.Stage{SSHKeys: map[string][]string{usr.Username: keys}}, fs, console)
+}
+
+// If userdata can be parsed as a yipConfig file will create a <basePath>/userdata.yaml file
+func processUserData(basePath string, data []byte, fs vfs.FS, console Console) error {
+	if _, err := schema.Load(string(data), fs, nil, nil); err == nil {
+		return writeDataFile(path.Join(basePath, "userdata.yaml"), string(data), fs, console)
+	}
+
+	log.Println("Could not unmarshall userdata, neither json or yaml")
+	return writeDataFile(path.Join(basePath, "userdata"), string(data), fs, console)
+}
+
+func writeDataFile(filename string, content string, fs vfs.FS, console Console) error {
 	err := EnsureFiles(schema.Stage{
 		Files: []schema.File{
 			{
-				Path:        path.Join(basePath, "userdata"),
-				Content:     string(data),
+				Path:        filename,
+				Content:     content,
 				Permissions: 0644,
 				Owner:       os.Getuid(),
 				Group:       os.Getgid(),
@@ -138,98 +168,7 @@ func processUserData(basePath string, data []byte, fs vfs.FS, console Console) e
 		},
 	}, fs, console)
 	if err != nil {
-		return errors.Wrap(err, "could not write userdata")
-	}
-
-	var root ConfigFile
-	if err := json.Unmarshal(data, &root); err != nil {
-		// Userdata is no JSON, presumably...
-		log.Printf("Could not unmarshall userdata: %s", err)
-		// This is not an error
-		return nil
-	}
-
-	for dir, entry := range root {
-		writeConfigFiles(path.Join(basePath, dir), entry, fs, console)
+		return errors.Wrap(err, "could not write data file")
 	}
 	return nil
-}
-
-func writeConfigFiles(target string, current Entry, fs vfs.FS, console Console) {
-	if isFile(current) {
-		filemode, err := parseFileMode(current.Perm, 0644)
-		if err != nil {
-			log.Printf("Failed to parse permission %+v: %s", current, err)
-			return
-		}
-
-		if err := EnsureFiles(schema.Stage{
-			Files: []schema.File{
-				{
-					Path:        target,
-					Content:     *current.Content,
-					Permissions: uint32(filemode.Perm()),
-					Owner:       os.Getuid(),
-					Group:       os.Getgid(),
-				},
-			},
-		}, fs, console); err != nil {
-			log.Printf("Failed to write %s: %s", target, err)
-			return
-		}
-	} else if isDirectory(current) {
-		filemode, err := parseFileMode(current.Perm, 0755)
-		if err != nil {
-			log.Printf("Failed to parse permission %+v: %s", current, err)
-			return
-		}
-		if err := EnsureDirectories(schema.Stage{
-			Directories: []schema.Directory{
-				{
-					Path:        target,
-					Permissions: uint32(filemode.Perm()),
-					Owner:       os.Getuid(),
-					Group:       os.Getgid(),
-				},
-			},
-		}, fs, console); err != nil {
-			log.Printf("Failed to write %s: %s", target, err)
-			return
-		}
-
-		for dir, entry := range current.Entries {
-			writeConfigFiles(path.Join(target, dir), entry, fs, console)
-		}
-	} else {
-		log.Printf("%s is invalid", target)
-	}
-}
-
-func isFile(json Entry) bool {
-	return json.Content != nil && json.Entries == nil
-}
-
-func isDirectory(json Entry) bool {
-	return json.Content == nil && json.Entries != nil
-}
-
-func parseFileMode(input string, defaultMode os.FileMode) (os.FileMode, error) {
-	if input != "" {
-		perm, err := strconv.ParseUint(input, 8, 32)
-		if err != nil {
-			return 0, err
-		}
-		return os.FileMode(perm), nil
-	}
-	return defaultMode, nil
-}
-
-// ConfigFile represents the configuration file
-type ConfigFile map[string]Entry
-
-// Entry represents either a directory or a file
-type Entry struct {
-	Perm    string           `json:"perm,omitempty"`
-	Content *string          `json:"content,omitempty"`
-	Entries map[string]Entry `json:"entries,omitempty"`
 }
