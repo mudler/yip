@@ -53,7 +53,7 @@ type Directory struct {
 }
 
 type DataSource struct {
-	Type string `yaml:"type"`
+	Providers []string `yaml:"providers"`
 	Path string `yaml:"path"`
 }
 
@@ -96,7 +96,7 @@ type Stage struct {
 	Environment     map[string]string   `yaml:"environment"`
 	EnvironmentFile string              `yaml:"environment_file"`
 
-	DataSources []DataSource `yaml:"datasources"`
+	DataSources DataSource `yaml:"datasource"`
 
 	SystemdFirstBoot map[string]string `yaml:"systemd_firstboot"`
 
