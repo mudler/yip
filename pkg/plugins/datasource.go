@@ -82,7 +82,7 @@ func DataSources(s schema.Stage, fs vfs.FS, console Console) error {
 		return fmt.Errorf("No metadata/userdata found. Bye")
 	}
 
-	err = writeDataFile(path.Join(prv.ConfigPath, "provider"), p.String(), fs, console)
+	err = writeToFile(path.Join(prv.ConfigPath, "provider"), p.String(), 0644, fs, console)
 	if err != nil {
 		return err
 	}
@@ -147,28 +147,47 @@ func processSSHFile(fs vfs.FS, console Console) error {
 
 // If userdata can be parsed as a yipConfig file will create a <basePath>/userdata.yaml file
 func processUserData(basePath string, data []byte, fs vfs.FS, console Console) error {
-	if _, err := schema.Load(string(data), fs, nil, nil); err == nil {
-		return writeDataFile(path.Join(basePath, "userdata.yaml"), string(data), fs, console)
+	dataS := string(data)
+	if _, err := schema.Load(dataS, fs, nil, nil); err == nil {
+		return writeToFile(path.Join(basePath, "userdata.yaml"), dataS, 0644, fs, console)
 	}
 
-	log.Println("Could not unmarshall userdata, neither json or yaml")
-	return writeDataFile(path.Join(basePath, "userdata"), string(data), fs, console)
+	scanner := bufio.NewScanner(strings.NewReader(dataS))
+	scanner.Scan()
+	if strings.HasPrefix(scanner.Text(), "#!") {
+		log.Printf("Found shebang '%s' excuting user-data as a script\n", scanner.Text())
+		script := path.Join(basePath, "userdata")
+		err := writeToFile(script, dataS, 0744, fs, console)
+		if err != nil {
+			return err
+		}
+		log.Printf("Running %s\n", script)
+		out, err := console.Run(script)
+		if err != nil {
+			return err
+		}
+		log.Println(out)
+		return nil
+	}
+
+	log.Println("Could not unmarshall userdata and no shebang detected")
+	return writeToFile(path.Join(basePath, "userdata"), dataS, 0644, fs, console)
 }
 
-func writeDataFile(filename string, content string, fs vfs.FS, console Console) error {
+func writeToFile(filename string, content string, perm uint32, fs vfs.FS, console Console) error {
 	err := EnsureFiles(schema.Stage{
 		Files: []schema.File{
 			{
 				Path:        filename,
 				Content:     content,
-				Permissions: 0644,
+				Permissions: perm,
 				Owner:       os.Getuid(),
 				Group:       os.Getgid(),
 			},
 		},
 	}, fs, console)
 	if err != nil {
-		return errors.Wrap(err, "could not write data file")
+		return errors.Wrap(err, "could not write file")
 	}
 	return nil
 }
