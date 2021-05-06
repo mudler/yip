@@ -1,91 +1,86 @@
 package plugins
 
 import (
-	"fmt"
-	"os/exec"
-	"strings"
+	"os"
+	osuser "os/user"
+	"sort"
+	"strconv"
+
+	"github.com/pkg/errors"
 
 	"github.com/hashicorp/go-multierror"
+	entities "github.com/mudler/entities/pkg/entities"
 	"github.com/mudler/yip/pkg/schema"
-	log "github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs"
+	passwd "github.com/willdonnelly/passwd"
 )
 
 func createUser(u schema.User, console Console) error {
-	var reserr error
-	args := []string{}
 
-	if u.GECOS != "" {
-		args = append(args, "-g", fmt.Sprintf("%q", u.GECOS))
+	userShadow := &entities.Shadow{
+		Username:    u.Name,
+		Password:    u.PasswordHash,
+		LastChanged: "now",
 	}
 
-	if u.Homedir != "" {
-		args = append(args, "-h", u.Homedir)
-	}
-
-	if u.NoCreateHome {
-		args = append(args, "-H")
-	}
-
-	if u.PrimaryGroup != "" {
-		args = append(args, "-G", u.PrimaryGroup)
-	}
-
-	if u.System {
-		args = append(args, "-S")
-	}
-
-	if u.Shell != "" {
-		args = append(args, "-s", u.Shell)
-	}
-
-	args = append(args, "-D")
-	args = append(args, u.Name)
-
-	adduserCmd := []string{"adduser"}
-	output, err := console.Run(strings.Join(append(adduserCmd, args...), " "))
+	gr, err := osuser.LookupGroup(u.PrimaryGroup)
 	if err != nil {
-		reserr = multierror.Append(reserr, err)
-		log.Printf("Command 'useradd %s' failed: %v\n%s", strings.Join(args, " "), err, output)
+		return errors.Wrap(err, "could not resolve primary group of user")
 	}
-	if len(u.Groups) > 0 {
-		for _, group := range u.Groups {
-			args := []string{u.Name, group}
-			output, err := console.Run(strings.Join(append(adduserCmd, args...), " "))
-			if err != nil {
-				reserr = multierror.Append(reserr, err)
+	gid, _ := strconv.Atoi(gr.Gid)
 
-				log.Printf("Command 'adduser %s' failed: %v\n%s", strings.Join(args, " "), err, output)
+	uid := 1000
+
+	all, _ := passwd.ParseFile("/etc/passwd")
+	if len(all) != 0 {
+		usedUids := []int{}
+		for _, entry := range all {
+
+			uid, _ := strconv.Atoi(entry.Uid)
+
+			usedUids = append(usedUids, uid)
+		}
+		sort.Ints(usedUids)
+
+		if len(usedUids) == 0 {
+			return errors.New("no new UID found")
+		}
+		uid = usedUids[len(usedUids)-1]
+		uid++
+	}
+
+	userInfo := &entities.UserPasswd{
+		Username: u.Name,
+		Password: "x",
+		Info:     u.GECOS,
+		Homedir:  u.Homedir,
+		Gid:      gid,
+		Shell:    u.Shell,
+		Uid:      uid,
+	}
+
+	if err := userInfo.Apply(""); err != nil {
+		return err
+	}
+
+	if err := userShadow.Apply(""); err != nil {
+		return err
+	}
+	if !u.NoCreateHome {
+		os.MkdirAll(u.Homedir, 0755)
+	}
+
+	groups, _ := entities.ParseGroup("")
+	for name, group := range groups {
+		for _, w := range u.Groups {
+			if w == name {
+				group.Users = group.Users + "," + u.Name
+				group.Apply("")
 			}
 		}
 	}
-	if u.PasswordHash != "" {
-		err := setUserPassword(u.Name, u.PasswordHash, console)
-		if err != nil {
-			reserr = multierror.Append(reserr, err)
-			log.Printf("Error setting password for %s: %v\n", u.Name, err)
-		}
-	}
-	return reserr
-}
 
-func setUserPassword(username, password string, console Console) error {
-	if password == "" {
-		return nil
-	}
-	chpasswd := "chpasswd"
-	out, err := console.Run(chpasswd, func(c *exec.Cmd) {
-		c.Path = chpasswd
-		if strings.HasPrefix(password, "$") {
-			c.Args = append(c.Args, "-e")
-		}
-		c.Stdin = strings.NewReader(fmt.Sprintf("%s:%s", username, password))
-	})
-	if err != nil {
-		log.Info(fmt.Sprintf("Command output: %s", string(out)))
-		log.Error(err.Error())
-	}
-	return err
+	return nil
 }
 
 func User(s schema.Stage, fs vfs.FS, console Console) error {
@@ -97,11 +92,12 @@ func User(s schema.Stage, fs vfs.FS, console Console) error {
 			if err := createUser(p, console); err != nil {
 				errs = multierror.Append(errs, err)
 			}
-		} else {
+		}
+		/* 		else {
 			if err := setUserPassword(u, p.PasswordHash, console); err != nil {
 				errs = multierror.Append(errs, err)
 			}
-		}
+		} */
 	}
 	return errs
 }
