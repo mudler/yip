@@ -23,25 +23,48 @@ func createUser(u schema.User, console Console) error {
 		LastChanged: "now",
 	}
 
-	gr, err := osuser.LookupGroup(u.PrimaryGroup)
-	if err != nil {
-		return errors.Wrap(err, "could not resolve primary group of user")
+	gid := 1000
+	if u.PrimaryGroup != "" {
+		gr, err := osuser.LookupGroup(u.PrimaryGroup)
+		if err != nil {
+			return errors.Wrap(err, "could not resolve primary group of user")
+		}
+		gid, _ = strconv.Atoi(gr.Gid)
+	} else {
+		// Create a new group after the user name
+		all, _ := entities.ParseGroup("/etc/group")
+		if len(all) != 0 {
+			usedGids := []int{}
+			for _, entry := range all {
+				usedGids = append(usedGids, *entry.Gid)
+			}
+			sort.Ints(usedGids)
+			if len(usedGids) == 0 {
+				return errors.New("no new guid found")
+			}
+			gid = usedGids[len(usedGids)-1]
+			gid++
+		}
+
+		newgroup := entities.Group{
+			Name:     u.Name,
+			Password: "x",
+			Gid:      &gid,
+			Users:    u.Name,
+		}
+		newgroup.Apply("")
 	}
-	gid, _ := strconv.Atoi(gr.Gid)
 
 	uid := 1000
-
+	// find an available uid if there are others already
 	all, _ := passwd.ParseFile("/etc/passwd")
 	if len(all) != 0 {
 		usedUids := []int{}
 		for _, entry := range all {
-
 			uid, _ := strconv.Atoi(entry.Uid)
-
 			usedUids = append(usedUids, uid)
 		}
 		sort.Ints(usedUids)
-
 		if len(usedUids) == 0 {
 			return errors.New("no new UID found")
 		}
@@ -66,8 +89,10 @@ func createUser(u schema.User, console Console) error {
 	if err := userShadow.Apply(""); err != nil {
 		return err
 	}
+
 	if !u.NoCreateHome {
 		os.MkdirAll(u.Homedir, 0755)
+		os.Chown(u.Homedir, uid, gid)
 	}
 
 	groups, _ := entities.ParseGroup("")
