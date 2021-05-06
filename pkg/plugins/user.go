@@ -15,12 +15,27 @@ import (
 	passwd "github.com/willdonnelly/passwd"
 )
 
-func createUser(u schema.User, console Console) error {
+func createUser(fs vfs.FS, u schema.User, console Console) error {
 
 	userShadow := &entities.Shadow{
 		Username:    u.Name,
 		Password:    u.PasswordHash,
 		LastChanged: "now",
+	}
+
+	etcgroup, err := fs.RawPath("/etc/group")
+	if err != nil {
+		return errors.Wrap(err, "getting rawpath for /etc/group")
+	}
+
+	etcshadow, err := fs.RawPath("/etc/shadow")
+	if err != nil {
+		return errors.Wrap(err, "getting rawpath for /etc/shadow")
+	}
+
+	etcpasswd, err := fs.RawPath("/etc/passwd")
+	if err != nil {
+		return errors.Wrap(err, "getting rawpath for /etc/passwd")
 	}
 
 	gid := 1000
@@ -32,7 +47,7 @@ func createUser(u schema.User, console Console) error {
 		gid, _ = strconv.Atoi(gr.Gid)
 	} else {
 		// Create a new group after the user name
-		all, _ := entities.ParseGroup("/etc/group")
+		all, _ := entities.ParseGroup(etcgroup)
 		if len(all) != 0 {
 			usedGids := []int{}
 			for _, entry := range all {
@@ -52,12 +67,12 @@ func createUser(u schema.User, console Console) error {
 			Gid:      &gid,
 			Users:    u.Name,
 		}
-		newgroup.Apply("")
+		newgroup.Apply(etcgroup)
 	}
 
 	uid := 1000
 	// find an available uid if there are others already
-	all, _ := passwd.ParseFile("/etc/passwd")
+	all, _ := passwd.ParseFile(etcpasswd)
 	if len(all) != 0 {
 		usedUids := []int{}
 		for _, entry := range all {
@@ -82,25 +97,29 @@ func createUser(u schema.User, console Console) error {
 		Uid:      uid,
 	}
 
-	if err := userInfo.Apply(""); err != nil {
+	if err := userInfo.Apply(etcpasswd); err != nil {
 		return err
 	}
 
-	if err := userShadow.Apply(""); err != nil {
+	if err := userShadow.Apply(etcshadow); err != nil {
 		return err
 	}
 
 	if !u.NoCreateHome {
-		os.MkdirAll(u.Homedir, 0755)
-		os.Chown(u.Homedir, uid, gid)
+		homedir, err := fs.RawPath(u.Homedir)
+		if err != nil {
+			return errors.Wrap(err, "getting rawpath for homedir")
+		}
+		os.MkdirAll(homedir, 0755)
+		os.Chown(homedir, uid, gid)
 	}
 
-	groups, _ := entities.ParseGroup("")
+	groups, _ := entities.ParseGroup(etcgroup)
 	for name, group := range groups {
 		for _, w := range u.Groups {
 			if w == name {
 				group.Users = group.Users + "," + u.Name
-				group.Apply("")
+				group.Apply(etcgroup)
 			}
 		}
 	}
@@ -114,7 +133,7 @@ func User(s schema.Stage, fs vfs.FS, console Console) error {
 	for u, p := range s.Users {
 		p.Name = u
 		if !p.Exists() {
-			if err := createUser(p, console); err != nil {
+			if err := createUser(fs, p, console); err != nil {
 				errs = multierror.Append(errs, err)
 			}
 		}
