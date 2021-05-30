@@ -25,36 +25,24 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("User", func() {
-	Context("parsing yip file", func() {
+var _ = Describe("If", func() {
+	Context("Succeeds", func() {
 		testConsole := consoletests.TestConsole{}
 		BeforeEach(func() {
 			consoletests.Reset()
 		})
-		It("change user password", func() {
-			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/etc/passwd": "",
-				"/etc/shadow": "",
-				"/etc/group":  "",
-			})
+		It("Executes", func() {
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/etc/hostname": "boo", "/etc/hosts": "127.0.0.1 boo"})
 			Expect(err).Should(BeNil())
 			defer cleanup()
 
-			err = User(schema.Stage{
-				Users: map[string]schema.User{"foo": {PasswordHash: `$fkekofe`, Homedir: "/home/foo"}},
+			err = IfConditional(schema.Stage{
+				If: "exit 1",
 			}, fs, testConsole)
-			Expect(err).ShouldNot(HaveOccurred())
 
-			shadow, err := fs.ReadFile("/etc/shadow")
 			Expect(err).ShouldNot(HaveOccurred())
-			passwd, err := fs.ReadFile("/etc/passwd")
-			Expect(err).ShouldNot(HaveOccurred())
-			group, err := fs.ReadFile("/etc/group")
-			Expect(err).ShouldNot(HaveOccurred())
+			Expect(consoletests.Commands).Should(Equal([]string{"exit 1"}))
 
-			Expect(string(group)).Should(Equal("foo:x:1000:foo\n"))
-
-			Expect(string(shadow)).Should(ContainSubstring("foo:$fkekofe:"))
-			Expect(string(passwd)).Should(Equal("foo:x:1000:1000::/home/foo:\n"))
 		})
 	})
 })

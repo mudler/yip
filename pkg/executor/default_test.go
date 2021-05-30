@@ -359,5 +359,62 @@ users: "one,two,tree"
 
 			Expect(string(b)).Should(Equal("nm-openconnect:x:979:\n"))
 		})
+
+		It("Skip with if conditionals", func() {
+			testConsole := console.StandardConsole{}
+
+			fs2, cleanup2, err := vfst.NewTestFS(map[string]interface{}{})
+			Expect(err).Should(BeNil())
+			temp := fs2.TempDir()
+
+			defer cleanup2()
+
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{
+				"/some/yip/01_first.yaml": `
+stages:
+  test:
+  - commands:
+    - echo "bar" > ` + temp + `/tmp/test/bar
+`,
+				"/some/yip/02_second.yaml": `
+stages:
+  test:
+  - if: "cat ` + temp + `/tmp/test/bar | grep bar"
+    commands:
+    - echo "baz" > ` + temp + `/tmp/test/baz
+`, "/some/yip/03_second.yaml": `
+stages:
+  test:
+  - if: "cat ` + temp + `/tmp/test/baz | grep bar"
+    commands:
+    - echo "nope" > ` + temp + `/tmp/test/nope
+`,
+			})
+			Expect(err).Should(BeNil())
+			defer cleanup()
+
+			err = fs2.Mkdir("/tmp", os.ModePerm)
+			Expect(err).Should(BeNil())
+			err = fs2.Mkdir("/tmp/test", os.ModePerm)
+			Expect(err).Should(BeNil())
+
+			err = fs2.WriteFile("/tmp/test/bar", []byte(`boo`), os.ModePerm)
+			Expect(err).Should(BeNil())
+
+			err = def.Run("test", fs, testConsole, "/some/yip")
+			Expect(err).Should(BeNil())
+			file, err := os.Open(temp + "/tmp/test/baz")
+			Expect(err).ShouldNot(HaveOccurred())
+
+			b, err := ioutil.ReadAll(file)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			Expect(string(b)).Should(Equal("baz\n"))
+
+			_, err = os.Open(temp + "/tmp/test/nope")
+			Expect(err).Should(HaveOccurred())
+		})
 	})
 })

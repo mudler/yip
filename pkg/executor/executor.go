@@ -28,6 +28,7 @@ func NewExecutor(s string) Executor {
 		return &DefaultExecutor{
 			conditionals: []Plugin{
 				plugins.NodeConditional,
+				plugins.IfConditional,
 			},
 			plugins: []Plugin{
 				plugins.DNS,

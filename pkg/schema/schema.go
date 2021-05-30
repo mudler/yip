@@ -54,7 +54,7 @@ type Directory struct {
 
 type DataSource struct {
 	Providers []string `yaml:"providers"`
-	Path string `yaml:"path"`
+	Path      string   `yaml:"path"`
 }
 
 type User struct {
@@ -81,6 +81,7 @@ type Stage struct {
 	Commands    []string    `yaml:"commands"`
 	Files       []File      `yaml:"files"`
 	Directories []Directory `yaml:"directories"`
+	If          string      `yaml:"if"`
 
 	EnsureEntities  []YipEntity         `yaml:"ensure_entities"`
 	DeleteEntities  []YipEntity         `yaml:"delete_entities"`
