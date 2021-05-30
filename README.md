@@ -11,6 +11,14 @@ stages:
      - systemd_firstboot:
          keymap: us
      - files:
+        - path: /tmp/bar
+          content: |
+                    test
+          permissions: 0777
+          owner: 1000
+          group: 100
+       if: "[ ! -e /tmp/bar ]"
+     - files:
         - path: /tmp/foo
           content: |
                     test
@@ -207,6 +215,24 @@ stages:
 
 name: "Test yip!"
 ```
+
+## Filtering stages with if statement
+
+`yip` can skip stages based on if statements:
+
+
+```yaml
+stages:
+  foo:
+  - name: "echo"
+    commands:
+    - echo hello
+    if: "cat /proc/cmdline | grep debug"
+
+name: "Test yip!"
+```
+
+The expression inside the if will be evaluated in bash and, if specified, the stage gets executed only if the condition returns successfully (exit 0).
 
 ## Configuration reference
 
