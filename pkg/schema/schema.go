@@ -77,6 +77,27 @@ func (u User) Exists() bool {
 	return err == nil
 }
 
+type Layout struct {
+	Device *Device     `yaml:"device"`
+	Expand *Expand     `yaml:"expand_partition,omitempty"`
+	Parts  []Partition `yaml:"add_partitions,omitempty"`
+}
+
+type Device struct {
+	Label string `"yaml:label"`
+}
+
+type Expand struct {
+	Size uint `"yaml:size"`
+}
+
+type Partition struct {
+	FSLabel    string `yaml:"fsLabel"`
+	Size       uint   `yaml:"size,omitempty"`
+	PLabel     string `yaml:"pLabel,omitempty"`
+	FileSystem string `yaml:"filesystem,omitempty"`
+}
+
 type Stage struct {
 	Commands    []string    `yaml:"commands"`
 	Files       []File      `yaml:"files"`
@@ -98,6 +119,7 @@ type Stage struct {
 	EnvironmentFile string              `yaml:"environment_file"`
 
 	DataSources DataSource `yaml:"datasource"`
+	Layout      Layout     `yaml:"layout"`
 
 	SystemdFirstBoot map[string]string `yaml:"systemd_firstboot"`
 
