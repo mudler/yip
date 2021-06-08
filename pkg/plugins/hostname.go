@@ -43,7 +43,7 @@ func UpdateHostsFile(hostname string, fs vfs.FS) error {
 		line := strings.TrimSpace(lines.Text())
 		fields := strings.Fields(line)
 		if len(fields) > 0 && fields[0] == localHost {
-			content += fmt.Sprintf("%s %s\n", localHost, hostname)
+			content += fmt.Sprintf("%s localhost %s\n", localHost, hostname)
 			continue
 		}
 		content += line + "\n"
