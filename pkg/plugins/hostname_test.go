@@ -50,7 +50,7 @@ var _ = Describe("Hostname", func() {
 
 			b, err = ioutil.ReadAll(file)
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(string(b)).Should(Equal("127.0.0.1 bar\n"))
+			Expect(string(b)).Should(Equal("127.0.0.1 localhost bar\n"))
 		})
 	})
 })
