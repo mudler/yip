@@ -137,6 +137,10 @@ func User(s schema.Stage, fs vfs.FS, console Console) error {
 				errs = multierror.Append(errs, err)
 			}
 		}
+
+		if len(p.SSHAuthorizedKeys) > 0 {
+			SSH(schema.Stage{SSHKeys: map[string][]string{p.Name: p.SSHAuthorizedKeys}}, fs, console)
+		}
 		/* 		else {
 			if err := setUserPassword(u, p.PasswordHash, console); err != nil {
 				errs = multierror.Append(errs, err)
