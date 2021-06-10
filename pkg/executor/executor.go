@@ -47,6 +47,7 @@ func NewExecutor(s string) Executor {
 				plugins.Environment,
 				plugins.SystemdFirstboot,
 				plugins.DataSources,
+				plugins.Layout,
 			},
 		}
 	}
