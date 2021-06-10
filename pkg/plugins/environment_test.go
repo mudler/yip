@@ -17,6 +17,7 @@ package plugins_test
 
 import (
 	"io/ioutil"
+	"os"
 
 	. "github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
@@ -42,6 +43,30 @@ var _ = Describe("Environment", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 
 			file, err := fs.Open("/etc/environment")
+			Expect(err).ShouldNot(HaveOccurred())
+
+			b, err := ioutil.ReadAll(file)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(string(b)).Should(Equal("foo=\"0\""))
+		})
+		It("configures a /run/cos/cos-layout.env file and creates missing directories", func() {
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/run": &vfst.Dir{Perm: 0o755}})
+			Expect(err).Should(BeNil())
+			defer cleanup()
+
+			_, err = fs.Stat("/run/cos")
+			Expect(err).NotTo(BeNil())
+
+			err = Environment(schema.Stage{
+				Environment:     map[string]string{"foo": "0"},
+				EnvironmentFile: "/run/cos/cos-layout.env",
+			}, fs, testConsole)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			inf, _ := fs.Stat("/run/cos")
+			Expect(inf.Mode().Perm()).To(Equal(os.FileMode(int(0744))))
+
+			file, err := fs.Open("/run/cos/cos-layout.env")
 			Expect(err).ShouldNot(HaveOccurred())
 
 			b, err := ioutil.ReadAll(file)
