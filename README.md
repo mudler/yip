@@ -527,3 +527,34 @@ stages:
            - "digitalocean"
          path: "/etc/cloud-data"
 ```
+
+### `stages.<stageID>.[<stepN>].layout`
+
+Sets additional partitions on disk free space, if any, and/or expands the last
+partition. All sizes are expressed in MiB only and default value of `size: 0`
+means all available free space in disk. This plugin is useful to be used in
+oem images where the default partitions might not suit the actual disk geometry.
+
+
+```yaml
+stages:
+   default:
+     - name: "Repart disk"
+       layout:
+         # It will partition a device including the given filesystem label
+         # or partition label (filesystem label matches first)
+         device:
+           label: COS_RECOVERY
+         # Only last partition can be expanded and it happens before any other
+         # partition is added. size: 0 or unset means all available free space
+         expand_partition:
+           size: 4096
+         add_partitions:
+           - fsLabel: COS_STATE
+             size: 8192
+             # No partition label is applied if omitted
+             pLabel: state
+           - fsLabel: COS_PERSISTENT
+             # default filesystem is ext2 if omitted
+             filesystem: ext4
+```
