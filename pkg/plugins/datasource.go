@@ -148,6 +148,12 @@ func processSSHFile(fs vfs.FS, console Console) error {
 // If userdata can be parsed as a yipConfig file will create a <basePath>/userdata.yaml file
 func processUserData(basePath string, data []byte, fs vfs.FS, console Console) error {
 	dataS := string(data)
+
+	// always save unprocessed data to "userdata"
+	if err := writeToFile(path.Join(basePath, "userdata"), dataS, 0644, fs, console); err != nil {
+		return err
+	}
+
 	if _, err := schema.Load(dataS, fs, nil, nil); err == nil {
 		return writeToFile(path.Join(basePath, "userdata.yaml"), dataS, 0644, fs, console)
 	}
@@ -171,7 +177,7 @@ func processUserData(basePath string, data []byte, fs vfs.FS, console Console) e
 	}
 
 	log.Println("Could not unmarshall userdata and no shebang detected")
-	return writeToFile(path.Join(basePath, "userdata"), dataS, 0644, fs, console)
+	return nil
 }
 
 func writeToFile(filename string, content string, perm uint32, fs vfs.FS, console Console) error {
