@@ -28,7 +28,6 @@ type cloudInit struct{}
 // As Yip supports multi-stages, it is encoded in the supplied one.
 // fs is used to parse the user data required from /etc/passwd.
 func (cloudInit) Load(s []byte, fs vfs.FS) (*YipConfig, error) {
-
 	stage := "boot"
 	cc, err := cloudconfig.NewCloudConfig(string(s))
 	if err != nil {
@@ -91,7 +90,7 @@ func (cloudInit) Load(s []byte, fs vfs.FS) (*YipConfig, error) {
 		)
 	}
 
-	return &YipConfig{
+	result := &YipConfig{
 		Name: "Cloud init",
 		Stages: map[string][]Stage{stage: {{
 			Commands: cc.RunCmd,
@@ -100,5 +99,15 @@ func (cloudInit) Load(s []byte, fs vfs.FS) (*YipConfig, error) {
 			Users:    users,
 			SSHKeys:  sshKeys,
 		}}},
-	}, nil
+	}
+
+	// optimistically load data as yip yaml
+	yipConfig, err := yipYAML{}.Load(s, fs)
+	if err == nil {
+		for k, v := range yipConfig.Stages {
+			result.Stages[k] = append(result.Stages[k], v...)
+		}
+	}
+
+	return result, nil
 }
