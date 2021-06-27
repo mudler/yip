@@ -14,7 +14,7 @@ func Commands(s schema.Stage, fs vfs.FS, console Console) error {
 	for _, cmd := range s.Commands {
 		out, err := console.Run(templateSysData(cmd))
 		if err != nil {
-			log.Error(err.Error())
+			log.Error(out, ": ",  err.Error())
 			errs = multierror.Append(errs, err)
 			continue
 		}
