@@ -127,6 +127,22 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 	return nil
 }
 
+func setUserPass(fs vfs.FS, username, password string) error {
+	etcshadow, err := fs.RawPath("/etc/shadow")
+	if err != nil {
+		return errors.Wrap(err, "getting rawpath for /etc/shadow")
+	}
+	userShadow := &entities.Shadow{
+		Username:    username,
+		Password:    password,
+		LastChanged: "now",
+	}
+	if err := userShadow.Apply(etcshadow); err != nil {
+		return err
+	}
+	return nil
+}
+
 func User(s schema.Stage, fs vfs.FS, console Console) error {
 	var errs error
 
@@ -136,16 +152,16 @@ func User(s schema.Stage, fs vfs.FS, console Console) error {
 			if err := createUser(fs, p, console); err != nil {
 				errs = multierror.Append(errs, err)
 			}
+		} else if p.PasswordHash != "" {
+			if err := setUserPass(fs, p.Name, p.PasswordHash); err != nil {
+				return err
+			}
 		}
 
 		if len(p.SSHAuthorizedKeys) > 0 {
 			SSH(schema.Stage{SSHKeys: map[string][]string{p.Name: p.SSHAuthorizedKeys}}, fs, console)
 		}
-		/* 		else {
-			if err := setUserPassword(u, p.PasswordHash, console); err != nil {
-				errs = multierror.Append(errs, err)
-			}
-		} */
+
 	}
 	return errs
 }
