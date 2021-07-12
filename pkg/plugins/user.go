@@ -38,13 +38,16 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 		return errors.Wrap(err, "getting rawpath for /etc/passwd")
 	}
 
+	primaryGroup := u.Name
 	gid := 1000
+
 	if u.PrimaryGroup != "" {
 		gr, err := osuser.LookupGroup(u.PrimaryGroup)
 		if err != nil {
 			return errors.Wrap(err, "could not resolve primary group of user")
 		}
 		gid, _ = strconv.Atoi(gr.Gid)
+		primaryGroup = u.PrimaryGroup
 	} else {
 		// Create a new group after the user name
 		all, _ := entities.ParseGroup(etcgroup)
@@ -61,14 +64,15 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 			gid++
 		}
 
-		newgroup := entities.Group{
-			Name:     u.Name,
-			Password: "x",
-			Gid:      &gid,
-			Users:    u.Name,
-		}
-		newgroup.Apply(etcgroup)
 	}
+
+	updateGroup := entities.Group{
+		Name:     primaryGroup,
+		Password: "x",
+		Gid:      &gid,
+		Users:    u.Name,
+	}
+	updateGroup.Apply(etcgroup)
 
 	uid := 1000
 	// find an available uid if there are others already
@@ -118,7 +122,7 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 	for name, group := range groups {
 		for _, w := range u.Groups {
 			if w == name {
-				group.Users = group.Users + "," + u.Name
+				group.Users = u.Name
 				group.Apply(etcgroup)
 			}
 		}
@@ -147,19 +151,20 @@ func User(s schema.Stage, fs vfs.FS, console Console) error {
 	var errs error
 
 	for u, p := range s.Users {
-		p.Name = u
+		r := &p
+		r.Name = u
 		if !p.Exists() {
-			if err := createUser(fs, p, console); err != nil {
+			if err := createUser(fs, *r, console); err != nil {
 				errs = multierror.Append(errs, err)
 			}
 		} else if p.PasswordHash != "" {
-			if err := setUserPass(fs, p.Name, p.PasswordHash); err != nil {
+			if err := setUserPass(fs, r.Name, r.PasswordHash); err != nil {
 				return err
 			}
 		}
 
 		if len(p.SSHAuthorizedKeys) > 0 {
-			SSH(schema.Stage{SSHKeys: map[string][]string{p.Name: p.SSHAuthorizedKeys}}, fs, console)
+			SSH(schema.Stage{SSHKeys: map[string][]string{r.Name: r.SSHAuthorizedKeys}}, fs, console)
 		}
 
 	}
