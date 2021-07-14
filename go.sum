@@ -140,8 +140,11 @@ github.com/daaku/go.zipexe v1.0.0/go.mod h1:z8IiR6TsVLEYKwXAoE/I+8ys/sDkgTzSL0CL
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+github.com/davidcassany/linuxkit v0.0.0-20210714125456-8b187a9ffd7e h1:x7+zt4S6j/+jX8TXlhwaJzmUCNB8sM6GfPGAsA/lFko=
 github.com/davidcassany/linuxkit/pkg/metadata v0.0.0-20210421095517-2f17404156f2 h1:5PRgmM34UfWgmLc3vebpttKq7DRBZERzo5Fy4Wzio7k=
 github.com/davidcassany/linuxkit/pkg/metadata v0.0.0-20210421095517-2f17404156f2/go.mod h1:GIS28BxE1G2YB+dCf+O2Ow/bVP7hqioSWLsvr9YQg3o=
+github.com/davidcassany/linuxkit/pkg/metadata v0.0.0-20210714125456-8b187a9ffd7e h1:wvqjnyRe2R2hZ0lxLCq0wf0E0m+NMs61ga1LhC3jj+w=
+github.com/davidcassany/linuxkit/pkg/metadata v0.0.0-20210714125456-8b187a9ffd7e/go.mod h1:GIS28BxE1G2YB+dCf+O2Ow/bVP7hqioSWLsvr9YQg3o=
 github.com/daviddengcn/go-colortext v0.0.0-20160507010035-511bcaf42ccd/go.mod h1:dv4zxwHi5C/8AeI+4gX4dCWOIvNi7I6JCSX0HvlKPgE=
 github.com/deislabs/oras v0.8.1/go.mod h1:Mx0rMSbBNaNfY9hjpccEnxkOqJL6KGjtxNHPLC4G4As=
 github.com/denisenkom/go-mssqldb v0.0.0-20191001013358-cfbb681360f0/go.mod h1:xbL0rPBG9cCiLr28tMa8zpbdarY27NDyej4t/EjAShU=

@@ -27,6 +27,8 @@ func DataSources(s schema.Stage, fs vfs.FS, console Console) error {
 		switch {
 		case dSProviders == "aws":
 			AvailableProviders = append(AvailableProviders, prv.NewAWS())
+		case dSProviders == "azure":
+			AvailableProviders = append(AvailableProviders, prv.NewAzure())
 		case dSProviders == "gcp":
 			AvailableProviders = append(AvailableProviders, prv.NewGCP())
 		case dSProviders == "hetzner":
