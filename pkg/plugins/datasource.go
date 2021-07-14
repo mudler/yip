@@ -11,6 +11,7 @@ import (
 	"github.com/pkg/errors"
 
 	prv "github.com/davidcassany/linuxkit/pkg/metadata/providers"
+	localprv "github.com/mudler/yip/pkg/providers"
 	"github.com/mudler/yip/pkg/schema"
 	log "github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs"
@@ -27,6 +28,8 @@ func DataSources(s schema.Stage, fs vfs.FS, console Console) error {
 		switch {
 		case dSProviders == "aws":
 			AvailableProviders = append(AvailableProviders, prv.NewAWS())
+		case dSProviders == "azure":
+			AvailableProviders = append(AvailableProviders, localprv.NewAzure())
 		case dSProviders == "gcp":
 			AvailableProviders = append(AvailableProviders, prv.NewGCP())
 		case dSProviders == "hetzner":
