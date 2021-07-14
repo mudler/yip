@@ -19,7 +19,7 @@ import (
 func DataSources(s schema.Stage, fs vfs.FS, console Console) error {
 	var AvailableProviders = []prv.Provider{}
 
-	if s.DataSources.Providers == nil {
+	if s.DataSources.Providers == nil || len(s.DataSources.Providers) == 0 {
 		return nil
 	}
 
