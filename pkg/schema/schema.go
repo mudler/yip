@@ -85,6 +85,7 @@ type Layout struct {
 
 type Device struct {
 	Label string `"yaml:label"`
+	Path  string `"yaml:path"`
 }
 
 type Expand struct {

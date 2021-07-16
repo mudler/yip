@@ -51,9 +51,21 @@ func Layout(s schema.Stage, fs vfs.FS, console Console) error {
 		return nil
 	}
 
-	dev, err := FindDiskFromPartitionLabel(s.Layout.Device.Label, console)
-	if err != nil {
-		log.Warningf("Exiting, disk not found:\n %s", err.Error())
+	var dev Disk
+	var err error
+	if len(strings.TrimSpace(s.Layout.Device.Label)) > 0 {
+		dev, err = FindDiskFromPartitionLabel(s.Layout.Device.Label, console)
+		if err != nil {
+			log.Warningf("Exiting, disk not found:\n %s", err.Error())
+			return nil
+		}
+	} else if len(strings.TrimSpace(s.Layout.Device.Path)) > 0 {
+		dev, err = FindDiskFromPath(s.Layout.Device.Path, console)
+		if err != nil {
+			log.Warningf("Exiting, disk not found:\n %s", err.Error())
+			return nil
+		}
+	} else {
 		return nil
 	}
 
@@ -121,6 +133,25 @@ func MatchPartitionPLabel(label string, console Console) string {
 		}
 	}
 	return ""
+}
+
+func FindDiskFromPath(path string, console Console) (Disk, error) {
+	out, err := console.Run(fmt.Sprintf("lsblk -npo type %s", path))
+	if err != nil {
+		return Disk{}, errors.New(fmt.Sprintf("Error: %s", out))
+	}
+	if strings.HasPrefix(out, "disk") {
+		return Disk{Device: path}, nil
+	} else if strings.HasPrefix(out, "loop") {
+		return Disk{Device: path}, nil
+	} else if strings.HasPrefix(out, "part") {
+		device, err := console.Run(fmt.Sprintf("lsblk -npo pkname %s", path))
+		if err == nil {
+			return Disk{Device: device}, nil
+		}
+	}
+
+	return Disk{}, errors.New(fmt.Sprintf("Could not verify %s is a block device", path))
 }
 
 func FindDiskFromPartitionLabel(label string, console Console) (Disk, error) {
@@ -336,15 +367,17 @@ func (dev *Disk) ExpandLastPartition(size uint, console Console) (string, error)
 		}
 	}
 
-	size = MiBToSectors(size, dev.SectorS)
-
 	part := dev.Parts[len(dev.Parts)-1]
-	if size < part.SizeS {
-		return "", errors.New("Layout plugin can only expand a partition, not shrink it")
-	}
-	freeS := dev.computeFreeSpaceWithoutLast()
-	if size > freeS {
-		return "", errors.New(fmt.Sprintf("Not enough free space for to expand last partition up to %d sectors", size))
+	if size > 0 {
+		size = MiBToSectors(size, dev.SectorS)
+		part := dev.Parts[len(dev.Parts)-1]
+		if size < part.SizeS {
+			return "", errors.New("Layout plugin can only expand a partition, not shrink it")
+		}
+		freeS := dev.computeFreeSpaceWithoutLast()
+		if size > freeS {
+			return "", errors.New(fmt.Sprintf("Not enough free space for to expand last partition up to %d sectors", size))
+		}
 	}
 	part.SizeS = size
 

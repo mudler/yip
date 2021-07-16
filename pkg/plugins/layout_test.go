@@ -36,8 +36,6 @@ var lsblkTypes console.CmdMock = console.CmdMock{
 }
 
 var CmdsAddPart []console.CmdMock = []console.CmdMock{
-	{Cmd: "blkid -l --match-token LABEL=reflabel -o device", Output: "/some/part"},
-	{Cmd: "lsblk -npo pkname /some/part", Output: "/some/device"},
 	{Cmd: "sgdisk --verify /some/device", Output: "the end of the disk"},
 	{Cmd: "sgdisk -P -e /some/device"},
 	{Cmd: "sgdisk -e /some/device"}, pTable,
@@ -49,6 +47,15 @@ var CmdsAddPart []console.CmdMock = []console.CmdMock{
 	{Cmd: "partprobe /some/device"},
 	{Cmd: "blkid -l --match-token LABEL=MYLABEL -o device"},
 }
+
+var CmdsAddPartByDevPath []console.CmdMock = append([]console.CmdMock{
+	{Cmd: "lsblk -npo type /some/device", Output: "loop"},
+}, CmdsAddPart...)
+
+var CmdsAddPartByLabel []console.CmdMock = append([]console.CmdMock{
+	{Cmd: "blkid -l --match-token LABEL=reflabel -o device", Output: "/some/part"},
+	{Cmd: "lsblk -npo pkname /some/part", Output: "/some/device"},
+}, CmdsAddPart...)
 
 var CmdsAddAlreadyExistingPart []console.CmdMock = []console.CmdMock{
 	{Cmd: "blkid -l --match-token LABEL=reflabel -o device", Output: "/some/part"},
@@ -78,7 +85,7 @@ var _ = Describe("Layout", func() {
 
 		It("Adds a new partition of 1024MiB in reflabel device", func() {
 			testConsole := console.New()
-			testConsole.AddCmds(CmdsAddPart)
+			testConsole.AddCmds(CmdsAddPartByLabel)
 			err := Layout(schema.Stage{
 				Layout: schema.Layout{
 					Device: &schema.Device{Label: "reflabel"},
@@ -87,9 +94,20 @@ var _ = Describe("Layout", func() {
 			}, fs, testConsole)
 			Expect(err).Should(BeNil())
 		})
+		It("Adds a new partition of 1024MiB in /some/device device", func() {
+			testConsole := console.New()
+			testConsole.AddCmds(CmdsAddPartByDevPath)
+			err := Layout(schema.Stage{
+				Layout: schema.Layout{
+					Device: &schema.Device{Path: "/some/device"},
+					Parts:  []schema.Partition{{FSLabel: "MYLABEL", Size: 1024}},
+				},
+			}, fs, testConsole)
+			Expect(err).Should(BeNil())
+		})
 		It("Fails to add a partition of 1030MiB, there are only 1024MiB available", func() {
 			testConsole := console.New()
-			testConsole.AddCmds(CmdsAddPart)
+			testConsole.AddCmds(CmdsAddPartByLabel)
 			err := Layout(schema.Stage{
 				Layout: schema.Layout{
 					Device: &schema.Device{Label: "reflabel"},
