@@ -541,10 +541,13 @@ stages:
    default:
      - name: "Repart disk"
        layout:
-         # It will partition a device including the given filesystem label
-         # or partition label (filesystem label matches first)
          device:
+           # It will partition a device including the given filesystem label
+           # or partition label (filesystem label matches first) or the device
+           # provided in 'path'. The label check has precedence over path when
+           # both are provided.
            label: COS_RECOVERY
+           path: /dev/sda
          # Only last partition can be expanded and it happens before any other
          # partition is added. size: 0 or unset means all available free space
          expand_partition:
