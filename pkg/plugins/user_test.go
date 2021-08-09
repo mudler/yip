@@ -56,7 +56,7 @@ var _ = Describe("User", func() {
 			Expect(string(group)).Should(Equal("foo:x:1000:foo\n"))
 
 			Expect(string(shadow)).Should(ContainSubstring("foo:$fkekofe:"))
-			Expect(string(passwd)).Should(Equal("foo:x:1000:1000::/home/foo:\n"))
+			Expect(string(passwd)).Should(Equal("foo:x:1000:1000:Created by entities:/home/foo:\n"))
 
 			file, err := fs.Open("/home/foo/.ssh/authorized_keys")
 			Expect(err).ShouldNot(HaveOccurred())
@@ -90,7 +90,7 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			Expect(string(group)).Should(Equal("foo:x:1000:foo\n"))
 
 			Expect(string(shadow)).Should(ContainSubstring("foo:$fkekofe:"))
-			Expect(string(passwd)).Should(Equal("foo:x:1000:1000::/home/foo:\n"))
+			Expect(string(passwd)).Should(Equal("foo:x:1000:1000:Created by entities:/home/foo:\n"))
 
 			file, err := fs.Open("/home/foo/.ssh/authorized_keys")
 			Expect(err).ShouldNot(HaveOccurred())

@@ -56,7 +56,7 @@ func ensureEntities(s schema.Stage) error {
 			errs = multierror.Append(errs, err)
 			continue
 		}
-		err = decodedE.Apply(e.Path)
+		err = decodedE.Apply(e.Path, false)
 		if err != nil {
 			errs = multierror.Append(errs, err)
 			continue

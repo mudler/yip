@@ -72,7 +72,7 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 		Gid:      &gid,
 		Users:    u.Name,
 	}
-	updateGroup.Apply(etcgroup)
+	updateGroup.Apply(etcgroup,false)
 
 	uid := 1000
 	// find an available uid if there are others already
@@ -101,11 +101,11 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 		Uid:      uid,
 	}
 
-	if err := userInfo.Apply(etcpasswd); err != nil {
+	if err := userInfo.Apply(etcpasswd,false); err != nil {
 		return err
 	}
 
-	if err := userShadow.Apply(etcshadow); err != nil {
+	if err := userShadow.Apply(etcshadow,false); err != nil {
 		return err
 	}
 
@@ -123,7 +123,7 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 		for _, w := range u.Groups {
 			if w == name {
 				group.Users = u.Name
-				group.Apply(etcgroup)
+				group.Apply(etcgroup,false)
 			}
 		}
 	}
@@ -141,7 +141,7 @@ func setUserPass(fs vfs.FS, username, password string) error {
 		Password:    password,
 		LastChanged: "now",
 	}
-	if err := userShadow.Apply(etcshadow); err != nil {
+	if err := userShadow.Apply(etcshadow,false); err != nil {
 		return err
 	}
 	return nil
