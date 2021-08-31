@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	CLIVersion = "0.9.8"
+	CLIVersion = "0.9.9"
 )
 
 // Build time and commit information.
