@@ -18,6 +18,7 @@ package schema
 import (
 	"bytes"
 	"fmt"
+	"github.com/google/shlex"
 	"io"
 	"net/http"
 	"os/user"
@@ -237,7 +238,11 @@ func jq(command string, data map[string]interface{}) (map[string]interface{}, er
 	if err, ok := v.(error); ok {
 		return nil, err
 	}
-	return v.(map[string]interface{}), nil
+	if t, ok :=  v.(map[string]interface{}); ok {
+		return t, nil
+	}
+
+	return make(map[string]interface{}), nil
 }
 
 func dotToYAML(v map[string]interface{}) ([]byte, error) {
@@ -263,7 +268,8 @@ func dotToYAML(v map[string]interface{}) ([]byte, error) {
 func stringToMap(s string) map[string]interface{} {
 	v := map[string]interface{}{}
 
-	for _, item := range strings.Fields(s) {
+	splitted, _ := shlex.Split(s)
+	for _, item := range splitted {
 		parts := strings.SplitN(item, "=", 2)
 		value := "true"
 		if len(parts) > 1 {
