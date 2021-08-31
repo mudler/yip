@@ -1,6 +1,6 @@
 module github.com/mudler/yip
 
-go 1.12
+go 1.16
 
 require (
 	github.com/apex/log v1.9.0
@@ -10,6 +10,7 @@ require (
 	github.com/docker/docker v17.12.0-ce-rc1.0.20200417035958-130b0bc6032c+incompatible // indirect
 	github.com/docker/libnetwork v0.8.0-dev.2.0.20200612180813-9e99af28df21 // indirect
 	github.com/elotl/cloud-init v1.14.2
+	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/googleapis/gnostic v0.2.2 // indirect
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/ishidawataru/sctp v0.0.0-20191218070446-00ab2ac2db07 // indirect

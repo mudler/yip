@@ -17,10 +17,9 @@ package schema_test
 
 import (
 	. "github.com/mudler/yip/pkg/schema"
-	"github.com/twpayne/go-vfs/vfst"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/twpayne/go-vfs/vfst"
 )
 
 func loadstdYip(s string) *YipConfig {
@@ -47,6 +46,8 @@ var _ = Describe("Schema", func() {
 	Context("Loading from dot notation", func() {
 		oneConfigwithGarbageS := "stages.foo[0].name=bar boo.baz"
 		twoConfigsS := "stages.foo[0].name=bar   stages.foo[0].commands[0]=baz"
+		threeConfigInvalid := `ip=dhcp test="echo ping_test_host=127.0.0.1  > /tmp/jojo"`
+		fourConfigHalfInvalid := `stages.foo[0].name=bar ip=dhcp test="echo ping_test_host=127.0.0.1  > /tmp/dio"`
 
 		It("Reads yip file correctly", func() {
 			yipConfig := loadYip(oneConfigwithGarbageS)
@@ -63,6 +64,22 @@ var _ = Describe("Schema", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(yipConfig.Stages["foo"][0].Name).To(Equal("bar"))
 			Expect(yipConfig.Stages["foo"][0].Commands[0]).To(Equal("baz"))
+		})
+
+		It("Reads yip file correctly", func() {
+			yipConfig, err := Load(threeConfigInvalid, nil, nil, DotNotationModifier)
+			Expect(err).ToNot(HaveOccurred())
+			// should look like an empty yipConfig as its an invalid config, so nothing should be loaded
+			Expect(yipConfig.Stages).To(Equal(YipConfig{}.Stages))
+			Expect(yipConfig.Name).To(Equal(YipConfig{}.Name))
+		})
+
+		It("Reads yip file correctly", func() {
+			yipConfig, err := Load(fourConfigHalfInvalid, nil, nil, DotNotationModifier)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(yipConfig.Name).To(Equal(YipConfig{}.Name))
+			// Even if broken config, it should load the valid parts of the config
+			Expect(yipConfig.Stages["foo"][0].Name).To(Equal("bar"))
 		})
 	})
 
