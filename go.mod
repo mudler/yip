@@ -40,3 +40,5 @@ require (
 	helm.sh/helm/v3 v3.3.4
 	pault.ag/go/topsort v0.0.0-20160530003732-f98d2ad46e1a // indirect
 )
+
+replace github.com/zcalusic/sysinfo => github.com/mudler/sysinfo v0.0.0-20210831132249-c35f7a73c9a7
