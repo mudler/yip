@@ -206,7 +206,7 @@ github.com/xeipuuv/gojsonpointer
 github.com/xeipuuv/gojsonreference
 # github.com/xeipuuv/gojsonschema v1.2.0
 github.com/xeipuuv/gojsonschema
-# github.com/zcalusic/sysinfo v0.0.0-20200820110305-ef1bb2697bc2 => github.com/mudler/sysinfo v0.0.0-20210831132249-c35f7a73c9a7
+# github.com/zcalusic/sysinfo v0.0.0-20210831153053-2c6e1d254246
 ## explicit
 github.com/zcalusic/sysinfo
 github.com/zcalusic/sysinfo/cpuid
@@ -435,4 +435,3 @@ pault.ag/go/topsort
 sigs.k8s.io/structured-merge-diff/v3/value
 # sigs.k8s.io/yaml v1.2.0
 sigs.k8s.io/yaml
-# github.com/zcalusic/sysinfo => github.com/mudler/sysinfo v0.0.0-20210831132249-c35f7a73c9a7

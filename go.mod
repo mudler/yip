@@ -30,7 +30,7 @@ require (
 	github.com/vishvananda/netlink v1.1.0 // indirect
 	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f // indirect
 	github.com/willdonnelly/passwd v0.0.0-20141013001024-7935dab3074c
-	github.com/zcalusic/sysinfo v0.0.0-20200820110305-ef1bb2697bc2
+	github.com/zcalusic/sysinfo v0.0.0-20210831153053-2c6e1d254246
 	golang.org/x/crypto v0.0.0-20201112155050-0c6587e931a9 // indirect
 	golang.org/x/time v0.0.0-20200416051211-89c76fbcd5d1 // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
@@ -40,5 +40,3 @@ require (
 	helm.sh/helm/v3 v3.3.4
 	pault.ag/go/topsort v0.0.0-20160530003732-f98d2ad46e1a // indirect
 )
-
-replace github.com/zcalusic/sysinfo => github.com/mudler/sysinfo v0.0.0-20210831132249-c35f7a73c9a7
