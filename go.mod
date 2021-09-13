@@ -9,7 +9,6 @@ require (
 	github.com/davidcassany/linuxkit/pkg/metadata v0.0.0-20210714125456-8b187a9ffd7e
 	github.com/docker/docker v17.12.0-ce-rc1.0.20200417035958-130b0bc6032c+incompatible // indirect
 	github.com/docker/libnetwork v0.8.0-dev.2.0.20200612180813-9e99af28df21 // indirect
-	github.com/elotl/cloud-init v1.14.2
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/googleapis/gnostic v0.2.2 // indirect
 	github.com/hashicorp/go-multierror v1.1.0
@@ -18,12 +17,13 @@ require (
 	github.com/joho/godotenv v1.3.0
 	github.com/kr/text v0.2.0 // indirect
 	github.com/moby/libnetwork v0.8.0-dev.2.0.20200612180813-9e99af28df21
-	github.com/mudler/entities v0.0.0-20210809133400-0cdb1a1cd599
+	github.com/mudler/entities v0.0.0-20210913083733-7d61a81e2f8b
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/onsi/ginkgo v1.16.1
 	github.com/onsi/gomega v1.11.0
 	github.com/paultag/go-modprobe v0.0.0-20200930231701-46c7252028d3
 	github.com/pkg/errors v0.9.1
+	github.com/rancher-sandbox/cloud-init v1.14.3-0.20210913085759-bf90bf5eb77e
 	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/cobra v1.2.1
 	github.com/twpayne/go-vfs v1.5.0

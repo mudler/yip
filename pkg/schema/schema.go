@@ -18,14 +18,15 @@ package schema
 import (
 	"bytes"
 	"fmt"
-	"github.com/google/shlex"
 	"io"
 	"net/http"
 	"os/user"
 	"strings"
 
-	"github.com/elotl/cloud-init/config"
+	"github.com/google/shlex"
+
 	"github.com/pkg/errors"
+	"github.com/rancher-sandbox/cloud-init/config"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/itchyny/gojq"
@@ -71,6 +72,8 @@ type User struct {
 	System            bool     `yaml:"system,omitempty"`
 	NoLogInit         bool     `yaml:"no_log_init,omitempty"`
 	Shell             string   `yaml:"shell,omitempty"`
+	LockPasswd        bool     `yaml:"lock_passwd"`
+	UID               string   `yaml:"uid"`
 }
 
 func (u User) Exists() bool {
@@ -238,7 +241,7 @@ func jq(command string, data map[string]interface{}) (map[string]interface{}, er
 	if err, ok := v.(error); ok {
 		return nil, err
 	}
-	if t, ok :=  v.(map[string]interface{}); ok {
+	if t, ok := v.(map[string]interface{}); ok {
 		return t, nil
 	}
 

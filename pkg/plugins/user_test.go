@@ -66,6 +66,37 @@ var _ = Describe("User", func() {
 			Expect(string(b)).Should(Equal("ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDR9zjXvyzg1HFMC7RT4LgtR+YGstxWDPPRoAcNrAWjtQcJVrcVo4WLFnT0BMU5mtMxWSrulpC6yrwnt2TE3Ul86yMxO2hbSyGP/xOdYm/nQzufY49rd3tKeJl1+6DkczuPa+XYh1GBcW5E2laNM5ZK+RjABppMpDgmnrM3AsGNE6G8RSuUvc/6Rwt61ma+jak3F5YMj4kwr5PhY2MTPo2YshsL3ouRXP/uPsbaBM6AdQakjWGJR8tPbrnHenzF65813d9zuY4y78TG0AHfomx9btmha7Mc0YF+BpELnvSQLlYrlRY/ziGhP65aQc8lFMc+XBnHeaXF4NHnzq6dIH2D\nssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDjWfZUB5W9HU70yOD1QW/7DSYZsisg8pPHnrxzS5WFnUvhnd7x3r9i+L8mRfk0tXk9p599e5uTryqaHW74bQK360+TnVens0JRF5vGeABe2L2GGrIkTIF8aTlPVq2BTDhu0R0rU28Cw3HwywX7cNjZdpFN2MtF74QbwqB0Ue7Nj6XxJjgV7GcecKEWc23Vjie6KEHlkFcgS0objZsiSt+hY3v3wJ94t+WZ8d1vEwvp7PX2J20W8Zq0bGcJiGMGuhDPRAZ4ju6HxIm60fUo9WzMNrZKVyEbMSYo6frLcmcMN0cDpDXE9WWnCwKDKnZEB0WqQcwOh1TQLYvRYEgMJair\n\nefafeeafea,t,t,pgl3,pbar\n"))
 		})
 
+		It("set UID and Lockpasswd", func() {
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/etc/passwd": "",
+				"/etc/shadow": "",
+				"/etc/group":  "",
+			})
+			Expect(err).Should(BeNil())
+			defer cleanup()
+
+			err = User(schema.Stage{
+				Users: map[string]schema.User{"foo": {
+					PasswordHash: `$fkekofe`,
+					LockPasswd:   true,
+					UID:          "0",
+					Homedir:      "/home/foo",
+				}},
+			}, fs, testConsole)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			shadow, err := fs.ReadFile("/etc/shadow")
+			Expect(err).ShouldNot(HaveOccurred())
+			passwd, err := fs.ReadFile("/etc/passwd")
+			Expect(err).ShouldNot(HaveOccurred())
+			group, err := fs.ReadFile("/etc/group")
+			Expect(err).ShouldNot(HaveOccurred())
+
+			Expect(string(group)).Should(Equal("foo:x:1000:foo\n"))
+
+			Expect(string(shadow)).Should(ContainSubstring("foo:!:"))
+			Expect(string(passwd)).Should(Equal("foo:x:0:1000:Created by entities:/home/foo:\n"))
+		})
+
 		It("edits already existing user password", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/etc/passwd": "",
 				"/etc/shadow": `foo:$6$rfBd56ti$7juhxebonsy.GiErzyxZPkbm.U4lUlv/59D2pvFqlbjVqyJP5f4VgP.EX3FKAeGTAr.GVf0jQmy9BXAZL5mNJ1:18820::::::

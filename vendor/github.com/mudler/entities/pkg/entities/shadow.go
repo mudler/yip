@@ -27,7 +27,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tredoe/osutil/userutil/crypt/sha512_crypt"
+	"github.com/tredoe/osutil/v2/userutil/crypt/sha512_crypt"
 
 	permbits "github.com/phayes/permbits"
 	"github.com/pkg/errors"

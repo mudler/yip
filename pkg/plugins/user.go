@@ -17,9 +17,14 @@ import (
 
 func createUser(fs vfs.FS, u schema.User, console Console) error {
 
+	pass := u.PasswordHash
+	if u.LockPasswd {
+		pass = "!"
+	}
+
 	userShadow := &entities.Shadow{
 		Username:    u.Name,
-		Password:    u.PasswordHash,
+		Password:    pass,
 		LastChanged: "now",
 	}
 
@@ -72,23 +77,31 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 		Gid:      &gid,
 		Users:    u.Name,
 	}
-	updateGroup.Apply(etcgroup,false)
+	updateGroup.Apply(etcgroup, false)
 
 	uid := 1000
-	// find an available uid if there are others already
-	all, _ := passwd.ParseFile(etcpasswd)
-	if len(all) != 0 {
-		usedUids := []int{}
-		for _, entry := range all {
-			uid, _ := strconv.Atoi(entry.Uid)
-			usedUids = append(usedUids, uid)
+	if u.UID != "" {
+		// User defined-uid
+		uid, err = strconv.Atoi(u.UID)
+		if err != nil {
+			return errors.Wrap(err, "invalid uid defined")
 		}
-		sort.Ints(usedUids)
-		if len(usedUids) == 0 {
-			return errors.New("no new UID found")
+	} else {
+		// find an available uid if there are others already
+		all, _ := passwd.ParseFile(etcpasswd)
+		if len(all) != 0 {
+			usedUids := []int{}
+			for _, entry := range all {
+				uid, _ := strconv.Atoi(entry.Uid)
+				usedUids = append(usedUids, uid)
+			}
+			sort.Ints(usedUids)
+			if len(usedUids) == 0 {
+				return errors.New("no new UID found")
+			}
+			uid = usedUids[len(usedUids)-1]
+			uid++
 		}
-		uid = usedUids[len(usedUids)-1]
-		uid++
 	}
 
 	userInfo := &entities.UserPasswd{
@@ -101,11 +114,11 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 		Uid:      uid,
 	}
 
-	if err := userInfo.Apply(etcpasswd,false); err != nil {
+	if err := userInfo.Apply(etcpasswd, false); err != nil {
 		return err
 	}
 
-	if err := userShadow.Apply(etcshadow,false); err != nil {
+	if err := userShadow.Apply(etcshadow, false); err != nil {
 		return err
 	}
 
@@ -123,7 +136,7 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 		for _, w := range u.Groups {
 			if w == name {
 				group.Users = u.Name
-				group.Apply(etcgroup,false)
+				group.Apply(etcgroup, false)
 			}
 		}
 	}
@@ -141,7 +154,7 @@ func setUserPass(fs vfs.FS, username, password string) error {
 		Password:    password,
 		LastChanged: "now",
 	}
-	if err := userShadow.Apply(etcshadow,false); err != nil {
+	if err := userShadow.Apply(etcshadow, false); err != nil {
 		return err
 	}
 	return nil

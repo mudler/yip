@@ -41,9 +41,6 @@ github.com/docker/docker/pkg/longpath
 ## explicit
 github.com/docker/libnetwork/resolvconf/dns
 github.com/docker/libnetwork/types
-# github.com/elotl/cloud-init v1.14.2
-## explicit
-github.com/elotl/cloud-init/config
 # github.com/fsnotify/fsnotify v1.4.9
 github.com/fsnotify/fsnotify
 # github.com/gobwas/glob v0.2.3
@@ -115,7 +112,7 @@ github.com/moby/libnetwork/resolvconf
 github.com/modern-go/concurrent
 # github.com/modern-go/reflect2 v1.0.1
 github.com/modern-go/reflect2
-# github.com/mudler/entities v0.0.0-20210809133400-0cdb1a1cd599
+# github.com/mudler/entities v0.0.0-20210913083733-7d61a81e2f8b
 ## explicit
 github.com/mudler/entities/pkg/entities
 # github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e
@@ -172,6 +169,9 @@ github.com/phayes/permbits
 # github.com/pkg/errors v0.9.1
 ## explicit
 github.com/pkg/errors
+# github.com/rancher-sandbox/cloud-init v1.14.3-0.20210913085759-bf90bf5eb77e
+## explicit
+github.com/rancher-sandbox/cloud-init/config
 # github.com/sirupsen/logrus v1.6.0
 ## explicit
 github.com/sirupsen/logrus
@@ -182,10 +182,10 @@ github.com/spf13/cast
 github.com/spf13/cobra
 # github.com/spf13/pflag v1.0.5
 github.com/spf13/pflag
-# github.com/tredoe/osutil v1.2.1
-github.com/tredoe/osutil/userutil/crypt
-github.com/tredoe/osutil/userutil/crypt/common
-github.com/tredoe/osutil/userutil/crypt/sha512_crypt
+# github.com/tredoe/osutil/v2 v2.0.0
+github.com/tredoe/osutil/v2/userutil/crypt
+github.com/tredoe/osutil/v2/userutil/crypt/common
+github.com/tredoe/osutil/v2/userutil/crypt/sha512_crypt
 # github.com/twpayne/go-vfs v1.5.0
 ## explicit
 github.com/twpayne/go-vfs

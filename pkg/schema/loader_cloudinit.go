@@ -16,7 +16,7 @@
 package schema
 
 import (
-	cloudconfig "github.com/elotl/cloud-init/config"
+	cloudconfig "github.com/rancher-sandbox/cloud-init/config"
 	"github.com/twpayne/go-vfs"
 )
 
@@ -53,6 +53,8 @@ func (cloudInit) Load(s []byte, fs vfs.FS) (*YipConfig, error) {
 			System:       u.System,
 			NoLogInit:    u.NoLogInit,
 			Shell:        u.Shell,
+			UID:          u.UID,
+			LockPasswd:   u.LockPasswd,
 		}
 		sshKeys[u.Name] = u.SSHAuthorizedKeys
 	}
