@@ -86,6 +86,8 @@ var _ = Describe("Schema", func() {
 	Context("Loading CloudConfig", func() {
 		It("Reads cloudconfig to boot stage", func() {
 			yipConfig := loadstdYip(`#cloud-config
+growpart:
+ devices: ['/']
 stages:
   test:
   - environment:
@@ -93,6 +95,8 @@ stages:
 users:
 - name: "bar"
   passwd: "foo"
+  uid: "1002"
+  lock_passwd: true
   groups: "users"
   ssh_authorized_keys:
   - faaapploo
@@ -109,13 +113,16 @@ write_files:
   owner: "bar"
 `)
 			Expect(len(yipConfig.Stages)).To(Equal(2))
+			Expect(yipConfig.Stages["boot"][0].Users["bar"].UID).To(Equal("1002"))
 			Expect(yipConfig.Stages["boot"][0].Users["bar"].PasswordHash).To(Equal("foo"))
 			Expect(yipConfig.Stages["boot"][0].SSHKeys).To(Equal(map[string][]string{"bar": {"faaapploo", "asdd"}}))
 			Expect(yipConfig.Stages["boot"][0].Files[0].Path).To(Equal("/foo/bar"))
 			Expect(yipConfig.Stages["boot"][0].Hostname).To(Equal("bar"))
 			Expect(yipConfig.Stages["boot"][0].Commands).To(Equal([]string{"foo"}))
 			Expect(yipConfig.Stages["test"][0].Environment["foo"]).To(Equal("bar"))
-
+			Expect(yipConfig.Stages["boot"][0].Users["bar"].LockPasswd).To(Equal(true))
+			Expect(yipConfig.Stages["boot"][1].Layout.Expand.Size).To(Equal(uint(0)))
+			Expect(yipConfig.Stages["boot"][1].Layout.Device.Path).To(Equal("/"))
 		})
 	})
 })

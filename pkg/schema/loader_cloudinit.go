@@ -92,15 +92,24 @@ func (cloudInit) Load(s []byte, fs vfs.FS) (*YipConfig, error) {
 		)
 	}
 
+	stages := []Stage{{
+		Commands: cc.RunCmd,
+		Files:    f,
+		Hostname: cc.Hostname,
+		Users:    users,
+		SSHKeys:  sshKeys,
+	}}
+	
+	for _, d := range cc.Partitioning.Devices {
+		layout := &Layout{}
+		layout.Expand = &Expand{Size: 0}
+		layout.Device = &Device{Path: d}
+		stages = append(stages, Stage{Layout: *layout})
+	}
+
 	result := &YipConfig{
-		Name: "Cloud init",
-		Stages: map[string][]Stage{stage: {{
-			Commands: cc.RunCmd,
-			Files:    f,
-			Hostname: cc.Hostname,
-			Users:    users,
-			SSHKeys:  sshKeys,
-		}}},
+		Name:   "Cloud init",
+		Stages: map[string][]Stage{stage: stages},
 	}
 
 	// optimistically load data as yip yaml
