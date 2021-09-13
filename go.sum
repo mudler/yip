@@ -688,8 +688,6 @@ github.com/prometheus/procfs v0.0.2/go.mod h1:TjEm7ze935MbeOT/UhFTIMYKhuLP4wbCsT
 github.com/prometheus/procfs v0.0.5/go.mod h1:4A/X28fw3Fc593LaREMrKMqOKvUAntwMDaekg4FpcdQ=
 github.com/prometheus/procfs v0.0.8/go.mod h1:7Qr8sr6344vo1JqZ6HhLceV9o3AJ1Ff+GxbHq6oeK9A=
 github.com/prometheus/tsdb v0.7.1/go.mod h1:qhTCs0VvXwvX/y3TZrWD7rabWM+ijKTux40TwIPHuXU=
-github.com/rancher-sandbox/cloud-init v1.14.3-0.20210913082910-d595c4acc27c h1:85CvlOdxqAEhJocvPAJHNbhlpaw04gmZfVwNF2UfAPw=
-github.com/rancher-sandbox/cloud-init v1.14.3-0.20210913082910-d595c4acc27c/go.mod h1:qbJr82AYxRKlEa4ZSm6qENOmXebBxPXne8BWbtll4cg=
 github.com/rancher-sandbox/cloud-init v1.14.3-0.20210913085759-bf90bf5eb77e h1:1GSTIPu7CB2UCkS++2/wMygc3S+aa5O0VbTsdDrYupE=
 github.com/rancher-sandbox/cloud-init v1.14.3-0.20210913085759-bf90bf5eb77e/go.mod h1:qbJr82AYxRKlEa4ZSm6qENOmXebBxPXne8BWbtll4cg=
 github.com/rcrowley/go-metrics v0.0.0-20181016184325-3113b8401b8a/go.mod h1:bCqnVzQkZxMG4s8nGwiZ5l3QUCyqpo9Y+/ZMZ9VjZe4=
