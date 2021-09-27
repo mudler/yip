@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"regexp"
 	"strings"
 
 	"github.com/apex/log"
@@ -15,6 +16,7 @@ import (
 type CmdMock struct {
 	Cmd    string
 	Output string
+	UseRegexp bool
 }
 
 type TestConsoleMock struct {
@@ -48,12 +50,18 @@ func (s TestConsoleMock) PopCmd() *CmdMock {
 func (s TestConsoleMock) Run(cmd string, opts ...func(*exec.Cmd)) (string, error) {
 	cmdMock := s.PopCmd()
 	Expect(cmdMock).NotTo(BeNil())
-	if cmdMock.Cmd == cmd {
-		return cmdMock.Output, nil
+	if cmdMock.UseRegexp {
+		if matched, _ := regexp.MatchString(cmdMock.Cmd, cmd); matched {
+			return cmdMock.Output, nil
+		}
 	} else {
-		Expect(cmd).To(Equal(cmdMock.Cmd))
-		return "", errors.New("Unexpected command")
+		if cmdMock.Cmd == cmd {
+			return cmdMock.Output, nil
+		}
 	}
+
+	Expect(cmd).To(Equal(cmdMock.Cmd))
+	return "", errors.New("Unexpected command")
 }
 
 func (s TestConsoleMock) Start(cmd *exec.Cmd, opts ...func(*exec.Cmd)) error {

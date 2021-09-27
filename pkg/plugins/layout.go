@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -387,11 +388,67 @@ func (dev *Disk) ExpandLastPartition(size uint, console Console) (string, error)
 	if err != nil {
 		return "", err
 	}
+
+	fullDevice := fmt.Sprintf("%s%d", dev.Device, part.Number)
+	out, err = dev.expandFilesystem(fullDevice, console)
+	if err != nil {
+		return out, err
+	}
+
 	err = dev.Reload(console)
 	if err != nil {
 		return "", err
 	}
 	return out, nil
+}
+
+func (dev Disk) expandFilesystem(device string, console Console)  (string, error){
+	var out string
+	var err error
+
+	fs, _ := console.Run(fmt.Sprintf("blkid %s -s TYPE -o value", device))
+
+	switch strings.TrimSpace(fs) {
+	case "ext2", "ext3", "ext4":
+		out, err = console.Run(fmt.Sprintf("e2fsck -fy %s", device))
+		if err != nil {
+			return out, err
+		}
+		out, err = console.Run(fmt.Sprintf("resize2fs %s", device))
+
+		if err != nil {
+			return out, err
+		}
+	case "xfs":
+		// to grow an xfs fs it needs to be mounted :/
+		tmpDir, err := os.MkdirTemp("", "yip")
+		defer os.Remove(tmpDir)
+
+		if err != nil {
+			return out, err
+		}
+		out, err = console.Run(fmt.Sprintf("mount -t xfs %s %s", device, tmpDir))
+		if err != nil {
+			return out, err
+		}
+		out, err = console.Run(fmt.Sprintf("xfs_growfs %s",tmpDir))
+		if err != nil {
+			// If we error out, try to umount the dir to not leave it hanging
+			out, err2 := console.Run(fmt.Sprintf("umount %s", tmpDir))
+			if err2 != nil {
+				return out, err2
+			}
+			return out, err
+		}
+		out, err = console.Run(fmt.Sprintf("umount %s", tmpDir))
+		if err != nil {
+			return out, err
+		}
+	default:
+		return "", errors.New(fmt.Sprintf("Could not find filesystem for %s, not resizing the filesystem", device))
+	}
+
+	return "", nil
 }
 
 func NewGdiskCall(dev string) *GdiskCall {
