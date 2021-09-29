@@ -1,14 +1,17 @@
 package plugins_test
 
 import (
+	"fmt"
 	. "github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
 	console "github.com/mudler/yip/tests/console"
-	"github.com/twpayne/go-vfs/vfst"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/twpayne/go-vfs/vfst"
 )
+
+var deviceLabel = "reflabel"
+var label = "MYLABEL"
 
 var pTable console.CmdMock = console.CmdMock{
 	Cmd: "sgdisk -p /some/device",
@@ -35,7 +38,8 @@ var lsblkTypes console.CmdMock = console.CmdMock{
 /some/device5 part`,
 }
 
-var CmdsAddPart []console.CmdMock = []console.CmdMock{
+var CmdsAddPartByDevPath []console.CmdMock = append([]console.CmdMock{
+	{Cmd: "lsblk -npo type /some/device", Output: "loop"},
 	{Cmd: "sgdisk --verify /some/device", Output: "the end of the disk"},
 	{Cmd: "sgdisk -P -e /some/device"},
 	{Cmd: "sgdisk -e /some/device"}, pTable,
@@ -46,16 +50,7 @@ var CmdsAddPart []console.CmdMock = []console.CmdMock{
 	{Cmd: "mkfs.ext2 -L MYLABEL /some/device5"},
 	{Cmd: "partprobe /some/device"},
 	{Cmd: "blkid -l --match-token LABEL=MYLABEL -o device"},
-}
-
-var CmdsAddPartByDevPath []console.CmdMock = append([]console.CmdMock{
-	{Cmd: "lsblk -npo type /some/device", Output: "loop"},
-}, CmdsAddPart...)
-
-var CmdsAddPartByLabel []console.CmdMock = append([]console.CmdMock{
-	{Cmd: "blkid -l --match-token LABEL=reflabel -o device", Output: "/some/part"},
-	{Cmd: "lsblk -npo pkname /some/part", Output: "/some/device"},
-}, CmdsAddPart...)
+})
 
 var CmdsAddAlreadyExistingPart []console.CmdMock = []console.CmdMock{
 	{Cmd: "blkid -l --match-token LABEL=reflabel -o device", Output: "/some/part"},
@@ -77,6 +72,23 @@ var CmdsExpandPart []console.CmdMock = []console.CmdMock{
 	{Cmd: "partprobe /some/device"},
 }
 
+func CmdsAddPartByLabel(fs string) []console.CmdMock {
+	return []console.CmdMock{
+		{Cmd: fmt.Sprintf("blkid -l --match-token LABEL=%s -o device", deviceLabel), Output: "/some/part"},
+		{Cmd: "lsblk -npo pkname /some/part", Output: "/some/device"},
+		{Cmd: "sgdisk --verify /some/device", Output: "the end of the disk"},
+		{Cmd: "sgdisk -P -e /some/device"},
+		{Cmd: "sgdisk -e /some/device"}, pTable,
+		{Cmd: fmt.Sprintf("blkid -l --match-token LABEL=%s -o device", label)},
+		{Cmd: "sgdisk -P -n=5:0:+2097152 -t=5:8300 /some/device"},
+		{Cmd: "sgdisk -n=5:0:+2097152 -t=5:8300 /some/device"}, pTable,
+		{Cmd: "partprobe /some/device"}, lsblkTypes,
+		{Cmd: fmt.Sprintf("mkfs.%s -L %s /some/device5", fs, label)},
+		{Cmd: "partprobe /some/device"},
+		{Cmd: fmt.Sprintf("blkid -l --match-token LABEL=%s -o device", label)},
+	}
+}
+
 var _ = Describe("Layout", func() {
 	Context("creating", func() {
 		fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{})
@@ -85,11 +97,11 @@ var _ = Describe("Layout", func() {
 
 		It("Adds a new partition of 1024MiB in reflabel device", func() {
 			testConsole := console.New()
-			testConsole.AddCmds(CmdsAddPartByLabel)
+			testConsole.AddCmds(CmdsAddPartByLabel("ext2"))
 			err := Layout(schema.Stage{
 				Layout: schema.Layout{
-					Device: &schema.Device{Label: "reflabel"},
-					Parts:  []schema.Partition{{FSLabel: "MYLABEL", Size: 1024}},
+					Device: &schema.Device{Label: deviceLabel},
+					Parts:  []schema.Partition{{FSLabel: label, Size: 1024}},
 				},
 			}, fs, testConsole)
 			Expect(err).Should(BeNil())
@@ -107,11 +119,11 @@ var _ = Describe("Layout", func() {
 		})
 		It("Fails to add a partition of 1030MiB, there are only 1024MiB available", func() {
 			testConsole := console.New()
-			testConsole.AddCmds(CmdsAddPartByLabel)
+			testConsole.AddCmds(CmdsAddPartByLabel("ext2"))
 			err := Layout(schema.Stage{
 				Layout: schema.Layout{
-					Device: &schema.Device{Label: "reflabel"},
-					Parts:  []schema.Partition{{FSLabel: "MYLABEL", Size: 1025}},
+					Device: &schema.Device{Label: deviceLabel},
+					Parts:  []schema.Partition{{FSLabel: label, Size: 1025}},
 				},
 			}, fs, testConsole)
 			Expect(err).To(HaveOccurred())
@@ -121,8 +133,8 @@ var _ = Describe("Layout", func() {
 			testConsole.AddCmds(CmdsAddAlreadyExistingPart)
 			err := Layout(schema.Stage{
 				Layout: schema.Layout{
-					Device: &schema.Device{Label: "reflabel"},
-					Parts:  []schema.Partition{{FSLabel: "MYLABEL", Size: 1024}},
+					Device: &schema.Device{Label: deviceLabel},
+					Parts:  []schema.Partition{{FSLabel: label, Size: 1024}},
 				},
 			}, fs, testConsole)
 			Expect(err).Should(BeNil())
@@ -132,7 +144,7 @@ var _ = Describe("Layout", func() {
 			testConsole.AddCmds(CmdsExpandPart)
 			err := Layout(schema.Stage{
 				Layout: schema.Layout{
-					Device: &schema.Device{Label: "reflabel"},
+					Device: &schema.Device{Label: deviceLabel},
 					Expand: &schema.Expand{Size: 1024},
 				},
 			}, fs, testConsole)
@@ -143,7 +155,7 @@ var _ = Describe("Layout", func() {
 			testConsole.AddCmds(CmdsExpandPart)
 			err := Layout(schema.Stage{
 				Layout: schema.Layout{
-					Device: &schema.Device{Label: "reflabel"},
+					Device: &schema.Device{Label: deviceLabel},
 					Expand: &schema.Expand{Size: 3072},
 				},
 			}, fs, testConsole)
@@ -154,11 +166,37 @@ var _ = Describe("Layout", func() {
 			testConsole.AddCmds(CmdsExpandPart)
 			err := Layout(schema.Stage{
 				Layout: schema.Layout{
-					Device: &schema.Device{Label: "reflabel"},
+					Device: &schema.Device{Label: deviceLabel},
 					Expand: &schema.Expand{Size: 3073},
 				},
 			}, fs, testConsole)
 			Expect(err).To(HaveOccurred())
+		})
+		It("Fails on an xfs fs with a label longer than 12 chars", func(){
+			testConsole := console.New()
+			err := Layout(schema.Stage{
+				Layout: schema.Layout{
+					Device: &schema.Device{Label: deviceLabel},
+					Parts:  []schema.Partition{{FSLabel: "LABEL_TOO_LONG_FOR_XFS", Size: 1024, FileSystem: "xfs"}},
+				},
+			}, fs, testConsole)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("cannot have a label longer than 12 chars"))
+		})
+
+		It("Works on an non-xfs fs with a label longer than 12 chars", func(){
+			label = "LABEL_TOO_LONG_FOR_XFS"
+			for _, filesystem := range []string{"ext2", "ext3", "ext4"} {
+				testConsole := console.New()
+				testConsole.AddCmds(CmdsAddPartByLabel(filesystem))
+				err := Layout(schema.Stage{
+					Layout: schema.Layout{
+						Device: &schema.Device{Label: deviceLabel},
+						Parts:  []schema.Partition{{FSLabel: label, Size: 1024, FileSystem: filesystem}},
+					},
+				}, fs, testConsole)
+				Expect(err).ToNot(HaveOccurred())
+			}
 		})
 	})
 })

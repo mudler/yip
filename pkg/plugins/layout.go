@@ -53,6 +53,11 @@ func Layout(s schema.Stage, fs vfs.FS, console Console) error {
 
 	var dev Disk
 	var err error
+	for _, l := range s.Layout.Parts {
+		if l.FileSystem == "xfs" && len(l.FSLabel) > 12 {
+			return errors.New(fmt.Sprintf("xfs filesystem %s cannot have a label longer than 12 chars", l.FSLabel))
+		}
+	}
 	if len(strings.TrimSpace(s.Layout.Device.Label)) > 0 {
 		dev, err = FindDiskFromPartitionLabel(s.Layout.Device.Label, console)
 		if err != nil {
