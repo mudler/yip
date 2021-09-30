@@ -45,9 +45,34 @@ func Download(s schema.Stage, fs vfs.FS, console Console) error {
 
 func downloadFile(dl schema.Download) error {
 	log.Debug("Downloading file ", dl.Path, dl.URL)
-	resp, err := grab.Get(dl.Path, dl.URL)
+	client := grabClient(dl.Timeout)
+
+	req, err := grab.NewRequest(dl.Path, dl.URL)
 	if err != nil {
-		log.Fatal(err)
+		return err
+	}
+	resp := client.Do(req)
+
+	t := time.NewTicker(500 * time.Millisecond)
+	defer t.Stop()
+
+Loop:
+	for {
+		select {
+		case <-t.C:
+			log.Debugf("  transferred %v / %v bytes (%.2f%%)\n",
+				resp.BytesComplete(),
+				resp.Size,
+				100*resp.Progress())
+
+		case <-resp.Done:
+			// download is complete
+			break Loop
+		}
+	}
+
+	if err := resp.Err(); err != nil {
+		return err
 	}
 
 	file := resp.Filename
