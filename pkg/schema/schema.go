@@ -48,6 +48,15 @@ type File struct {
 	OwnerString  string
 }
 
+type Download struct {
+	Path         string
+	URL          string
+	Permissions  uint32
+	Owner, Group int
+	Timeout      int
+	OwnerString  string
+}
+
 type Directory struct {
 	Path         string
 	Permissions  uint32
@@ -106,6 +115,7 @@ type Partition struct {
 type Stage struct {
 	Commands    []string    `yaml:"commands"`
 	Files       []File      `yaml:"files"`
+	Downloads   []Download  `yaml:"downloads"`
 	Directories []Directory `yaml:"directories"`
 	If          string      `yaml:"if"`
 

@@ -31,6 +31,7 @@ func NewExecutor(s string) Executor {
 				plugins.IfConditional,
 			},
 			plugins: []Plugin{
+				plugins.Download,
 				plugins.DNS,
 				plugins.Entities,
 				plugins.EnsureDirectories,
