@@ -73,7 +73,26 @@ var CmdsExpandPart []console.CmdMock = []console.CmdMock{
 	{Cmd: "sgdisk -P -e /some/device"},
 	{Cmd: "sgdisk -e /some/device"}, pTable,
 	{Cmd: "sgdisk -P -d=4 -n=4:178176:+6291456 -c=4:root -t=4:8300 /some/device"},
-	{Cmd: "sgdisk -d=4 -n=4:178176:+6291456 -c=4:root -t=4:8300 /some/device"}, pTable,
+	{Cmd: "sgdisk -d=4 -n=4:178176:+6291456 -c=4:root -t=4:8300 /some/device"},
+	{Cmd: "blkid /some/device4 -s TYPE -o value", Output: "ext4"},
+	{Cmd: "e2fsck -fy /some/device4"},
+	{Cmd: "resize2fs /some/device4"}, pTable,
+	{Cmd: "partprobe /some/device"},
+}
+
+var CmdsExpandPartXfs []console.CmdMock = []console.CmdMock{
+	{Cmd: "blkid -l --match-token LABEL=reflabel -o device", Output: "/some/part"},
+	{Cmd: "lsblk -npo pkname /some/part", Output: "/some/device"},
+	{Cmd: "sgdisk --verify /some/device", Output: "the end of the disk"},
+	{Cmd: "sgdisk -P -e /some/device"},
+	{Cmd: "sgdisk -e /some/device"}, pTable,
+	{Cmd: "sgdisk -P -d=4 -n=4:178176:+6291456 -c=4:root -t=4:8300 /some/device"},
+	{Cmd: "sgdisk -d=4 -n=4:178176:+6291456 -c=4:root -t=4:8300 /some/device"},
+	{Cmd: "blkid /some/device4 -s TYPE -o value", Output: "xfs"},
+	{Cmd: "mount -t xfs /some/device4 /tmp/*", UseRegexp: true},
+	{Cmd: "xfs_growfs /tmp/*", UseRegexp: true},
+	{Cmd: "umount /tmp/*", UseRegexp: true},
+	pTable,
 	{Cmd: "partprobe /some/device"},
 }
 
@@ -141,6 +160,17 @@ var _ = Describe("Layout", func() {
 		It("Expands last partition", func() {
 			testConsole := console.New()
 			testConsole.AddCmds(CmdsExpandPart)
+			err := Layout(schema.Stage{
+				Layout: schema.Layout{
+					Device: &schema.Device{Label: "reflabel"},
+					Expand: &schema.Expand{Size: 3072},
+				},
+			}, fs, testConsole)
+			Expect(err).Should(BeNil())
+		})
+		It("Expands last partition with XFS fs", func() {
+			testConsole := console.New()
+			testConsole.AddCmds(CmdsExpandPartXfs)
 			err := Layout(schema.Stage{
 				Layout: schema.Layout{
 					Device: &schema.Device{Label: "reflabel"},
