@@ -263,6 +263,24 @@ stages:
           # owner_string: "user:group", or "user"
 ```
 
+### `stages.<stageID>.[<stepN>].downloads`
+
+A list of http urls to download and write to disk.
+
+```yaml
+stages:
+   default:
+     - downloads:
+        - path: /tmp/bar
+          url: ""
+          timeout: 0
+          permissions: 0777
+          owner: 1000
+          group: 100
+          # or
+          # owner_string: "user:group", or "user"
+```
+
 ### `stages.<stageID>.[<stepN>].directories`
 
 A list of directories to be created on disk. Runs before `files`.
