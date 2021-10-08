@@ -141,7 +141,7 @@ var _ = Describe("Git", func() {
 			Expect(string(b)).Should(Equal("test"))
 		})
 
-		It("clones a private repo in a path that is already checked out", func() {
+		PIt("clones a private repo in a path that is already checked out", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/testarea": &vfst.Dir{Perm: 0o755}})
 			Expect(err).Should(BeNil())
 			defer cleanup()
