@@ -141,14 +141,14 @@ var _ = Describe("Git", func() {
 			Expect(string(b)).Should(Equal("test"))
 		})
 
-		PIt("clones a private repo in a path that is already checked out", func() {
+		It("clones a private repo in a path that is already checked out", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/testarea": &vfst.Dir{Perm: 0o755}})
 			Expect(err).Should(BeNil())
 			defer cleanup()
 
 			err = Git(schema.Stage{
 				Git: schema.Git{
-					URL:    "git@gitlab.com:mudler/unit-test-repo.git",
+					URL:    "ssh://git@gitlab.com/mudler/unit-test-repo.git",
 					Path:   "/testarea",
 					Branch: "main",
 
@@ -171,7 +171,7 @@ var _ = Describe("Git", func() {
 			err = Git(schema.Stage{
 
 				Git: schema.Git{
-					URL:    "git@gitlab.com:mudler/unit-test-repo.git",
+					URL:    "ssh://git@gitlab.com/mudler/unit-test-repo.git",
 					Path:   "/testarea",
 					Branch: "main",
 				},
