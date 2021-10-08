@@ -29,6 +29,14 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+const gitlabKey string = `# gitlab.com:22 SSH-2.0-OpenSSH_7.9p1 Debian-10+deb10u2
+# gitlab.com:22 SSH-2.0-OpenSSH_7.9p1 Debian-10+deb10u2
+gitlab.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCsj2bNKTBSpIYDEGk9KxsGh3mySTRgMtXL583qmBpzeQ+jqCMRgBqB98u3z++J1sKlXHWfM9dyhSevkMwSbhoR8XIq/U0tCNyokEi/ueaBMCvbcTHhO7FcwzY92WK4Yt0aGROY5qX2UKSeOvuP4D6TPqKF1onrSzH9bx9XUf2lEdWT/ia1NEKjunUqu1xOB/StKDHMoX4/OKyIzuS0q/T1zOATthvasJFoPrAjkohTyaDUz2LN5JoH839hViyEG82yB+MjcFV5MU3N1l1QL3cVUCh93xSaua1N85qivl+siMkPGbO5xR/En4iEY6K2XPASUEMaieWVNTRCtJ4S8H+9
+# gitlab.com:22 SSH-2.0-OpenSSH_7.9p1 Debian-10+deb10u2
+gitlab.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBFSMqzJeV9rUzU4kWitGjeR4PWSa29SPqJ1fVkhtj3Hw9xjLVXVYrU9QlYWrOLXBpQ6KWjbjTDTdDkoohFzgbEY=
+# gitlab.com:22 SSH-2.0-OpenSSH_7.9p1 Debian-10+deb10u2
+`
+
 const testPrivateKey string = `-----BEGIN OPENSSH PRIVATE KEY-----
 b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
 QyNTUxOQAAACBbaeOI9ZJluGPUKqsRVlEc1LHXiUr6HYdvzYuKcHSxuQAAAJBpIXkKaSF5
@@ -144,7 +152,7 @@ var _ = Describe("Git", func() {
 					Path:   "/testarea",
 					Branch: "main",
 
-					Auth: schema.Auth{PrivateKey: testPrivateKey},
+					Auth: schema.Auth{PrivateKey: testPrivateKey, PublicKey: gitlabKey},
 				},
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
