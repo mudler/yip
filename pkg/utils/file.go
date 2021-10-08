@@ -31,3 +31,10 @@ func Touch(s string, perms os.FileMode, fs vfs.FS) error {
 	}
 
 }
+
+func Exists(s string) bool {
+	if _, err := os.Stat(s); err != nil && os.IsNotExist(err) {
+		return false
+	}
+	return true
+}

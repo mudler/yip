@@ -68,6 +68,23 @@ type DataSource struct {
 	Path      string   `yaml:"path"`
 }
 
+type Git struct {
+	Auth       Auth   `yaml:"auth"`
+	URL        string `yaml:"url"`
+	Path       string `yaml:"path"`
+	Branch     string `yaml:"branch"`
+	BranchOnly bool   `yaml:"branch_only"`
+}
+
+type Auth struct {
+	Username   string `yaml:"username"`
+	Password   string `yaml:"password"`
+	PrivateKey string `yaml:"private_key"`
+
+	Insecure  bool   `yaml:"insecure"`
+	PublicKey string `yaml:"public_key"`
+}
+
 type User struct {
 	Name              string   `yaml:"name,omitempty"`
 	PasswordHash      string   `yaml:"passwd,omitempty"`
@@ -139,6 +156,7 @@ type Stage struct {
 	SystemdFirstBoot map[string]string `yaml:"systemd_firstboot"`
 
 	TimeSyncd map[string]string `yaml:"timesyncd"`
+	Git       Git               `yaml:"git"`
 }
 
 type Systemctl struct {
