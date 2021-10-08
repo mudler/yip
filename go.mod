@@ -10,16 +10,15 @@ require (
 	github.com/davidcassany/linuxkit/pkg/metadata v0.0.0-20210714125456-8b187a9ffd7e
 	github.com/docker/docker v17.12.0-ce-rc1.0.20200417035958-130b0bc6032c+incompatible // indirect
 	github.com/docker/libnetwork v0.8.0-dev.2.0.20200612180813-9e99af28df21 // indirect
+	github.com/go-git/go-git/v5 v5.4.2
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/googleapis/gnostic v0.2.2 // indirect
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/ishidawataru/sctp v0.0.0-20191218070446-00ab2ac2db07 // indirect
 	github.com/itchyny/gojq v0.12.2
 	github.com/joho/godotenv v1.3.0
-	github.com/kr/text v0.2.0 // indirect
 	github.com/moby/libnetwork v0.8.0-dev.2.0.20200612180813-9e99af28df21
 	github.com/mudler/entities v0.0.0-20210913083733-7d61a81e2f8b
-	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/onsi/ginkgo v1.16.1
 	github.com/onsi/gomega v1.11.0
 	github.com/paultag/go-modprobe v0.0.0-20200930231701-46c7252028d3
@@ -32,9 +31,8 @@ require (
 	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f // indirect
 	github.com/willdonnelly/passwd v0.0.0-20141013001024-7935dab3074c
 	github.com/zcalusic/sysinfo v0.0.0-20210831153053-2c6e1d254246
-	golang.org/x/crypto v0.0.0-20201112155050-0c6587e931a9 // indirect
+	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
 	golang.org/x/time v0.0.0-20200416051211-89c76fbcd5d1 // indirect
-	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 	gopkg.in/ini.v1 v1.62.0
 	gopkg.in/yaml.v2 v2.4.0
 	gotest.tools/v3 v3.0.2 // indirect
