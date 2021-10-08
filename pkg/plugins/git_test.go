@@ -29,6 +29,15 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+const testPrivateKey string = `-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
+QyNTUxOQAAACBbaeOI9ZJluGPUKqsRVlEc1LHXiUr6HYdvzYuKcHSxuQAAAJBpIXkKaSF5
+CgAAAAtzc2gtZWQyNTUxOQAAACBbaeOI9ZJluGPUKqsRVlEc1LHXiUr6HYdvzYuKcHSxuQ
+AAAEADUKTRroHZj3rJTDbisFNt2/dZs0QQ5mIwNiIYGVFZOltp44j1kmW4Y9QqqxFWURzU
+sdeJSvodh2/Ni4pwdLG5AAAACTxjb21tZW50PgECAwQ=
+-----END OPENSSH PRIVATE KEY-----
+`
+
 var _ = Describe("Git", func() {
 	Context("creating", func() {
 		testConsole := consoletests.TestConsole{}
@@ -124,5 +133,52 @@ var _ = Describe("Git", func() {
 			Expect(string(b)).Should(Equal("test"))
 		})
 
+		It("clones a private repo in a path that is already checked out", func() {
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/testarea": &vfst.Dir{Perm: 0o755}})
+			Expect(err).Should(BeNil())
+			defer cleanup()
+
+			err = Git(schema.Stage{
+				Git: schema.Git{
+					URL:    "git@gitlab.com:mudler/unit-test-repo.git",
+					Path:   "/testarea",
+					Branch: "main",
+
+					Auth: schema.Auth{PrivateKey: testPrivateKey},
+				},
+			}, fs, testConsole)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			fs.WriteFile("/testarea/test.txt", []byte("foo"), os.ModePerm)
+			file, err := fs.Open("/testarea/test.txt")
+			Expect(err).ShouldNot(HaveOccurred())
+
+			b, err := ioutil.ReadAll(file)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			Expect(string(b)).Should(Equal("foo"))
+
+			err = Git(schema.Stage{
+
+				Git: schema.Git{
+					URL:    "git@gitlab.com:mudler/unit-test-repo.git",
+					Path:   "/testarea",
+					Branch: "main",
+				},
+			}, fs, testConsole)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			file, err = fs.Open("/testarea/test.txt")
+			Expect(err).ShouldNot(HaveOccurred())
+
+			b, err = ioutil.ReadAll(file)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			Expect(string(b)).Should(Equal("test\n"))
+		})
 	})
 })

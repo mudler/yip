@@ -82,7 +82,8 @@ func Git(s schema.Stage, fs vfs.FS, console Console) error {
 	}
 
 	opts := &git.CloneOptions{
-		URL: gitconfig.URL,
+		URL:          gitconfig.URL,
+		SingleBranch: s.Git.BranchOnly,
 	}
 
 	applyOptions(s, opts)
