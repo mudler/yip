@@ -16,11 +16,9 @@
 package plugins
 
 import (
-	"fmt"
 	"path/filepath"
 
 	git "github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	gith "github.com/go-git/go-git/v5/plumbing/transport/http"
@@ -55,17 +53,19 @@ func Git(s schema.Stage, fs vfs.FS, console Console) error {
 		if err != nil {
 			return err
 		}
-		err = r.Fetch(&git.FetchOptions{
-			Auth: authMethod(s),
-			// +refs/heads/*:refs/remotes/origin/*
-			RefSpecs: []config.RefSpec{config.RefSpec(fmt.Sprintf("+refs/heads/%s:refs/remotes/origin/%s", branch, branch))},
-		})
-		if err != nil && err != git.NoErrAlreadyUpToDate {
-			return err
-		}
 
 		w, err := r.Worktree()
 		if err != nil {
+			return err
+		}
+
+		err = w.Pull(&git.PullOptions{
+			Auth:            authMethod(s),
+			SingleBranch:    s.Git.BranchOnly,
+			Force:           true,
+			InsecureSkipTLS: s.Git.Auth.Insecure,
+		})
+		if err != nil && err != git.NoErrAlreadyUpToDate {
 			return err
 		}
 
