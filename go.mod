@@ -3,6 +3,7 @@ module github.com/mudler/yip
 go 1.16
 
 require (
+	github.com/Masterminds/sprig/v3 v3.1.0
 	github.com/apex/log v1.9.0
 	github.com/cavaliergopher/grab v2.0.0+incompatible
 	github.com/cloudflare/cfssl v1.5.0
@@ -12,7 +13,6 @@ require (
 	github.com/docker/libnetwork v0.8.0-dev.2.0.20200612180813-9e99af28df21 // indirect
 	github.com/go-git/go-git/v5 v5.4.2
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
-	github.com/googleapis/gnostic v0.2.2 // indirect
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/ishidawataru/sctp v0.0.0-20191218070446-00ab2ac2db07 // indirect
 	github.com/itchyny/gojq v0.12.2
@@ -33,10 +33,9 @@ require (
 	github.com/willdonnelly/passwd v0.0.0-20141013001024-7935dab3074c
 	github.com/zcalusic/sysinfo v0.0.0-20210831153053-2c6e1d254246
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
-	golang.org/x/time v0.0.0-20200416051211-89c76fbcd5d1 // indirect
 	gopkg.in/ini.v1 v1.62.0
 	gopkg.in/yaml.v2 v2.4.0
+	gotest.tools v2.2.0+incompatible // indirect
 	gotest.tools/v3 v3.0.2 // indirect
-	helm.sh/helm/v3 v3.3.4
 	pault.ag/go/topsort v0.0.0-20160530003732-f98d2ad46e1a // indirect
 )
