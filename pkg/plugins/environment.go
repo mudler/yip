@@ -52,10 +52,10 @@ func Environment(s schema.Stage, fs vfs.FS, console Console) error {
 	if err != nil {
 		return err
 	}
-	env, err := godotenv.Unmarshal(string(content))
 
+	env, _ := godotenv.Unmarshal(string(content))
 	for key, val := range s.Environment {
-		env[key] = val
+		env[key] = templateSysData(val)
 	}
 
 	p, err := fs.RawPath(environment)
