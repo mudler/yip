@@ -42,6 +42,9 @@ github.com/coreos/yaml
 # github.com/davidcassany/linuxkit/pkg/metadata v0.0.0-20210714125456-8b187a9ffd7e
 ## explicit
 github.com/davidcassany/linuxkit/pkg/metadata/providers
+# github.com/denisbrodbeck/machineid v1.0.1
+## explicit
+github.com/denisbrodbeck/machineid
 # github.com/diskfs/go-diskfs v1.1.1
 github.com/diskfs/go-diskfs
 github.com/diskfs/go-diskfs/disk

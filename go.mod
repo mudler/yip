@@ -9,6 +9,7 @@ require (
 	github.com/cloudflare/cfssl v1.5.0
 	github.com/coreos/yaml v0.0.0-20141224210557-6b16a5714269 // indirect
 	github.com/davidcassany/linuxkit/pkg/metadata v0.0.0-20210714125456-8b187a9ffd7e
+	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/docker/docker v17.12.0-ce-rc1.0.20200417035958-130b0bc6032c+incompatible // indirect
 	github.com/docker/libnetwork v0.8.0-dev.2.0.20200612180813-9e99af28df21 // indirect
 	github.com/go-git/go-git/v5 v5.4.2

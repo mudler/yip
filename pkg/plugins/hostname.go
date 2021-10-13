@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/denisbrodbeck/machineid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/mudler/yip/pkg/utils"
@@ -28,14 +29,17 @@ func Hostname(s schema.Stage, fs vfs.FS, console Console) error {
 	// Those can be used to e.g. generate random node names based on patterns "foo-{{.UUID}}"
 	rand.Seed(time.Now().UnixNano())
 
+	id, _ := machineid.ID()
 	myuuid := uuid.NewV4()
 	tmpl, err := utils.TemplatedString(hostname,
 		struct {
-			UUID   string
-			Random string
+			UUID      string
+			Random    string
+			MachineID string
 		}{
-			UUID:   myuuid.String(),
-			Random: utils.RandomString(8),
+			UUID:      myuuid.String(),
+			MachineID: id,
+			Random:    utils.RandomString(32),
 		},
 	)
 	if err != nil {
