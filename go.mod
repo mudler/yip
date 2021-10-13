@@ -24,6 +24,7 @@ require (
 	github.com/paultag/go-modprobe v0.0.0-20200930231701-46c7252028d3
 	github.com/pkg/errors v0.9.1
 	github.com/rancher-sandbox/cloud-init v1.14.3-0.20210913085759-bf90bf5eb77e
+	github.com/satori/go.uuid v1.2.0
 	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/cobra v1.2.1
 	github.com/twpayne/go-vfs v1.5.0

@@ -3,11 +3,15 @@ package plugins
 import (
 	"bufio"
 	"fmt"
+	"math/rand"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/mudler/yip/pkg/schema"
+	"github.com/mudler/yip/pkg/utils"
+	uuid "github.com/satori/go.uuid"
 	"github.com/twpayne/go-vfs"
 )
 
@@ -19,13 +23,32 @@ func Hostname(s schema.Stage, fs vfs.FS, console Console) error {
 	if hostname == "" {
 		return nil
 	}
-	if err := syscall.Sethostname([]byte(hostname)); err != nil {
+
+	// Template the input string with random generated strings and UUID.
+	// Those can be used to e.g. generate random node names based on patterns "foo-{{.UUID}}"
+	rand.Seed(time.Now().UnixNano())
+
+	myuuid := uuid.NewV4()
+	tmpl, err := utils.TemplatedString(hostname,
+		struct {
+			UUID   string
+			Random string
+		}{
+			UUID:   myuuid.String(),
+			Random: utils.RandomString(8),
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	if err := syscall.Sethostname([]byte(tmpl)); err != nil {
 		errs = multierror.Append(errs, err)
 	}
-	if err := SystemHostname(hostname, fs); err != nil {
+	if err := SystemHostname(tmpl, fs); err != nil {
 		errs = multierror.Append(errs, err)
 	}
-	if err := UpdateHostsFile(hostname, fs); err != nil {
+	if err := UpdateHostsFile(tmpl, fs); err != nil {
 		errs = multierror.Append(errs, err)
 	}
 	return errs
@@ -33,10 +56,11 @@ func Hostname(s schema.Stage, fs vfs.FS, console Console) error {
 
 func UpdateHostsFile(hostname string, fs vfs.FS) error {
 	hosts, err := fs.Open("/etc/hosts")
-	defer hosts.Close()
 	if err != nil {
 		return err
 	}
+	defer hosts.Close()
+
 	lines := bufio.NewScanner(hosts)
 	content := ""
 	for lines.Scan() {

@@ -10,11 +10,9 @@ import (
 	"time"
 
 	"github.com/cloudflare/cfssl/log"
+	"github.com/mudler/yip/pkg/utils"
 	"github.com/pkg/errors"
 	"github.com/zcalusic/sysinfo"
-	"helm.sh/helm/v3/pkg/chart"
-	"helm.sh/helm/v3/pkg/chartutil"
-	"helm.sh/helm/v3/pkg/engine"
 )
 
 var system sysinfo.SysInfo
@@ -27,31 +25,6 @@ type Console interface {
 	Run(string, ...func(*exec.Cmd)) (string, error)
 	Start(*exec.Cmd, ...func(*exec.Cmd)) error
 	RunTemplate([]string, string) error
-}
-
-// renderHelm renders the template string with helm
-func renderHelm(template string, values, d map[string]interface{}) (string, error) {
-	c := &chart.Chart{
-		Metadata: &chart.Metadata{
-			Name:    "",
-			Version: "",
-		},
-		Templates: []*chart.File{
-			{Name: "templates", Data: []byte(template)},
-		},
-		Values: map[string]interface{}{"Values": values},
-	}
-
-	v, err := chartutil.CoalesceValues(c, map[string]interface{}{"Values": d})
-	if err != nil {
-		return "", errors.Wrap(err, "while rendering template")
-	}
-	out, err := engine.Render(c, v)
-	if err != nil {
-		return "", errors.Wrap(err, "while rendering template")
-	}
-
-	return out["templates"], nil
 }
 
 func templateSysData(s string) string {
@@ -69,7 +42,8 @@ func templateSysData(s string) string {
 		log.Warning(fmt.Sprintf("Failed marshalling '%s': %s", s, err.Error()))
 		return s
 	}
-	rendered, err := renderHelm(s, map[string]interface{}{}, interpolateOpts)
+
+	rendered, err := utils.TemplatedString(s, map[string]interface{}{"Values": interpolateOpts})
 	if err != nil {
 		log.Warning(fmt.Sprintf("Failed rendering '%s': %s", s, err.Error()))
 		return s

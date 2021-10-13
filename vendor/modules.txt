@@ -262,6 +262,9 @@ github.com/pkg/errors
 # github.com/rancher-sandbox/cloud-init v1.14.3-0.20210913085759-bf90bf5eb77e
 ## explicit
 github.com/rancher-sandbox/cloud-init/config
+# github.com/satori/go.uuid v1.2.0
+## explicit
+github.com/satori/go.uuid
 # github.com/sergi/go-diff v1.1.0
 github.com/sergi/go-diff/diffmatchpatch
 # github.com/sirupsen/logrus v1.6.0

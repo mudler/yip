@@ -16,6 +16,8 @@
 package plugins_test
 
 import (
+	"runtime"
+
 	. "github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
 	consoletests "github.com/mudler/yip/tests/console"
@@ -41,6 +43,17 @@ var _ = Describe("Commands", func() {
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(consoletests.Commands).Should(Equal([]string{"echo foo", "echo bar"}))
+		})
+		It("execute templated commands", func() {
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{})
+			Expect(err).Should(BeNil())
+			defer cleanup()
+			arch := runtime.GOARCH
+			err = Commands(schema.Stage{
+				Commands: []string{"echo {{.Values.os.architecture}}", "echo bar"},
+			}, fs, testConsole)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(consoletests.Commands).Should(Equal([]string{"echo " + arch, "echo bar"}))
 		})
 	})
 })

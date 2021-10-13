@@ -16,9 +16,11 @@
 package plugins_test
 
 import (
+	"fmt"
 	"io/ioutil"
 
 	. "github.com/mudler/yip/pkg/plugins"
+	"github.com/mudler/yip/pkg/utils"
 	"github.com/twpayne/go-vfs/vfst"
 
 	. "github.com/onsi/ginkgo"
@@ -32,10 +34,13 @@ var _ = Describe("Hostname", func() {
 			Expect(err).Should(BeNil())
 			defer cleanup()
 
-			err = SystemHostname("bar", fs)
+			ts, err := utils.TemplatedString("bar", nil)
+			Expect(err).Should(BeNil())
+
+			err = SystemHostname(ts, fs)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			err = UpdateHostsFile("bar", fs)
+			err = UpdateHostsFile(ts, fs)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			file, err := fs.Open("/etc/hostname")
@@ -43,14 +48,14 @@ var _ = Describe("Hostname", func() {
 
 			b, err := ioutil.ReadAll(file)
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(string(b)).Should(Equal("bar\n"))
+			Expect(string(b)).Should(Equal(fmt.Sprintf("%s\n", ts)))
 
 			file, err = fs.Open("/etc/hosts")
 			Expect(err).ShouldNot(HaveOccurred())
 
 			b, err = ioutil.ReadAll(file)
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(string(b)).Should(Equal("127.0.0.1 localhost bar\n"))
+			Expect(string(b)).Should(Equal(fmt.Sprintf("127.0.0.1 localhost %s\n", ts)))
 		})
 	})
 })
