@@ -68,6 +68,11 @@ func (cloudInit) Load(s []byte, fs vfs.FS) (*YipConfig, error) {
 		}
 	}
 
+	// If no users are defined, then assume global ssh_authorized_keys is assigned to root
+	if len(userstoKey) == 0 && len(cc.SSHAuthorizedKeys) > 0 {
+		sshKeys["root"] = cc.SSHAuthorizedKeys
+	}
+
 	// Decode writeFiles
 	var f []File
 	for _, ff := range cc.WriteFiles {
