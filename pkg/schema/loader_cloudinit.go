@@ -16,6 +16,9 @@
 package schema
 
 import (
+	"fmt"
+	"strconv"
+
 	cloudconfig "github.com/rancher-sandbox/cloud-init/config"
 	"github.com/twpayne/go-vfs"
 )
@@ -28,7 +31,6 @@ type cloudInit struct{}
 // As Yip supports multi-stages, it is encoded in the supplied one.
 // fs is used to parse the user data required from /etc/passwd.
 func (cloudInit) Load(s []byte, fs vfs.FS) (*YipConfig, error) {
-	stage := "boot"
 	cc, err := cloudconfig.NewCloudConfig(string(s))
 	if err != nil {
 		return nil, err
@@ -75,26 +77,18 @@ func (cloudInit) Load(s []byte, fs vfs.FS) (*YipConfig, error) {
 
 	// Decode writeFiles
 	var f []File
-	for _, ff := range cc.WriteFiles {
-		f = append(f,
-			File{
-				Path:        ff.Path,
-				OwnerString: ff.Owner,
-				Content:     ff.Content,
-				Encoding:    ff.Encoding,
-			},
-		)
-	}
-
-	for _, ff := range cc.MilpaFiles {
-		f = append(f,
-			File{
-				Path:        ff.Path,
-				OwnerString: ff.Owner,
-				Content:     ff.Content,
-				Encoding:    ff.Encoding,
-			},
-		)
+	for _, ff := range append(cc.WriteFiles, cc.MilpaFiles...) {
+		newFile := File{
+			Path:        ff.Path,
+			OwnerString: ff.Owner,
+			Content:     ff.Content,
+			Encoding:    ff.Encoding,
+		}
+		newFile.Permissions, err = parseOctal(ff.RawFilePermissions)
+		if err != nil {
+			return nil, fmt.Errorf("converting permission %s for %s: %w", ff.RawFilePermissions, ff.Path, err)
+		}
+		f = append(f, newFile)
 	}
 
 	stages := []Stage{{
@@ -126,4 +120,15 @@ func (cloudInit) Load(s []byte, fs vfs.FS) (*YipConfig, error) {
 	}
 
 	return result, nil
+}
+
+func parseOctal(srv string) (uint32, error) {
+	if srv == "" {
+		return 0, nil
+	}
+	i, err := strconv.ParseUint(srv, 8, 32)
+	if err != nil {
+		return 0, err
+	}
+	return uint32(i), nil
 }
