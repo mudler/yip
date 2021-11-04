@@ -337,6 +337,10 @@ func (dev Disk) ReloadPartitionTable(console Console) error {
 	if err != nil {
 		return errors.New(fmt.Sprintf("Could not reload partition table: %s", out))
 	}
+	out, err = console.Run("sync")
+	if err != nil {
+		return errors.New(fmt.Sprintf("Could not sync: %s", out))
+	}
 	return nil
 }
 
@@ -407,7 +411,7 @@ func (dev *Disk) ExpandLastPartition(size uint, console Console) (string, error)
 	return out, nil
 }
 
-func (dev Disk) expandFilesystem(device string, console Console)  (string, error){
+func (dev Disk) expandFilesystem(device string, console Console) (string, error) {
 	var out string
 	var err error
 
@@ -436,7 +440,7 @@ func (dev Disk) expandFilesystem(device string, console Console)  (string, error
 		if err != nil {
 			return out, err
 		}
-		out, err = console.Run(fmt.Sprintf("xfs_growfs %s",tmpDir))
+		out, err = console.Run(fmt.Sprintf("xfs_growfs %s", tmpDir))
 		if err != nil {
 			// If we error out, try to umount the dir to not leave it hanging
 			out, err2 := console.Run(fmt.Sprintf("umount %s", tmpDir))

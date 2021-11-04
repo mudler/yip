@@ -38,6 +38,10 @@ var lsblkTypes console.CmdMock = console.CmdMock{
 /some/device5 part`,
 }
 
+var sync console.CmdMock = console.CmdMock{
+	Cmd: "sync",
+}
+
 var CmdsAddPartByDevPath []console.CmdMock = append([]console.CmdMock{
 	{Cmd: "lsblk -npo type /some/device", Output: "loop"},
 	{Cmd: "sgdisk --verify /some/device", Output: "the end of the disk"},
@@ -46,9 +50,10 @@ var CmdsAddPartByDevPath []console.CmdMock = append([]console.CmdMock{
 	{Cmd: "blkid -l --match-token LABEL=MYLABEL -o device"},
 	{Cmd: "sgdisk -P -n=5:0:+2097152 -t=5:8300 /some/device"},
 	{Cmd: "sgdisk -n=5:0:+2097152 -t=5:8300 /some/device"}, pTable,
-	{Cmd: "partprobe /some/device"}, lsblkTypes,
+	{Cmd: "partprobe /some/device"}, sync, lsblkTypes,
 	{Cmd: "mkfs.ext2 -L MYLABEL /some/device5"},
 	{Cmd: "partprobe /some/device"},
+	sync,
 	{Cmd: "blkid -l --match-token LABEL=MYLABEL -o device"},
 })
 
@@ -73,6 +78,7 @@ var CmdsExpandPart []console.CmdMock = []console.CmdMock{
 	{Cmd: "e2fsck -fy /some/device4"},
 	{Cmd: "resize2fs /some/device4"}, pTable,
 	{Cmd: "partprobe /some/device"},
+	sync,
 }
 
 var CmdsExpandPartXfs []console.CmdMock = []console.CmdMock{
@@ -89,6 +95,7 @@ var CmdsExpandPartXfs []console.CmdMock = []console.CmdMock{
 	{Cmd: "umount /tmp/*", UseRegexp: true},
 	pTable,
 	{Cmd: "partprobe /some/device"},
+	sync,
 }
 
 func CmdsAddPartByLabel(fs string) []console.CmdMock {
@@ -101,9 +108,10 @@ func CmdsAddPartByLabel(fs string) []console.CmdMock {
 		{Cmd: fmt.Sprintf("blkid -l --match-token LABEL=%s -o device", label)},
 		{Cmd: "sgdisk -P -n=5:0:+2097152 -t=5:8300 /some/device"},
 		{Cmd: "sgdisk -n=5:0:+2097152 -t=5:8300 /some/device"}, pTable,
-		{Cmd: "partprobe /some/device"}, lsblkTypes,
+		{Cmd: "partprobe /some/device"}, sync, lsblkTypes,
 		{Cmd: fmt.Sprintf("mkfs.%s -L %s /some/device5", fs, label)},
 		{Cmd: "partprobe /some/device"},
+		sync,
 		{Cmd: fmt.Sprintf("blkid -l --match-token LABEL=%s -o device", label)},
 	}
 }
@@ -202,7 +210,7 @@ var _ = Describe("Layout", func() {
 			}, fs, testConsole)
 			Expect(err).To(HaveOccurred())
 		})
-		It("Fails on an xfs fs with a label longer than 12 chars", func(){
+		It("Fails on an xfs fs with a label longer than 12 chars", func() {
 			testConsole := console.New()
 			err := Layout(schema.Stage{
 				Layout: schema.Layout{
@@ -214,7 +222,7 @@ var _ = Describe("Layout", func() {
 			Expect(err.Error()).To(ContainSubstring("cannot have a label longer than 12 chars"))
 		})
 
-		It("Works on an non-xfs fs with a label longer than 12 chars", func(){
+		It("Works on an non-xfs fs with a label longer than 12 chars", func() {
 			label = "LABEL_TOO_LONG_FOR_XFS"
 			for _, filesystem := range []string{"ext2", "ext3", "ext4"} {
 				testConsole := console.New()
