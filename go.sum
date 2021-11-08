@@ -358,8 +358,8 @@ github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421/go.mod h1:6dJ
 github.com/modern-go/reflect2 v0.0.0-20180701023420-4b7aa43c6742/go.mod h1:bx2lNnkwVCuqBIxFjflWJWanXIb3RllmbCylyMrvgv0=
 github.com/modern-go/reflect2 v1.0.1/go.mod h1:bx2lNnkwVCuqBIxFjflWJWanXIb3RllmbCylyMrvgv0=
 github.com/mreiferson/go-httpclient v0.0.0-20160630210159-31f0106b4474/go.mod h1:OQA4XLvDbMgS8P0CevmM4m9Q3Jq4phKUzcocxuGJ5m8=
-github.com/mudler/entities v0.0.0-20210913083733-7d61a81e2f8b h1:N9AXU4IoyFUZDIJ9wrhSrMhBGhYcY11Kx5dasnbuINc=
-github.com/mudler/entities v0.0.0-20210913083733-7d61a81e2f8b/go.mod h1:A2Q7t27Y5CVRZXOir8l/qGOuUoaoU4lZgAwick+bo4A=
+github.com/mudler/entities v0.0.0-20211108084227-d1414478861b h1:wvoYTx0OkwSuTfrdlgFYeStrTadiY1t2iAytNzAMiBY=
+github.com/mudler/entities v0.0.0-20211108084227-d1414478861b/go.mod h1:qquFT9tYp+/NO7tTotto4BT9zSRYSMDxo2PGZwujpFA=
 github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/nkovacs/streamquote v0.0.0-20170412213628-49af9bddb229/go.mod h1:0aYXnNPJ8l7uZxf45rWW1a/uME32OF0rhiYGNQ2oF2E=
@@ -470,13 +470,8 @@ github.com/tj/go-elastic v0.0.0-20171221160941-36157cbbebc2/go.mod h1:WjeM0Oo1eN
 github.com/tj/go-kinesis v0.0.0-20171128231115-08b17f58cb1b/go.mod h1:/yhzCV0xPfx6jb1bBgRFjl5lytqVqZXEaeqWP8lTEao=
 github.com/tj/go-spin v1.1.0/go.mod h1:Mg1mzmePZm4dva8Qz60H2lHwmJ2loum4VIrLgVnKwh4=
 github.com/tmc/grpc-websocket-proxy v0.0.0-20190109142713-0ad062ec5ee5/go.mod h1:ncp9v5uamzpCO7NfCPTXjqaC+bZgJeR0sMTm6dMHP7U=
-github.com/tredoe/fileutil v1.0.5/go.mod h1:HFzzpvg+3Q8LgmZgo1mVF5epHc/CVkWKEb3hja+/1Zo=
-github.com/tredoe/goutil v1.0.0/go.mod h1:Qhf75QLcNEChimbl4wb8nROzw9PCFCPYTEUmTnoszXY=
-github.com/tredoe/goutil v1.0.3/go.mod h1:3xnfRjsRL62q6m45f+CiDsLjsTeEqiJLvfgZFVyYWog=
-github.com/tredoe/osutil v1.0.6 h1:KJvG9AFmUPLe3hsNKyPMIjNx77CkAJtMKVS4ugAT7vM=
-github.com/tredoe/osutil v1.0.6/go.mod h1:zNq93p2DLHJWkHi2/+zi3xOjZl8xxiv3tiI2A6zcB3w=
-github.com/tredoe/osutil/v2 v2.0.0 h1:rZR7vwUR2syz6VVpzOwPP8zmxn79TOizjHsnTfEBvZI=
-github.com/tredoe/osutil/v2 v2.0.0/go.mod h1:uOyTaJ9tvaAw3RExCbUy19mGUxexVliRQ+0+wArdqjg=
+github.com/tredoe/osutil/v2 v2.0.0-rc.16 h1:5A2SKvyB2c3lhPYUIHyFtu6jbaXlaA3Hu5gWIam8Pik=
+github.com/tredoe/osutil/v2 v2.0.0-rc.16/go.mod h1:uLRVx/3pb7Y4RQhG8cQFbPE9ha5r81e6MXpBsxbTAYc=
 github.com/twpayne/go-vfs v1.5.0 h1:3j9j2RchDSIQ1gjuNHZqJOyZAS702lrmqUow2uUYgX8=
 github.com/twpayne/go-vfs v1.5.0/go.mod h1:MAbvpnWRAE5LfIt88Eopskigmyc+wakYCyCDnys7iNw=
 github.com/ugorji/go v1.1.4/go.mod h1:uQMGLiO92mf5W77hV/PUCpI3pbzQx3CRekS0kk+RGrc=

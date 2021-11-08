@@ -19,7 +19,7 @@ require (
 	github.com/itchyny/gojq v0.12.2
 	github.com/joho/godotenv v1.3.0
 	github.com/moby/libnetwork v0.8.0-dev.2.0.20200612180813-9e99af28df21
-	github.com/mudler/entities v0.0.0-20210913083733-7d61a81e2f8b
+	github.com/mudler/entities v0.0.0-20211108084227-d1414478861b
 	github.com/onsi/ginkgo v1.16.1
 	github.com/onsi/gomega v1.11.0
 	github.com/paultag/go-modprobe v0.0.0-20200930231701-46c7252028d3
