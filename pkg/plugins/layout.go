@@ -368,7 +368,7 @@ func (dev Disk) FindPartitionDevice(partNum int, console Console) (string, error
 	}
 	match := re.FindStringSubmatch(out)
 	if match == nil {
-		return "", errors.New(fmt.Sprintf("Could find partition device path for partition %d", partNum))
+		return "", errors.New(fmt.Sprintf("Could not find partition device path for partition %d", partNum))
 	}
 	return match[1], nil
 }
