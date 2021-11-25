@@ -357,20 +357,11 @@ func (dev Disk) ReloadPartitionTable(console Console) error {
 }
 
 func (dev Disk) FindPartitionDevice(partNum int, console Console) (string, error) {
-	out, err := console.Run(fmt.Sprintf("lsblk -ltnpo name,type %s", dev))
+	out, err := console.Run(fmt.Sprintf("lsblk -ltnpo name %s%d", dev.Device, partNum))
 	if err != nil {
-		return "", errors.New(fmt.Sprintf("Could not list device partition nodes: %s", out))
+		return "", errors.New(fmt.Sprintf("Could not find in device %s partition number %d: %s", dev.Device, partNum, out))
 	}
-
-	re, err := regexp.Compile(fmt.Sprintf("(?m)^(/.*%d) part$", partNum))
-	if err != nil {
-		return "", errors.New("Failed compiling regexp")
-	}
-	match := re.FindStringSubmatch(out)
-	if match == nil {
-		return "", errors.New(fmt.Sprintf("Could not find partition device path for partition %d", partNum))
-	}
-	return match[1], nil
+	return strings.TrimSpace(out), nil
 }
 
 //Size is expressed in MiB here

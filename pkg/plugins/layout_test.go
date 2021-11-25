@@ -31,11 +31,8 @@ Number  Start (sector)    End (sector)  Size       Code  Name
 }
 
 var lsblkTypes console.CmdMock = console.CmdMock{
-	Cmd: "lsblk -ltnpo name,type /some/device",
-	Output: `/some/device  disk
-/some/device1 part
-/some/device2 part
-/some/device5 part`,
+	Cmd: "lsblk -ltnpo name /some/device5",
+	Output: `/some/device5`,
 }
 
 var sync console.CmdMock = console.CmdMock{
