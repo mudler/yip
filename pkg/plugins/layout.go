@@ -4,14 +4,14 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"github.com/mudler/yip/pkg/schema"
+	log "github.com/sirupsen/logrus"
+	"github.com/twpayne/go-vfs"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
-
-	"github.com/mudler/yip/pkg/schema"
-	log "github.com/sirupsen/logrus"
-	"github.com/twpayne/go-vfs"
+	"time"
 )
 
 type Disk struct {
@@ -318,14 +318,26 @@ func (dev *Disk) AddPartition(label string, size uint, fileSystem string, pLabel
 		log.Errorf("Failed analyzing disk: %v\n", err)
 		return "", err
 	}
-	err = dev.ReloadPartitionTable(console)
-	if err != nil {
-		log.Errorf("Failed on partprobe: %v\n", err)
-		return "", err
-	}
-	pDev, err := dev.FindPartitionDevice(part.Number, console)
-	if err != nil {
-		return "", err
+
+	var pDev string
+
+	for tries := 0; tries <= 5; tries++ {
+		err = dev.ReloadPartitionTable(console)
+		if err != nil {
+			log.Errorf("Failed on reloading the partition table: %v\n", err)
+			return "", err
+		}
+		pDev, err = dev.FindPartitionDevice(part.Number, console)
+		// exit if by the fifth time we cannot get the partition device
+		if err != nil && tries == 4 {
+			return "", err
+		}
+		// If no error, we got the partition, exit the loop
+		if err == nil {
+			break
+		}
+		log.Warningf("Failed to reload %s, retrying", dev.Device)
+		time.Sleep(1 * time.Second)
 	}
 
 	mkfs := MkfsCall{part: part, customOpts: []string{}, dev: pDev}
@@ -333,7 +345,7 @@ func (dev *Disk) AddPartition(label string, size uint, fileSystem string, pLabel
 }
 
 func (dev Disk) ReloadPartitionTable(console Console) error {
-	out, err := console.Run(fmt.Sprintf("partprobe %s", dev))
+	out, err := console.Run(fmt.Sprintf("blockdev --rereadpt %s", dev))
 	if err != nil {
 		return errors.New(fmt.Sprintf("Could not reload partition table: %s", out))
 	}
