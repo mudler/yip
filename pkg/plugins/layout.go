@@ -47,6 +47,10 @@ type MkfsCall struct {
 	dev        string
 }
 
+const (
+	partitionTries = 10
+)
+
 func Layout(s schema.Stage, fs vfs.FS, console Console) error {
 	if s.Layout.Device == nil {
 		return nil
@@ -319,25 +323,16 @@ func (dev *Disk) AddPartition(label string, size uint, fileSystem string, pLabel
 		return "", err
 	}
 
-	var pDev string
 
-	for tries := 0; tries <= 5; tries++ {
-		err = dev.ReloadPartitionTable(console)
-		if err != nil {
-			log.Errorf("Failed on reloading the partition table: %v\n", err)
-			return "", err
-		}
-		pDev, err = dev.FindPartitionDevice(part.Number, console)
-		// exit if by the fifth time we cannot get the partition device
-		if err != nil && tries == 4 {
-			return "", err
-		}
-		// If no error, we got the partition, exit the loop
-		if err == nil {
-			break
-		}
-		log.Warningf("Failed to reload %s, retrying", dev.Device)
-		time.Sleep(1 * time.Second)
+	err = dev.ReloadPartitionTable(console)
+	if err != nil {
+		log.Errorf("Failed on reloading the partition table: %v\n", err)
+		return "", err
+	}
+
+	pDev, err := dev.FindPartitionDevice(part.Number, console)
+	if err != nil {
+		return "", err
 	}
 
 	mkfs := MkfsCall{part: part, customOpts: []string{}, dev: pDev}
@@ -345,32 +340,52 @@ func (dev *Disk) AddPartition(label string, size uint, fileSystem string, pLabel
 }
 
 func (dev Disk) ReloadPartitionTable(console Console) error {
-	out, err := console.Run(fmt.Sprintf("blockdev --rereadpt %s", dev))
-	if err != nil {
-		return errors.New(fmt.Sprintf("Could not reload partition table: %s", out))
-	}
-	out, err = console.Run("sync")
-	if err != nil {
-		return errors.New(fmt.Sprintf("Could not sync: %s", out))
+	for tries := 0; tries <= partitionTries; tries++ {
+		log.Debugf("Trying to reread the partition table of %s (try number %d)", dev, tries+1)
+
+		out, err1 := console.Run(fmt.Sprintf("partprobe %s", dev))
+		if err1 != nil && tries == (partitionTries - 1) {
+			return errors.New(fmt.Sprintf("Could not reload partition table: %s", out))
+		}
+
+		out, err2 := console.Run("sync")
+		if err2 != nil && tries == (partitionTries - 1) {
+			return errors.New(fmt.Sprintf("Could not sync: %s", out))
+		}
+
+		// If nothing failed exit
+		if err1 == nil && err2 == nil {
+			break
+		}
+		time.Sleep(1 * time.Second)
 	}
 	return nil
 }
 
 func (dev Disk) FindPartitionDevice(partNum int, console Console) (string, error) {
-	out, err := console.Run(fmt.Sprintf("lsblk -ltnpo name,type %s", dev))
-	if err != nil {
-		return "", errors.New(fmt.Sprintf("Could not list device partition nodes: %s", out))
-	}
+	var match string
+	for tries := 0; tries <= partitionTries; tries++ {
+		log.Debugf("Trying to find the partition device %d of device %s (try number %d)", partNum, dev, tries+1)
+		out, err := console.Run(fmt.Sprintf("lsblk -ltnpo name,type %s", dev))
+		if err != nil && tries == (partitionTries - 1) {
+			return "", errors.New(fmt.Sprintf("Could not list device partition nodes: %s", out))
+		}
 
-	re, err := regexp.Compile(fmt.Sprintf("(?m)^(/.*%d) part$", partNum))
-	if err != nil {
-		return "", errors.New("Failed compiling regexp")
+		re, err := regexp.Compile(fmt.Sprintf("(?m)^(/.*%d) part$", partNum))
+		if err != nil && tries == 4 {
+			return "", errors.New("Failed compiling regexp")
+		}
+		matched := re.FindStringSubmatch(out)
+		if matched == nil && tries == (partitionTries - 1) {
+			return "", errors.New(fmt.Sprintf("Could not find partition device path for partition %d", partNum))
+		}
+		if matched != nil {
+			match = matched[1]
+			break
+		}
+		time.Sleep(1 * time.Second)
 	}
-	match := re.FindStringSubmatch(out)
-	if match == nil {
-		return "", errors.New(fmt.Sprintf("Could not find partition device path for partition %d", partNum))
-	}
-	return match[1], nil
+	return match, nil
 }
 
 //Size is expressed in MiB here

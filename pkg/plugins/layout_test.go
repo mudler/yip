@@ -50,9 +50,9 @@ var CmdsAddPartByDevPath []console.CmdMock = append([]console.CmdMock{
 	{Cmd: "blkid -l --match-token LABEL=MYLABEL -o device"},
 	{Cmd: "sgdisk -P -n=5:0:+2097152 -t=5:8300 /some/device"},
 	{Cmd: "sgdisk -n=5:0:+2097152 -t=5:8300 /some/device"}, pTable,
-	{Cmd: "blockdev --rereadpt /some/device"}, sync, lsblkTypes,
+	{Cmd: "partprobe /some/device"}, sync, lsblkTypes,
 	{Cmd: "mkfs.ext2 -L MYLABEL /some/device5"},
-	{Cmd: "blockdev --rereadpt /some/device"},
+	{Cmd: "partprobe /some/device"},
 	sync,
 	{Cmd: "blkid -l --match-token LABEL=MYLABEL -o device"},
 })
@@ -77,7 +77,7 @@ var CmdsExpandPart []console.CmdMock = []console.CmdMock{
 	{Cmd: "blkid /some/device4 -s TYPE -o value", Output: "ext4"},
 	{Cmd: "e2fsck -fy /some/device4"},
 	{Cmd: "resize2fs /some/device4"}, pTable,
-	{Cmd: "blockdev --rereadpt /some/device"},
+	{Cmd: "partprobe /some/device"},
 	sync,
 }
 
@@ -94,7 +94,7 @@ var CmdsExpandPartXfs []console.CmdMock = []console.CmdMock{
 	{Cmd: "xfs_growfs /tmp/*", UseRegexp: true},
 	{Cmd: "umount /tmp/*", UseRegexp: true},
 	pTable,
-	{Cmd: "blockdev --rereadpt /some/device"},
+	{Cmd: "partprobe /some/device"},
 	sync,
 }
 
@@ -108,9 +108,9 @@ func CmdsAddPartByLabel(fs string) []console.CmdMock {
 		{Cmd: fmt.Sprintf("blkid -l --match-token LABEL=%s -o device", label)},
 		{Cmd: "sgdisk -P -n=5:0:+2097152 -t=5:8300 /some/device"},
 		{Cmd: "sgdisk -n=5:0:+2097152 -t=5:8300 /some/device"}, pTable,
-		{Cmd: "blockdev --rereadpt /some/device"}, sync, lsblkTypes,
+		{Cmd: "partprobe /some/device"}, sync, lsblkTypes,
 		{Cmd: fmt.Sprintf("mkfs.%s -L %s /some/device5", fs, label)},
-		{Cmd: "blockdev --rereadpt /some/device"},
+		{Cmd: "partprobe /some/device"},
 		sync,
 		{Cmd: fmt.Sprintf("blkid -l --match-token LABEL=%s -o device", label)},
 	}
