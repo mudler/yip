@@ -324,12 +324,6 @@ func (dev *Disk) AddPartition(label string, size uint, fileSystem string, pLabel
 	}
 
 
-	err = dev.ReloadPartitionTable(console)
-	if err != nil {
-		log.Errorf("Failed on reloading the partition table: %v\n", err)
-		return "", err
-	}
-
 	pDev, err := dev.FindPartitionDevice(part.Number, console)
 	if err != nil {
 		return "", err
@@ -365,6 +359,11 @@ func (dev Disk) ReloadPartitionTable(console Console) error {
 func (dev Disk) FindPartitionDevice(partNum int, console Console) (string, error) {
 	var match string
 	for tries := 0; tries <= partitionTries; tries++ {
+		err := dev.ReloadPartitionTable(console)
+		if err != nil {
+			log.Errorf("Failed on reloading the partition table: %v\n", err)
+			return "", err
+		}
 		log.Debugf("Trying to find the partition device %d of device %s (try number %d)", partNum, dev, tries+1)
 		out, err := console.Run(fmt.Sprintf("lsblk -ltnpo name,type %s", dev))
 		if err != nil && tries == (partitionTries - 1) {
