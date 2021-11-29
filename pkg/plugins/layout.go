@@ -127,6 +127,8 @@ func Layout(s schema.Stage, fs vfs.FS, console Console) error {
 
 func MatchPartitionFSLabel(label string, console Console) string {
 	if label != "" {
+		out, _ := console.Run("udevadm settle")
+		log.Debugf("Output of udevadm settle: %s", out)
 		out, err := console.Run(fmt.Sprintf("blkid -l --match-token LABEL=%s -o device", label))
 		if err == nil {
 			return out
@@ -137,6 +139,8 @@ func MatchPartitionFSLabel(label string, console Console) string {
 
 func MatchPartitionPLabel(label string, console Console) string {
 	if label != "" {
+		out, _ := console.Run("udevadm settle")
+		log.Debugf("Output of udevadm settle: %s", out)
 		out, err := console.Run(fmt.Sprintf("blkid -l --match-token PARTLABEL=%s -o device", label))
 		if err == nil {
 			return out
@@ -336,14 +340,20 @@ func (dev *Disk) AddPartition(label string, size uint, fileSystem string, pLabel
 func (dev Disk) ReloadPartitionTable(console Console) error {
 	for tries := 0; tries <= partitionTries; tries++ {
 		log.Debugf("Trying to reread the partition table of %s (try number %d)", dev, tries+1)
+		out, _ := console.Run("udevadm settle")
+		log.Debugf("Output of udevadm settle: %s", out)
 
 		out, err1 := console.Run(fmt.Sprintf("partprobe %s", dev))
+		log.Debugf("output of partprobe: %s", out)
 		if err1 != nil && tries == (partitionTries - 1) {
+			log.Debugf("Error of partprobe: %s", err1)
 			return errors.New(fmt.Sprintf("Could not reload partition table: %s", out))
 		}
 
 		out, err2 := console.Run("sync")
+		log.Debugf("Output of sync: %s", out)
 		if err2 != nil && tries == (partitionTries - 1) {
+			log.Debugf("Error of sync: %s", err2)
 			return errors.New(fmt.Sprintf("Could not sync: %s", out))
 		}
 
@@ -365,8 +375,16 @@ func (dev Disk) FindPartitionDevice(partNum int, console Console) (string, error
 			return "", err
 		}
 		log.Debugf("Trying to find the partition device %d of device %s (try number %d)", partNum, dev, tries+1)
-		out, err := console.Run(fmt.Sprintf("lsblk -ltnpo name,type %s", dev))
+		out, err := console.Run("udevadm settle")
+		log.Debugf("Output of udevadm settle: %s", out)
 		if err != nil && tries == (partitionTries - 1) {
+			log.Debugf("Error of udevadm settle: %s", err)
+			return "", errors.New(fmt.Sprintf("Could not list settle: %s", out))
+		}
+		out, err = console.Run(fmt.Sprintf("lsblk -ltnpo name,type %s", dev))
+		log.Debugf("Output of lsblk: %s", out)
+		if err != nil && tries == (partitionTries - 1) {
+			log.Debugf("Error of lsblk: %s", err)
 			return "", errors.New(fmt.Sprintf("Could not list device partition nodes: %s", out))
 		}
 
