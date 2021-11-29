@@ -47,26 +47,35 @@ var CmdsAddPartByDevPath []console.CmdMock = append([]console.CmdMock{
 	{Cmd: "sgdisk --verify /some/device", Output: "the end of the disk"},
 	{Cmd: "sgdisk -P -e /some/device"},
 	{Cmd: "sgdisk -e /some/device"}, pTable,
+	{Cmd: "udevadm settle"},
 	{Cmd: "blkid -l --match-token LABEL=MYLABEL -o device"},
 	{Cmd: "sgdisk -P -n=5:0:+2097152 -t=5:8300 /some/device"},
 	{Cmd: "sgdisk -n=5:0:+2097152 -t=5:8300 /some/device"}, pTable,
-	{Cmd: "partprobe /some/device"}, sync, lsblkTypes,
+	{Cmd: "udevadm settle"},
+	{Cmd: "partprobe /some/device"}, sync,
+	{Cmd: "udevadm settle"},
+	lsblkTypes,
 	{Cmd: "mkfs.ext2 -L MYLABEL /some/device5"},
+	{Cmd: "udevadm settle"},
 	{Cmd: "partprobe /some/device"},
 	sync,
+	{Cmd: "udevadm settle"},
 	{Cmd: "blkid -l --match-token LABEL=MYLABEL -o device"},
 })
 
 var CmdsAddAlreadyExistingPart []console.CmdMock = []console.CmdMock{
+	{Cmd: "udevadm settle"},
 	{Cmd: "blkid -l --match-token LABEL=reflabel -o device", Output: "/some/part"},
 	{Cmd: "lsblk -npo pkname /some/part", Output: "/some/device"},
 	{Cmd: "sgdisk --verify /some/device", Output: "the end of the disk"},
 	{Cmd: "sgdisk -P -e /some/device"},
 	{Cmd: "sgdisk -e /some/device"}, pTable,
+	{Cmd: "udevadm settle"},
 	{Cmd: "blkid -l --match-token LABEL=MYLABEL -o device", Output: "/some/part"},
 }
 
 var CmdsExpandPart []console.CmdMock = []console.CmdMock{
+	{Cmd: "udevadm settle"},
 	{Cmd: "blkid -l --match-token LABEL=reflabel -o device", Output: "/some/part"},
 	{Cmd: "lsblk -npo pkname /some/part", Output: "/some/device"},
 	{Cmd: "sgdisk --verify /some/device", Output: "the end of the disk"},
@@ -77,11 +86,13 @@ var CmdsExpandPart []console.CmdMock = []console.CmdMock{
 	{Cmd: "blkid /some/device4 -s TYPE -o value", Output: "ext4"},
 	{Cmd: "e2fsck -fy /some/device4"},
 	{Cmd: "resize2fs /some/device4"}, pTable,
+	{Cmd: "udevadm settle"},
 	{Cmd: "partprobe /some/device"},
 	sync,
 }
 
 var CmdsExpandPartXfs []console.CmdMock = []console.CmdMock{
+	{Cmd: "udevadm settle"},
 	{Cmd: "blkid -l --match-token LABEL=reflabel -o device", Output: "/some/part"},
 	{Cmd: "lsblk -npo pkname /some/part", Output: "/some/device"},
 	{Cmd: "sgdisk --verify /some/device", Output: "the end of the disk"},
@@ -94,24 +105,32 @@ var CmdsExpandPartXfs []console.CmdMock = []console.CmdMock{
 	{Cmd: "xfs_growfs /tmp/*", UseRegexp: true},
 	{Cmd: "umount /tmp/*", UseRegexp: true},
 	pTable,
+	{Cmd: "udevadm settle"},
 	{Cmd: "partprobe /some/device"},
 	sync,
 }
 
 func CmdsAddPartByLabel(fs string) []console.CmdMock {
 	return []console.CmdMock{
+		{Cmd: "udevadm settle"},
 		{Cmd: fmt.Sprintf("blkid -l --match-token LABEL=%s -o device", deviceLabel), Output: "/some/part"},
 		{Cmd: "lsblk -npo pkname /some/part", Output: "/some/device"},
 		{Cmd: "sgdisk --verify /some/device", Output: "the end of the disk"},
 		{Cmd: "sgdisk -P -e /some/device"},
 		{Cmd: "sgdisk -e /some/device"}, pTable,
+		{Cmd: "udevadm settle"},
 		{Cmd: fmt.Sprintf("blkid -l --match-token LABEL=%s -o device", label)},
 		{Cmd: "sgdisk -P -n=5:0:+2097152 -t=5:8300 /some/device"},
 		{Cmd: "sgdisk -n=5:0:+2097152 -t=5:8300 /some/device"}, pTable,
-		{Cmd: "partprobe /some/device"}, sync, lsblkTypes,
+		{Cmd: "udevadm settle"},
+		{Cmd: "partprobe /some/device"}, sync,
+		{Cmd: "udevadm settle"},
+		lsblkTypes,
 		{Cmd: fmt.Sprintf("mkfs.%s -L %s /some/device5", fs, label)},
+		{Cmd: "udevadm settle"},
 		{Cmd: "partprobe /some/device"},
 		sync,
+		{Cmd: "udevadm settle"},
 		{Cmd: fmt.Sprintf("blkid -l --match-token LABEL=%s -o device", label)},
 	}
 }
