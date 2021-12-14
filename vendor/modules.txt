@@ -33,9 +33,6 @@ github.com/apex/log
 # github.com/cavaliergopher/grab v2.0.0+incompatible
 ## explicit
 github.com/cavaliergopher/grab
-# github.com/cloudflare/cfssl v1.5.0
-## explicit
-github.com/cloudflare/cfssl/log
 # github.com/coreos/yaml v0.0.0-20141224210557-6b16a5714269
 ## explicit
 github.com/coreos/yaml
