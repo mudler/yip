@@ -22,6 +22,7 @@ import (
 	. "github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
 	consoletests "github.com/mudler/yip/tests/console"
+	"github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs/vfst"
 
 	. "github.com/onsi/ginkgo"
@@ -42,7 +43,7 @@ var _ = Describe("Dns", func() {
 
 			defer cleanup()
 
-			err = DNS(schema.Stage{Dns: schema.DNS{Path: temp + "/foo", Nameservers: []string{"8.8.8.8"}}}, fs, testConsole)
+			err = DNS(logrus.New(), schema.Stage{Dns: schema.DNS{Path: temp + "/foo", Nameservers: []string{"8.8.8.8"}}}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 			file, err := os.Open(temp + "/foo")
 			Expect(err).ShouldNot(HaveOccurred())

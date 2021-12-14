@@ -10,6 +10,7 @@ import (
 
 	"github.com/denisbrodbeck/machineid"
 	"github.com/hashicorp/go-multierror"
+	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/mudler/yip/pkg/utils"
 	uuid "github.com/satori/go.uuid"
@@ -18,7 +19,7 @@ import (
 
 const localHost = "127.0.0.1"
 
-func Hostname(s schema.Stage, fs vfs.FS, console Console) error {
+func Hostname(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 	var errs error
 	hostname := s.Hostname
 	if hostname == "" {

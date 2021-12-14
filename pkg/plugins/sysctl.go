@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/twpayne/go-vfs"
 )
@@ -13,7 +14,7 @@ var (
 	procSys = []string{"/proc", "sys"}
 )
 
-func Sysctl(s schema.Stage, fs vfs.FS, console Console) error {
+func Sysctl(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 	var errs error
 	for k, v := range s.Sysctl {
 		elements := procSys

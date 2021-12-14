@@ -21,6 +21,7 @@ import (
 	. "github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
 	consoletests "github.com/mudler/yip/tests/console"
+	"github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs/vfst"
 
 	. "github.com/onsi/ginkgo"
@@ -30,6 +31,8 @@ import (
 var _ = Describe("Commands", func() {
 	Context("parsing yip file", func() {
 		testConsole := consoletests.TestConsole{}
+		l := logrus.New()
+
 		BeforeEach(func() {
 			consoletests.Reset()
 		})
@@ -38,7 +41,7 @@ var _ = Describe("Commands", func() {
 			Expect(err).Should(BeNil())
 			defer cleanup()
 
-			err = Commands(schema.Stage{
+			err = Commands(l, schema.Stage{
 				Commands: []string{"echo foo", "echo bar"},
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
@@ -49,7 +52,7 @@ var _ = Describe("Commands", func() {
 			Expect(err).Should(BeNil())
 			defer cleanup()
 			arch := runtime.GOARCH
-			err = Commands(schema.Stage{
+			err = Commands(l, schema.Stage{
 				Commands: []string{"echo {{.Values.os.architecture}}", "echo bar"},
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())

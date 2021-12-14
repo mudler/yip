@@ -23,6 +23,7 @@ import (
 
 	"github.com/mudler/yip/pkg/console"
 	"github.com/mudler/yip/pkg/executor"
+	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -41,29 +42,19 @@ var (
 	BuildCommit string
 )
 
-var entityFile string
-
-func fail(s string) {
-	log.Error(s)
-	os.Exit(1)
-}
-func checkErr(err error) {
-	if err != nil {
-		fail("fatal error: " + err.Error())
-	}
-}
-
-func init() {
+func initLogger() logger.Interface {
+	ll := log.New()
 	switch strings.ToLower(os.Getenv("LOGLEVEL")) {
 	case "error":
-		log.SetLevel(log.ErrorLevel)
+		ll.SetLevel(log.ErrorLevel)
 	case "warning":
-		log.SetLevel(log.WarnLevel)
+		ll.SetLevel(log.WarnLevel)
 	case "debug":
-		log.SetLevel(log.DebugLevel)
+		ll.SetLevel(log.DebugLevel)
 	default:
-		log.SetLevel(log.InfoLevel)
+		ll.SetLevel(log.InfoLevel)
 	}
+	return ll
 }
 
 // rootCmd represents the base command when called without any subcommands
@@ -79,19 +70,19 @@ For example:
 	$> yip -s initramfs <yip.yaml> <yip2.yaml> ...
 	$> cat def.yaml | yip -
 `,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		stage, _ := cmd.Flags().GetString("stage")
-		exec, _ := cmd.Flags().GetString("executor")
 		dot, _ := cmd.Flags().GetBool("dotnotation")
 
-		runner := executor.NewExecutor(exec)
+		ll := initLogger()
+		runner := executor.NewExecutor(executor.WithLogger(ll))
 		fromStdin := len(args) == 1 && args[0] == "-"
 
-		log.Infof("yip version %s", cmd.Version)
+		ll.Infof("yip version %s", cmd.Version)
 		if len(args) == 0 {
-			fail("yip needs at least one path or url as argument")
+			ll.Fatal("yip needs at least one path or url as argument")
 		}
-		stdConsole := console.StandardConsole{}
+		stdConsole := console.NewStandardConsole(console.WithLogger(ll))
 
 		if dot {
 			runner.Modifier(schema.DotNotationModifier)
@@ -99,12 +90,14 @@ For example:
 
 		if fromStdin {
 			std, err := ioutil.ReadAll(os.Stdin)
-			checkErr(err)
+			if err != nil {
+				return err
+			}
 
 			args = []string{string(std)}
 		}
 
-		checkErr(runner.Run(stage, vfs.OSFS, stdConsole, args...))
+		return runner.Run(stage, vfs.OSFS, stdConsole, args...)
 	},
 }
 
@@ -112,11 +105,12 @@ For example:
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	err := rootCmd.Execute()
-	checkErr(err)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringP("executor", "e", "default", "Executor which applies the config")
 	rootCmd.PersistentFlags().StringP("stage", "s", "default", "Stage to apply")
 	rootCmd.PersistentFlags().BoolP("dotnotation", "d", false, "Parse input in dotnotation ( e.g. `stages.foo.name=..` ) ")
 }

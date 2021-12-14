@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/mudler/yip/pkg/utils"
 	"github.com/pkg/errors"
@@ -27,7 +28,7 @@ var keyProviders = map[string]string{
 	"gitlab": "https://gitlab.com/%s.keys",
 }
 
-func SSH(s schema.Stage, fs vfs.FS, console Console) error {
+func SSH(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 	var errs error
 
 	for u, keys := range s.SSHKeys {

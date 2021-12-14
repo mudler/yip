@@ -21,6 +21,7 @@ import (
 	. "github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
 	consoletests "github.com/mudler/yip/tests/console"
+	"github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs/vfst"
 
 	. "github.com/onsi/ginkgo"
@@ -30,13 +31,14 @@ import (
 var _ = Describe("Timesyncd", func() {
 	Context("setting", func() {
 		testConsole := consoletests.TestConsole{}
+		l := logrus.New()
 
 		It("configures timesyncd", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/etc/systemd/foo.conf": ""})
 			Expect(err).Should(BeNil())
 			defer cleanup()
 
-			err = Timesyncd(schema.Stage{
+			err = Timesyncd(l, schema.Stage{
 				TimeSyncd: map[string]string{"NTP": "0.pool"},
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())

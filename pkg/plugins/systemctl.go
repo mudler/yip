@@ -2,11 +2,12 @@ package plugins
 
 import (
 	"github.com/hashicorp/go-multierror"
+	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/twpayne/go-vfs"
 )
 
-func Systemctl(s schema.Stage, fs vfs.FS, console Console) error {
+func Systemctl(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 	var errs error
 
 	if err := console.RunTemplate(s.Systemctl.Enable, "systemctl enable %s"); err != nil {

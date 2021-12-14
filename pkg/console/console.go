@@ -20,13 +20,36 @@ import (
 	"os/exec"
 
 	"github.com/hashicorp/go-multierror"
-	log "github.com/sirupsen/logrus"
+	"github.com/mudler/yip/pkg/logger"
+	"github.com/sirupsen/logrus"
 )
 
-type StandardConsole struct{}
+type StandardConsole struct {
+	logger logger.Interface
+}
+
+type StandardConsoleOptions func(*StandardConsole) error
+
+func WithLogger(i logger.Interface) StandardConsoleOptions {
+	return func(sc *StandardConsole) error {
+		sc.logger = i
+		return nil
+	}
+}
+
+func NewStandardConsole(opts ...StandardConsoleOptions) *StandardConsole {
+	c := &StandardConsole{
+		logger: logrus.New(),
+	}
+	for _, o := range opts {
+		o(c)
+	}
+	return c
+
+}
 
 func (s StandardConsole) Run(cmd string, opts ...func(cmd *exec.Cmd)) (string, error) {
-	log.Debugf("running command `%s`", cmd)
+	s.logger.Debugf("running command `%s`", cmd)
 	c := exec.Command("sh", "-c", cmd)
 	for _, o := range opts {
 		o(c)
@@ -40,7 +63,7 @@ func (s StandardConsole) Run(cmd string, opts ...func(cmd *exec.Cmd)) (string, e
 }
 
 func (s StandardConsole) Start(cmd *exec.Cmd, opts ...func(cmd *exec.Cmd)) error {
-	log.Debugf("running command `%s`", cmd)
+	s.logger.Debugf("running command `%s`", cmd)
 	for _, o := range opts {
 		o(cmd)
 	}
@@ -53,8 +76,8 @@ func (s StandardConsole) RunTemplate(st []string, template string) error {
 	for _, svc := range st {
 		out, err := s.Run(fmt.Sprintf(template, svc))
 		if err != nil {
-			log.Error(out)
-			log.Error(err.Error())
+			s.logger.Error(out)
+			s.logger.Error(err.Error())
 			errs = multierror.Append(errs, err)
 			continue
 		}

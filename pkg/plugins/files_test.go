@@ -23,6 +23,7 @@ import (
 	. "github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
 	consoletests "github.com/mudler/yip/tests/console"
+	"github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs/vfst"
 
 	. "github.com/onsi/ginkgo"
@@ -32,13 +33,13 @@ import (
 var _ = Describe("Files", func() {
 	Context("creating", func() {
 		testConsole := consoletests.TestConsole{}
-
+		l := logrus.New()
 		It("creates a /tmp/test/foo file", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/tmp/test/bar": "boo"})
 			Expect(err).Should(BeNil())
 			defer cleanup()
 
-			err = EnsureFiles(schema.Stage{
+			err = EnsureFiles(l, schema.Stage{
 				Files: []schema.File{{Path: "/tmp/test/foo", Content: "Test", Permissions: 0777, Owner: os.Getuid(), Group: os.Getgid()}},
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
@@ -56,11 +57,14 @@ var _ = Describe("Files", func() {
 			defer cleanup()
 			_, err = fs.Stat("/testarea/dir")
 			Expect(err).NotTo(BeNil())
-			err = EnsureFiles(schema.Stage{
+			err = EnsureFiles(l, schema.Stage{
 				Files: []schema.File{{Path: "/testarea/dir/subdir/foo", Content: "Test", Permissions: 0640, Owner: os.Getuid(), Group: os.Getgid()}},
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
+
 			file, err := fs.Open("/testarea/dir/subdir/foo")
+			Expect(err).ShouldNot(HaveOccurred())
+
 			b, err := ioutil.ReadAll(file)
 			if err != nil {
 				log.Fatal(err)

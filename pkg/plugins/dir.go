@@ -6,16 +6,16 @@ import (
 	"path/filepath"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
-	log "github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs"
 )
 
-func EnsureDirectories(s schema.Stage, fs vfs.FS, console Console) error {
+func EnsureDirectories(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 	var errs error
 	for _, dir := range s.Directories {
-		if err := writePath(dir, fs, true); err != nil {
-			log.Error(err.Error())
+		if err := writePath(l, dir, fs, true); err != nil {
+			l.Error(err.Error())
 			errs = multierror.Append(errs, err)
 			continue
 		}
@@ -23,8 +23,8 @@ func EnsureDirectories(s schema.Stage, fs vfs.FS, console Console) error {
 	return errs
 }
 
-func writeDirectory(dir schema.Directory, fs vfs.FS) error {
-	log.Debug("Creating directory ", dir.Path)
+func writeDirectory(l logger.Interface, dir schema.Directory, fs vfs.FS) error {
+	l.Debug("Creating directory ", dir.Path)
 	err := fs.Mkdir(dir.Path, os.FileMode(dir.Permissions))
 	if err != nil {
 		return err
@@ -33,7 +33,7 @@ func writeDirectory(dir schema.Directory, fs vfs.FS) error {
 	return fs.Chown(dir.Path, dir.Owner, dir.Group)
 }
 
-func writePath(dir schema.Directory, fs vfs.FS, topLevel bool) error {
+func writePath(l logger.Interface, dir schema.Directory, fs vfs.FS, topLevel bool) error {
 	inf, err := fs.Stat(dir.Path)
 	if err == nil && inf.IsDir() && topLevel {
 		// The path already exists, apply permissions and ownership only
@@ -51,15 +51,15 @@ func writePath(dir schema.Directory, fs vfs.FS, topLevel bool) error {
 		_, err = fs.Stat(parentDir)
 		if parentDir == "/" || parentDir == "." || err == nil {
 			//There is no parent dir or it already exists
-			return writeDirectory(dir, fs)
+			return writeDirectory(l, dir, fs)
 		} else {
 			//Parent dir needs to be created
 			pDir := schema.Directory{parentDir, dir.Permissions, dir.Owner, dir.Group}
-			err = writePath(pDir, fs, false)
+			err = writePath(l, pDir, fs, false)
 			if err != nil {
 				return err
 			}
-			return writeDirectory(dir, fs)
+			return writeDirectory(l, dir, fs)
 		}
 	}
 }

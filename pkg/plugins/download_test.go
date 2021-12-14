@@ -23,6 +23,7 @@ import (
 	. "github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
 	consoletests "github.com/mudler/yip/tests/console"
+	"github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs/vfst"
 
 	. "github.com/onsi/ginkgo"
@@ -34,12 +35,13 @@ const testURL = "https://gist.githubusercontent.com/mudler/13d2c42fd2cf7fc33cdb8
 var _ = Describe("Download", func() {
 	Context("download a simple file", func() {
 		testConsole := consoletests.TestConsole{}
+		l := logrus.New()
 		It("downloads correctly in the specified location", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/tmp/test/bar": "boo"})
 			Expect(err).Should(BeNil())
 			defer cleanup()
 
-			err = Download(schema.Stage{
+			err = Download(l, schema.Stage{
 				Downloads: []schema.Download{{Path: "/tmp/test/foo", URL: testURL, Permissions: 0777, Owner: os.Getuid(), Group: os.Getgid()}},
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
@@ -58,7 +60,7 @@ var _ = Describe("Download", func() {
 			Expect(err).Should(BeNil())
 			defer cleanup()
 
-			err = Download(schema.Stage{
+			err = Download(l, schema.Stage{
 				Downloads: []schema.Download{{Path: "/tmp/test/", URL: testURL, Permissions: 0777, Owner: os.Getuid(), Group: os.Getgid()}},
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())

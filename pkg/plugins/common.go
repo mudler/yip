@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cloudflare/cfssl/log"
+	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/utils"
 	"github.com/pkg/errors"
 	"github.com/zcalusic/sysinfo"
@@ -27,25 +27,25 @@ type Console interface {
 	RunTemplate([]string, string) error
 }
 
-func templateSysData(s string) string {
+func templateSysData(l logger.Interface, s string) string {
 	interpolateOpts := map[string]interface{}{}
 
 	data, err := json.Marshal(&system)
 	if err != nil {
-		log.Warning(fmt.Sprintf("Failed marshalling '%s': %s", s, err.Error()))
+		l.Warn(fmt.Sprintf("Failed marshalling '%s': %s", s, err.Error()))
 		return s
 	}
-	log.Debug(string(data))
+	l.Debug(string(data))
 
 	err = json.Unmarshal(data, &interpolateOpts)
 	if err != nil {
-		log.Warning(fmt.Sprintf("Failed marshalling '%s': %s", s, err.Error()))
+		l.Warn(fmt.Sprintf("Failed marshalling '%s': %s", s, err.Error()))
 		return s
 	}
 
 	rendered, err := utils.TemplatedString(s, map[string]interface{}{"Values": interpolateOpts})
 	if err != nil {
-		log.Warning(fmt.Sprintf("Failed rendering '%s': %s", s, err.Error()))
+		l.Warn(fmt.Sprintf("Failed rendering '%s': %s", s, err.Error()))
 		return s
 	}
 	return rendered

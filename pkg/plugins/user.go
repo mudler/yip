@@ -10,13 +10,13 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	entities "github.com/mudler/entities/pkg/entities"
+	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/twpayne/go-vfs"
 	passwd "github.com/willdonnelly/passwd"
 )
 
 func createUser(fs vfs.FS, u schema.User, console Console) error {
-
 	pass := u.PasswordHash
 	if u.LockPasswd {
 		pass = "!"
@@ -160,7 +160,7 @@ func setUserPass(fs vfs.FS, username, password string) error {
 	return nil
 }
 
-func User(s schema.Stage, fs vfs.FS, console Console) error {
+func User(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 	var errs error
 
 	for u, p := range s.Users {
@@ -177,7 +177,7 @@ func User(s schema.Stage, fs vfs.FS, console Console) error {
 		}
 
 		if len(p.SSHAuthorizedKeys) > 0 {
-			SSH(schema.Stage{SSHKeys: map[string][]string{r.Name: r.SSHAuthorizedKeys}}, fs, console)
+			SSH(l, schema.Stage{SSHKeys: map[string][]string{r.Name: r.SSHAuthorizedKeys}}, fs, console)
 		}
 
 	}

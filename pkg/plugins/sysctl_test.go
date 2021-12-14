@@ -21,6 +21,7 @@ import (
 	. "github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
 	consoletests "github.com/mudler/yip/tests/console"
+	"github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs/vfst"
 
 	. "github.com/onsi/ginkgo"
@@ -30,13 +31,14 @@ import (
 var _ = Describe("Sysctl", func() {
 	Context("setting", func() {
 		testConsole := consoletests.TestConsole{}
+		l := logrus.New()
 
 		It("configures a /sys/proc setting", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/proc/sys/debug/.keep": ""})
 			Expect(err).Should(BeNil())
 			defer cleanup()
 
-			err = Sysctl(schema.Stage{
+			err = Sysctl(l, schema.Stage{
 				Sysctl: map[string]string{"debug.exception-trace": "0"},
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())

@@ -4,14 +4,15 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"github.com/mudler/yip/pkg/schema"
-	log "github.com/sirupsen/logrus"
-	"github.com/twpayne/go-vfs"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/mudler/yip/pkg/logger"
+	"github.com/mudler/yip/pkg/schema"
+	"github.com/twpayne/go-vfs"
 )
 
 type Disk struct {
@@ -51,7 +52,7 @@ const (
 	partitionTries = 10
 )
 
-func Layout(s schema.Stage, fs vfs.FS, console Console) error {
+func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 	if s.Layout.Device == nil {
 		return nil
 	}
@@ -64,15 +65,15 @@ func Layout(s schema.Stage, fs vfs.FS, console Console) error {
 		}
 	}
 	if len(strings.TrimSpace(s.Layout.Device.Label)) > 0 {
-		dev, err = FindDiskFromPartitionLabel(s.Layout.Device.Label, console)
+		dev, err = FindDiskFromPartitionLabel(l, s.Layout.Device.Label, console)
 		if err != nil {
-			log.Warningf("Exiting, disk not found:\n %s", err.Error())
+			l.Warnf("Exiting, disk not found:\n %s", err.Error())
 			return nil
 		}
 	} else if len(strings.TrimSpace(s.Layout.Device.Path)) > 0 {
 		dev, err = FindDiskFromPath(s.Layout.Device.Path, console)
 		if err != nil {
-			log.Warningf("Exiting, disk not found:\n %s", err.Error())
+			l.Warnf("Exiting, disk not found:\n %s", err.Error())
 			return nil
 		}
 	} else {
@@ -82,27 +83,27 @@ func Layout(s schema.Stage, fs vfs.FS, console Console) error {
 	changed := false
 
 	// Check there is a minimum of 32MiB of free space in disk
-	if !dev.CheckDiskFreeSpaceMiB(32, console) {
-		log.Warningf("Not enough unpartitioned space in disk to operate")
+	if !dev.CheckDiskFreeSpaceMiB(l, 32, console) {
+		l.Warnf("Not enough unpartitioned space in disk to operate")
 		return nil
 	}
 
 	if s.Layout.Expand != nil {
-		log.Infof("Extending last partition up to %d MiB", s.Layout.Expand.Size)
-		out, err := dev.ExpandLastPartition(s.Layout.Expand.Size, console)
+		l.Infof("Extending last partition up to %d MiB", s.Layout.Expand.Size)
+		out, err := dev.ExpandLastPartition(l, s.Layout.Expand.Size, console)
 		if err != nil {
-			log.Error(out)
+			l.Error(out)
 			return err
 		}
 		changed = true
 	}
 
 	for _, part := range s.Layout.Parts {
-		if match := MatchPartitionFSLabel(part.FSLabel, console); match != "" {
-			log.Warningf("Partition with FSLabel: %s already exists, ignoring", part.FSLabel)
+		if match := MatchPartitionFSLabel(l, part.FSLabel, console); match != "" {
+			l.Warnf("Partition with FSLabel: %s already exists, ignoring", part.FSLabel)
 			continue
-		} else if match := MatchPartitionPLabel(part.PLabel, console); match != "" {
-			log.Warningf("Partition with PLabel: %s already exists, ignoring", part.PLabel)
+		} else if match := MatchPartitionPLabel(l, part.PLabel, console); match != "" {
+			l.Warnf("Partition with PLabel: %s already exists, ignoring", part.PLabel)
 			continue
 		}
 		// Set default filesystem
@@ -110,25 +111,25 @@ func Layout(s schema.Stage, fs vfs.FS, console Console) error {
 			part.FileSystem = "ext2"
 		}
 
-		log.Infof("Creating %s partition", part.FSLabel)
-		out, err := dev.AddPartition(part.FSLabel, part.Size, part.FileSystem, part.PLabel, console)
+		l.Infof("Creating %s partition", part.FSLabel)
+		out, err := dev.AddPartition(l, part.FSLabel, part.Size, part.FileSystem, part.PLabel, console)
 		if err != nil {
-			log.Error(out)
+			l.Error(out)
 			return err
 		}
 		changed = true
 	}
 
 	if changed {
-		dev.ReloadPartitionTable(console)
+		dev.ReloadPartitionTable(l, console)
 	}
 	return nil
 }
 
-func MatchPartitionFSLabel(label string, console Console) string {
+func MatchPartitionFSLabel(l logger.Interface, label string, console Console) string {
 	if label != "" {
 		out, _ := console.Run("udevadm settle")
-		log.Debugf("Output of udevadm settle: %s", out)
+		l.Debugf("Output of udevadm settle: %s", out)
 		out, err := console.Run(fmt.Sprintf("blkid -l --match-token LABEL=%s -o device", label))
 		if err == nil {
 			return out
@@ -137,10 +138,10 @@ func MatchPartitionFSLabel(label string, console Console) string {
 	return ""
 }
 
-func MatchPartitionPLabel(label string, console Console) string {
+func MatchPartitionPLabel(l logger.Interface, label string, console Console) string {
 	if label != "" {
 		out, _ := console.Run("udevadm settle")
-		log.Debugf("Output of udevadm settle: %s", out)
+		l.Debugf("Output of udevadm settle: %s", out)
 		out, err := console.Run(fmt.Sprintf("blkid -l --match-token PARTLABEL=%s -o device", label))
 		if err == nil {
 			return out
@@ -168,13 +169,13 @@ func FindDiskFromPath(path string, console Console) (Disk, error) {
 	return Disk{}, errors.New(fmt.Sprintf("Could not verify %s is a block device", path))
 }
 
-func FindDiskFromPartitionLabel(label string, console Console) (Disk, error) {
-	if partnode := MatchPartitionFSLabel(label, console); partnode != "" {
+func FindDiskFromPartitionLabel(l logger.Interface, label string, console Console) (Disk, error) {
+	if partnode := MatchPartitionFSLabel(l, label, console); partnode != "" {
 		device, err := console.Run(fmt.Sprintf("lsblk -npo pkname %s", partnode))
 		if err == nil {
 			return Disk{Device: device}, nil
 		}
-	} else if partnode := MatchPartitionPLabel(label, console); partnode != "" {
+	} else if partnode := MatchPartitionPLabel(l, label, console); partnode != "" {
 		device, err := console.Run(fmt.Sprintf("lsblk -npo pkname %s", partnode))
 		if err == nil {
 			return Disk{Device: device}, nil
@@ -210,10 +211,10 @@ func (dev *Disk) Reload(console Console) error {
 }
 
 // Size is expressed in MiB here
-func (dev *Disk) CheckDiskFreeSpaceMiB(minSpace uint, console Console) bool {
-	freeS, err := dev.GetFreeSpace(console)
+func (dev *Disk) CheckDiskFreeSpaceMiB(l logger.Interface, minSpace uint, console Console) bool {
+	freeS, err := dev.GetFreeSpace(l, console)
 	if err != nil {
-		log.Warningf("Could not calculate disk free space")
+		l.Warnf("Could not calculate disk free space")
 		return false
 	}
 	minSec := MiBToSectors(minSpace, dev.SectorS)
@@ -223,13 +224,13 @@ func (dev *Disk) CheckDiskFreeSpaceMiB(minSpace uint, console Console) bool {
 	return true
 }
 
-func (dev *Disk) GetFreeSpace(console Console) (uint, error) {
+func (dev *Disk) GetFreeSpace(l logger.Interface, console Console) (uint, error) {
 	gd := NewGdiskCall(dev.String())
 	if gd.HasUnallocatedSpace(console) {
 		gd.ExpandPTable()
 		out, err := gd.WriteChanges(console)
 		if err != nil {
-			log.Errorf("Failed resizing the partition table: \n%s", out)
+			l.Errorf("Failed resizing the partition table: \n%s", out)
 			return 0, err
 		}
 		err = dev.Reload(console)
@@ -242,7 +243,7 @@ func (dev *Disk) GetFreeSpace(console Console) (uint, error) {
 	if dev.SectorS == 0 {
 		err := dev.Reload(console)
 		if err != nil {
-			log.Errorf("Failed analyzing disk: %v\n", err)
+			l.Errorf("Failed analyzing disk: %v\n", err)
 			return 0, err
 		}
 	}
@@ -271,7 +272,7 @@ func (dev Disk) computeFreeSpaceWithoutLast() uint {
 }
 
 //Size is expressed in MiB here
-func (dev *Disk) AddPartition(label string, size uint, fileSystem string, pLabel string, console Console) (string, error) {
+func (dev *Disk) AddPartition(l logger.Interface, label string, size uint, fileSystem string, pLabel string, console Console) (string, error) {
 	gd := NewGdiskCall(dev.String())
 	pType := "8300"
 	if fatFS, _ := regexp.MatchString("fat|vfat", fileSystem); fatFS {
@@ -283,7 +284,7 @@ func (dev *Disk) AddPartition(label string, size uint, fileSystem string, pLabel
 	if dev.SectorS == 0 {
 		err := dev.Reload(console)
 		if err != nil {
-			log.Errorf("Failed analyzing disk: %v\n", err)
+			l.Errorf("Failed analyzing disk: %v\n", err)
 			return "", err
 		}
 	}
@@ -323,12 +324,11 @@ func (dev *Disk) AddPartition(label string, size uint, fileSystem string, pLabel
 	}
 	err = dev.Reload(console)
 	if err != nil {
-		log.Errorf("Failed analyzing disk: %v\n", err)
+		l.Errorf("Failed analyzing disk: %v\n", err)
 		return "", err
 	}
 
-
-	pDev, err := dev.FindPartitionDevice(part.Number, console)
+	pDev, err := dev.FindPartitionDevice(l, part.Number, console)
 	if err != nil {
 		return "", err
 	}
@@ -337,23 +337,23 @@ func (dev *Disk) AddPartition(label string, size uint, fileSystem string, pLabel
 	return mkfs.Apply(console)
 }
 
-func (dev Disk) ReloadPartitionTable(console Console) error {
+func (dev Disk) ReloadPartitionTable(l logger.Interface, console Console) error {
 	for tries := 0; tries <= partitionTries; tries++ {
-		log.Debugf("Trying to reread the partition table of %s (try number %d)", dev, tries+1)
+		l.Debugf("Trying to reread the partition table of %s (try number %d)", dev, tries+1)
 		out, _ := console.Run("udevadm settle")
-		log.Debugf("Output of udevadm settle: %s", out)
+		l.Debugf("Output of udevadm settle: %s", out)
 
 		out, err1 := console.Run(fmt.Sprintf("partprobe %s", dev))
-		log.Debugf("output of partprobe: %s", out)
-		if err1 != nil && tries == (partitionTries - 1) {
-			log.Debugf("Error of partprobe: %s", err1)
+		l.Debugf("output of partprobe: %s", out)
+		if err1 != nil && tries == (partitionTries-1) {
+			l.Debugf("Error of partprobe: %s", err1)
 			return errors.New(fmt.Sprintf("Could not reload partition table: %s", out))
 		}
 
 		out, err2 := console.Run("sync")
-		log.Debugf("Output of sync: %s", out)
-		if err2 != nil && tries == (partitionTries - 1) {
-			log.Debugf("Error of sync: %s", err2)
+		l.Debugf("Output of sync: %s", out)
+		if err2 != nil && tries == (partitionTries-1) {
+			l.Debugf("Error of sync: %s", err2)
 			return errors.New(fmt.Sprintf("Could not sync: %s", out))
 		}
 
@@ -366,25 +366,25 @@ func (dev Disk) ReloadPartitionTable(console Console) error {
 	return nil
 }
 
-func (dev Disk) FindPartitionDevice(partNum int, console Console) (string, error) {
+func (dev Disk) FindPartitionDevice(l logger.Interface, partNum int, console Console) (string, error) {
 	var match string
 	for tries := 0; tries <= partitionTries; tries++ {
-		err := dev.ReloadPartitionTable(console)
+		err := dev.ReloadPartitionTable(l, console)
 		if err != nil {
-			log.Errorf("Failed on reloading the partition table: %v\n", err)
+			l.Errorf("Failed on reloading the partition table: %v\n", err)
 			return "", err
 		}
-		log.Debugf("Trying to find the partition device %d of device %s (try number %d)", partNum, dev, tries+1)
+		l.Debugf("Trying to find the partition device %d of device %s (try number %d)", partNum, dev, tries+1)
 		out, err := console.Run("udevadm settle")
-		log.Debugf("Output of udevadm settle: %s", out)
-		if err != nil && tries == (partitionTries - 1) {
-			log.Debugf("Error of udevadm settle: %s", err)
+		l.Debugf("Output of udevadm settle: %s", out)
+		if err != nil && tries == (partitionTries-1) {
+			l.Debugf("Error of udevadm settle: %s", err)
 			return "", errors.New(fmt.Sprintf("Could not list settle: %s", out))
 		}
 		out, err = console.Run(fmt.Sprintf("lsblk -ltnpo name,type %s", dev))
-		log.Debugf("Output of lsblk: %s", out)
-		if err != nil && tries == (partitionTries - 1) {
-			log.Debugf("Error of lsblk: %s", err)
+		l.Debugf("Output of lsblk: %s", out)
+		if err != nil && tries == (partitionTries-1) {
+			l.Debugf("Error of lsblk: %s", err)
 			return "", errors.New(fmt.Sprintf("Could not list device partition nodes: %s", out))
 		}
 
@@ -393,7 +393,7 @@ func (dev Disk) FindPartitionDevice(partNum int, console Console) (string, error
 			return "", errors.New("Failed compiling regexp")
 		}
 		matched := re.FindStringSubmatch(out)
-		if matched == nil && tries == (partitionTries - 1) {
+		if matched == nil && tries == (partitionTries-1) {
 			return "", errors.New(fmt.Sprintf("Could not find partition device path for partition %d", partNum))
 		}
 		if matched != nil {
@@ -406,7 +406,7 @@ func (dev Disk) FindPartitionDevice(partNum int, console Console) (string, error
 }
 
 //Size is expressed in MiB here
-func (dev *Disk) ExpandLastPartition(size uint, console Console) (string, error) {
+func (dev *Disk) ExpandLastPartition(l logger.Interface, size uint, console Console) (string, error) {
 	if len(dev.Parts) == 0 {
 		return "", errors.New("There is no partition to expand")
 	}
@@ -416,7 +416,7 @@ func (dev *Disk) ExpandLastPartition(size uint, console Console) (string, error)
 	if dev.SectorS == 0 {
 		err := dev.Reload(console)
 		if err != nil {
-			log.Errorf("Failed analyzing disk: %v\n", err)
+			l.Errorf("Failed analyzing disk: %v\n", err)
 			return "", err
 		}
 	}

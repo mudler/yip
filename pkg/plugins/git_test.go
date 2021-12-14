@@ -23,6 +23,7 @@ import (
 	. "github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
 	consoletests "github.com/mudler/yip/tests/console"
+	"github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs/vfst"
 
 	. "github.com/onsi/ginkgo"
@@ -49,12 +50,12 @@ sdeJSvodh2/Ni4pwdLG5AAAACTxjb21tZW50PgECAwQ=
 var _ = Describe("Git", func() {
 	Context("creating", func() {
 		testConsole := consoletests.TestConsole{}
-
+		l := logrus.New()
 		It("clones a public repo in a path that doesn't exist", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/testarea": &vfst.Dir{Perm: 0o755}})
 			Expect(err).Should(BeNil())
 			defer cleanup()
-			err = Git(schema.Stage{
+			err = Git(l, schema.Stage{
 
 				Git: schema.Git{
 					URL:  "https://gist.github.com/mudler/13d2c42fd2cf7fc33cdb8cae6b5bdd57",
@@ -77,7 +78,7 @@ var _ = Describe("Git", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/testarea": &vfst.Dir{Perm: 0o755}})
 			Expect(err).Should(BeNil())
 			defer cleanup()
-			err = Git(schema.Stage{
+			err = Git(l, schema.Stage{
 
 				Git: schema.Git{
 					URL:  "https://gist.github.com/mudler/13d2c42fd2cf7fc33cdb8cae6b5bdd57",
@@ -100,8 +101,7 @@ var _ = Describe("Git", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/testarea": &vfst.Dir{Perm: 0o755}})
 			Expect(err).Should(BeNil())
 			defer cleanup()
-			err = Git(schema.Stage{
-
+			err = Git(l, schema.Stage{
 				Git: schema.Git{
 					URL:  "https://gist.github.com/mudler/13d2c42fd2cf7fc33cdb8cae6b5bdd57",
 					Path: "/testarea",
@@ -120,8 +120,7 @@ var _ = Describe("Git", func() {
 
 			Expect(string(b)).Should(Equal("foo"))
 
-			err = Git(schema.Stage{
-
+			err = Git(l, schema.Stage{
 				Git: schema.Git{
 					URL:    "https://gist.github.com/mudler/13d2c42fd2cf7fc33cdb8cae6b5bdd57",
 					Path:   "/testarea",
@@ -146,7 +145,7 @@ var _ = Describe("Git", func() {
 			Expect(err).Should(BeNil())
 			defer cleanup()
 
-			err = Git(schema.Stage{
+			err = Git(l, schema.Stage{
 				Git: schema.Git{
 					URL:    "git@gitlab.com:mudler/unit-test-repo.git",
 					Path:   "/testarea",
@@ -168,7 +167,7 @@ var _ = Describe("Git", func() {
 
 			Expect(string(b)).Should(Equal("foo"))
 
-			err = Git(schema.Stage{
+			err = Git(l, schema.Stage{
 
 				Git: schema.Git{
 					URL:    "git@gitlab.com:mudler/unit-test-repo.git",

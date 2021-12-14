@@ -19,6 +19,7 @@ import (
 	. "github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
 	consoletests "github.com/mudler/yip/tests/console"
+	"github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs/vfst"
 
 	. "github.com/onsi/ginkgo"
@@ -36,7 +37,7 @@ var _ = Describe("Systemctl", func() {
 			Expect(err).Should(BeNil())
 			defer cleanup()
 
-			err = Systemctl(schema.Stage{
+			err = Systemctl(logrus.New(), schema.Stage{
 				Systemctl: schema.Systemctl{
 					Enable:  []string{"foo"},
 					Disable: []string{"bar"},

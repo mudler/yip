@@ -21,6 +21,7 @@ import (
 	. "github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
 	consoletests "github.com/mudler/yip/tests/console"
+	"github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs/vfst"
 
 	. "github.com/onsi/ginkgo"
@@ -30,13 +31,13 @@ import (
 var _ = Describe("Files", func() {
 	Context("creating", func() {
 		testConsole := consoletests.TestConsole{}
-
+		l := logrus.New()
 		It("Creates a /tmp/dir directory", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/tmp": &vfst.Dir{Perm: 0o755}})
 			Expect(err).Should(BeNil())
 			defer cleanup()
 
-			err = EnsureDirectories(schema.Stage{
+			err = EnsureDirectories(l, schema.Stage{
 				Directories: []schema.Directory{{Path: "/tmp/dir", Permissions: 0740, Owner: os.Getuid(), Group: os.Getgid()}},
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
@@ -48,9 +49,9 @@ var _ = Describe("Files", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/tmp/dir": &vfst.Dir{Perm: 0o755}})
 			Expect(err).Should(BeNil())
 			defer cleanup()
-            inf, _ := fs.Stat("/tmp/dir")
+			inf, _ := fs.Stat("/tmp/dir")
 			Expect(inf.Mode().Perm()).To(Equal(os.FileMode(int(0755))))
-			err = EnsureDirectories(schema.Stage{
+			err = EnsureDirectories(l, schema.Stage{
 				Directories: []schema.Directory{{Path: "/tmp/dir", Permissions: 0740, Owner: os.Getuid(), Group: os.Getgid()}},
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
@@ -62,11 +63,11 @@ var _ = Describe("Files", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/tmp": &vfst.Dir{Perm: 0o755}})
 			Expect(err).Should(BeNil())
 			defer cleanup()
-			err = EnsureDirectories(schema.Stage{
+			err = EnsureDirectories(l, schema.Stage{
 				Directories: []schema.Directory{{Path: "/tmp/dir/subdir1/subdir2", Permissions: 0740, Owner: os.Getuid(), Group: os.Getgid()}},
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
-            inf, _ := fs.Stat("/tmp")
+			inf, _ := fs.Stat("/tmp")
 			Expect(inf.Mode().Perm()).To(Equal(os.FileMode(int(0755))))
 			inf, _ = fs.Stat("/tmp/dir/subdir1/subdir2")
 			Expect(inf.Mode().Perm()).To(Equal(os.FileMode(int(0740))))

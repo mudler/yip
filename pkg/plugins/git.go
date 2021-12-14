@@ -23,6 +23,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	gith "github.com/go-git/go-git/v5/plumbing/transport/http"
 	ssh2 "github.com/go-git/go-git/v5/plumbing/transport/ssh"
+	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/mudler/yip/pkg/utils"
 	"github.com/pkg/errors"
@@ -30,7 +31,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-func Git(s schema.Stage, fs vfs.FS, console Console) error {
+func Git(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 	if s.Git.URL == "" {
 		return nil
 	}
@@ -45,8 +46,10 @@ func Git(s schema.Stage, fs vfs.FS, console Console) error {
 	if err != nil {
 		return err
 	}
+	l.Infof("Cloning git repository '%s'", s.Git.URL)
 
 	if utils.Exists(filepath.Join(path, ".git")) {
+		l.Info("Repository already exists, updating it")
 		// is a git repo, update it
 		// We instantiate a new repository targeting the given path (the .git folder)
 		r, err := git.PlainOpen(path)
@@ -92,8 +95,6 @@ func Git(s schema.Stage, fs vfs.FS, console Console) error {
 	if err != nil {
 		return errors.Wrap(err, "failed cloning repo")
 	}
-	return nil
-
 	return nil
 }
 

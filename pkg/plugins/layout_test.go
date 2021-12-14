@@ -2,11 +2,13 @@ package plugins_test
 
 import (
 	"fmt"
+
 	. "github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
 	console "github.com/mudler/yip/tests/console"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs/vfst"
 )
 
@@ -141,10 +143,12 @@ var _ = Describe("Layout", func() {
 		Expect(err).Should(BeNil())
 		defer cleanup()
 
+		l := logrus.New()
+
 		It("Adds a new partition of 1024MiB in reflabel device", func() {
 			testConsole := console.New()
 			testConsole.AddCmds(CmdsAddPartByLabel("ext2"))
-			err := Layout(schema.Stage{
+			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
 					Device: &schema.Device{Label: deviceLabel},
 					Parts:  []schema.Partition{{FSLabel: label, Size: 1024}},
@@ -155,7 +159,7 @@ var _ = Describe("Layout", func() {
 		It("Adds a new partition of 1024MiB in /some/device device", func() {
 			testConsole := console.New()
 			testConsole.AddCmds(CmdsAddPartByDevPath)
-			err := Layout(schema.Stage{
+			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
 					Device: &schema.Device{Path: "/some/device"},
 					Parts:  []schema.Partition{{FSLabel: "MYLABEL", Size: 1024}},
@@ -166,7 +170,7 @@ var _ = Describe("Layout", func() {
 		It("Fails to add a partition of 1030MiB, there are only 1024MiB available", func() {
 			testConsole := console.New()
 			testConsole.AddCmds(CmdsAddPartByLabel("ext2"))
-			err := Layout(schema.Stage{
+			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
 					Device: &schema.Device{Label: deviceLabel},
 					Parts:  []schema.Partition{{FSLabel: label, Size: 1025}},
@@ -177,7 +181,7 @@ var _ = Describe("Layout", func() {
 		It("Ignores an already existing partition", func() {
 			testConsole := console.New()
 			testConsole.AddCmds(CmdsAddAlreadyExistingPart)
-			err := Layout(schema.Stage{
+			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
 					Device: &schema.Device{Label: deviceLabel},
 					Parts:  []schema.Partition{{FSLabel: label, Size: 1024}},
@@ -188,7 +192,7 @@ var _ = Describe("Layout", func() {
 		It("Fails to expand last partition, it can't shrink a partition", func() {
 			testConsole := console.New()
 			testConsole.AddCmds(CmdsExpandPart)
-			err := Layout(schema.Stage{
+			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
 					Device: &schema.Device{Label: deviceLabel},
 					Expand: &schema.Expand{Size: 1024},
@@ -199,7 +203,7 @@ var _ = Describe("Layout", func() {
 		It("Expands last partition", func() {
 			testConsole := console.New()
 			testConsole.AddCmds(CmdsExpandPart)
-			err := Layout(schema.Stage{
+			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
 					Device: &schema.Device{Label: deviceLabel},
 					Expand: &schema.Expand{Size: 3072},
@@ -210,7 +214,7 @@ var _ = Describe("Layout", func() {
 		It("Expands last partition with XFS fs", func() {
 			testConsole := console.New()
 			testConsole.AddCmds(CmdsExpandPartXfs)
-			err := Layout(schema.Stage{
+			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
 					Device: &schema.Device{Label: "reflabel"},
 					Expand: &schema.Expand{Size: 3072},
@@ -221,7 +225,7 @@ var _ = Describe("Layout", func() {
 		It("Fails to expand last partition, max size is 3072MiB", func() {
 			testConsole := console.New()
 			testConsole.AddCmds(CmdsExpandPart)
-			err := Layout(schema.Stage{
+			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
 					Device: &schema.Device{Label: deviceLabel},
 					Expand: &schema.Expand{Size: 3073},
@@ -231,7 +235,7 @@ var _ = Describe("Layout", func() {
 		})
 		It("Fails on an xfs fs with a label longer than 12 chars", func() {
 			testConsole := console.New()
-			err := Layout(schema.Stage{
+			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
 					Device: &schema.Device{Label: deviceLabel},
 					Parts:  []schema.Partition{{FSLabel: "LABEL_TOO_LONG_FOR_XFS", Size: 1024, FileSystem: "xfs"}},
@@ -246,7 +250,7 @@ var _ = Describe("Layout", func() {
 			for _, filesystem := range []string{"ext2", "ext3", "ext4"} {
 				testConsole := console.New()
 				testConsole.AddCmds(CmdsAddPartByLabel(filesystem))
-				err := Layout(schema.Stage{
+				err := Layout(l, schema.Stage{
 					Layout: schema.Layout{
 						Device: &schema.Device{Label: deviceLabel},
 						Parts:  []schema.Partition{{FSLabel: label, Size: 1024, FileSystem: filesystem}},

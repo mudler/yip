@@ -11,12 +11,12 @@ import (
 	"github.com/pkg/errors"
 
 	prv "github.com/davidcassany/linuxkit/pkg/metadata/providers"
+	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
-	log "github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs"
 )
 
-func DataSources(s schema.Stage, fs vfs.FS, console Console) error {
+func DataSources(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 	var AvailableProviders = []prv.Provider{}
 
 	if s.DataSources.Providers == nil || len(s.DataSources.Providers) == 0 {
@@ -52,7 +52,7 @@ func DataSources(s schema.Stage, fs vfs.FS, console Console) error {
 		}
 	}
 
-	if err := EnsureDirectories(schema.Stage{
+	if err := EnsureDirectories(l, schema.Stage{
 		Directories: []schema.Directory{
 			{
 				Path:        prv.ConfigPath,
@@ -73,7 +73,7 @@ func DataSources(s schema.Stage, fs vfs.FS, console Console) error {
 		if p.Probe() {
 			userdata, err = p.Extract()
 			if err != nil {
-				log.Warningf("Failed extracting data from %s provider: %s", p.String(), err.Error())
+				l.Warnf("Failed extracting data from %s provider: %s", p.String(), err.Error())
 			}
 			found = true
 			break
@@ -84,7 +84,7 @@ func DataSources(s schema.Stage, fs vfs.FS, console Console) error {
 		return fmt.Errorf("No metadata/userdata found. Bye")
 	}
 
-	err = writeToFile(path.Join(prv.ConfigPath, "provider"), p.String(), 0644, fs, console)
+	err = writeToFile(l, path.Join(prv.ConfigPath, "provider"), p.String(), 0644, fs, console)
 	if err != nil {
 		return err
 	}
@@ -95,37 +95,37 @@ func DataSources(s schema.Stage, fs vfs.FS, console Console) error {
 	}
 
 	if userdata != nil {
-		if err := processUserData(basePath, userdata, fs, console); err != nil {
+		if err := processUserData(l, basePath, userdata, fs, console); err != nil {
 			return err
 		}
 	}
 
 	//Apply the hostname if the provider extracted a hostname file
 	if _, err := fs.Stat(path.Join(prv.ConfigPath, prv.Hostname)); err == nil {
-		if err := processHostnameFile(fs, console); err != nil {
+		if err := processHostnameFile(l, fs, console); err != nil {
 			return err
 		}
 	}
 
 	//Apply the authorized_keys if the provider extracted a ssh/authorized_keys file
 	if _, err := fs.Stat(path.Join(prv.ConfigPath, prv.SSH, authorizedFile)); err == nil {
-		if err := processSSHFile(fs, console); err != nil {
+		if err := processSSHFile(l, fs, console); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func processHostnameFile(fs vfs.FS, console Console) error {
+func processHostnameFile(l logger.Interface, fs vfs.FS, console Console) error {
 	hostname, err := fs.ReadFile(path.Join(prv.ConfigPath, prv.Hostname))
 	if err != nil {
 		return err
 	}
 
-	return Hostname(schema.Stage{Hostname: string(hostname)}, fs, console)
+	return Hostname(l, schema.Stage{Hostname: string(hostname)}, fs, console)
 }
 
-func processSSHFile(fs vfs.FS, console Console) error {
+func processSSHFile(l logger.Interface, fs vfs.FS, console Console) error {
 	auth_keys, err := fs.ReadFile(path.Join(prv.ConfigPath, prv.SSH, authorizedFile))
 	if err != nil {
 		return err
@@ -144,46 +144,46 @@ func processSSHFile(fs vfs.FS, console Console) error {
 			keys = append(keys, line)
 		}
 	}
-	return SSH(schema.Stage{SSHKeys: map[string][]string{usr.Username: keys}}, fs, console)
+	return SSH(l, schema.Stage{SSHKeys: map[string][]string{usr.Username: keys}}, fs, console)
 }
 
 // If userdata can be parsed as a yipConfig file will create a <basePath>/userdata.yaml file
-func processUserData(basePath string, data []byte, fs vfs.FS, console Console) error {
+func processUserData(l logger.Interface, basePath string, data []byte, fs vfs.FS, console Console) error {
 	dataS := string(data)
 
 	// always save unprocessed data to "userdata"
-	if err := writeToFile(path.Join(basePath, "userdata"), dataS, 0644, fs, console); err != nil {
+	if err := writeToFile(l, path.Join(basePath, "userdata"), dataS, 0644, fs, console); err != nil {
 		return err
 	}
 
 	if _, err := schema.Load(dataS, fs, nil, nil); err == nil {
-		return writeToFile(path.Join(basePath, "userdata.yaml"), dataS, 0644, fs, console)
+		return writeToFile(l, path.Join(basePath, "userdata.yaml"), dataS, 0644, fs, console)
 	}
 
 	scanner := bufio.NewScanner(strings.NewReader(dataS))
 	scanner.Scan()
 	if strings.HasPrefix(scanner.Text(), "#!") {
-		log.Printf("Found shebang '%s' excuting user-data as a script\n", scanner.Text())
+		l.Infof("Found shebang '%s' excuting user-data as a script\n", scanner.Text())
 		script := path.Join(basePath, "userdata")
-		err := writeToFile(script, dataS, 0744, fs, console)
+		err := writeToFile(l, script, dataS, 0744, fs, console)
 		if err != nil {
 			return err
 		}
-		log.Printf("Running %s\n", script)
+		l.Infof("Running %s\n", script)
 		out, err := console.Run(script)
 		if err != nil {
 			return err
 		}
-		log.Println(out)
+		l.Info(out)
 		return nil
 	}
 
-	log.Println("Could not unmarshall userdata and no shebang detected")
+	l.Info("Could not unmarshall userdata and no shebang detected")
 	return nil
 }
 
-func writeToFile(filename string, content string, perm uint32, fs vfs.FS, console Console) error {
-	err := EnsureFiles(schema.Stage{
+func writeToFile(l logger.Interface, filename string, content string, perm uint32, fs vfs.FS, console Console) error {
+	err := EnsureFiles(l, schema.Stage{
 		Files: []schema.File{
 			{
 				Path:        filename,

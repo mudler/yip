@@ -16,13 +16,11 @@
 package executor
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/hashicorp/go-multierror"
+	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/mudler/yip/pkg/utils"
@@ -35,6 +33,7 @@ type DefaultExecutor struct {
 	plugins      []Plugin
 	conditionals []Plugin
 	modifier     schema.Modifier
+	logger       logger.Interface
 }
 
 func (e *DefaultExecutor) Plugins(p []Plugin) {
@@ -88,7 +87,7 @@ func (e *DefaultExecutor) run(stage, uri string, fs vfs.FS, console plugins.Cons
 		return err
 	}
 
-	log.Infof("Executing %s", uri)
+	e.logger.Infof("Executing %s", uri)
 	if err = e.Apply(stage, *config, fs, console); err != nil {
 		return err
 	}
@@ -117,59 +116,58 @@ func (e *DefaultExecutor) runStage(stage, uri string, fs vfs.FS, console plugins
 // Run takes a list of URI to run yipfiles from. URI can be also a dir or a local path, as well as a remote
 func (e *DefaultExecutor) Run(stage string, fs vfs.FS, console plugins.Console, args ...string) error {
 	var errs error
-
+	e.logger.Infof("Executing stage: %s stages: %d stage: %s\n", stage)
 	for _, source := range args {
 		if err := e.runStage(stage, source, fs, console); err != nil {
 			errs = multierror.Append(errs, err)
 		}
 	}
+	e.logger.Infof("Done executing stage '%s'. Errors: %t\n", stage, errs != nil)
 	return errs
 }
 
 // Apply applies a yip Config file by creating files and running commands defined.
 func (e *DefaultExecutor) Apply(stageName string, s schema.YipConfig, fs vfs.FS, console plugins.Console) error {
 
-	currentStages, _ := s.Stages[stageName]
+	currentStages := s.Stages[stageName]
 	var errs error
 
-	log.WithFields(log.Fields{
-		"name":   s.Name,
-		"stages": len(currentStages),
-		"stage":  stageName,
-	}).Info("Executing yip file")
+	e.logger.Infof("Executing file name: %s stages: %d stage: %s\n",
+		s.Name, len(currentStages), stageName)
+
 STAGES:
 	for _, stage := range currentStages {
 		for _, p := range e.conditionals {
-			if err := p(stage, fs, console); err != nil {
-				log.WithFields(log.Fields{
-					"name":  s.Name,
-					"stage": stageName,
-				}).Warning(err.Error())
+			if err := p(e.logger, stage, fs, console); err != nil {
+				e.logger.Warnf("Error '%s' in stage name: %s stage: %s\n",
+					err.Error(), s.Name, stageName)
 				continue STAGES
 			}
 		}
 
-		log.WithFields(log.Fields{
-			"commands":        len(stage.Commands),
-			"entities":        len(stage.EnsureEntities),
-			"nameserver":      len(stage.Dns.Nameservers),
-			"files":           len(stage.Files),
-			"delete_entities": len(stage.DeleteEntities),
-			"step":            stage.Name,
-		}).Info(fmt.Sprintf("Processing stage step '%s'", stage.Name))
+		e.logger.Infof(
+			"Processing stage step '%s'. commands: %d entities: %d nameserver: %d files: %d delete_entities: %d\n",
+			stage.Name,
+			len(stage.Commands),
+			len(stage.EnsureEntities),
+			len(stage.Dns.Nameservers),
+			len(stage.Files),
+			len(stage.DeleteEntities))
 
 		for _, p := range e.plugins {
-			if err := p(stage, fs, console); err != nil {
-				log.Error(err.Error())
+			if err := p(e.logger, stage, fs, console); err != nil {
+				e.logger.Error(err.Error())
 				errs = multierror.Append(errs, err)
 			}
 		}
 	}
 
-	log.WithFields(log.Fields{
-		"success": errs == nil,
-		"stages":  len(currentStages),
-		"stage":   stageName,
-	}).Info("Finished yip file execution")
+	e.logger.Infof(
+		"stage '%s' stages: %d success: %t\n",
+		stageName,
+		len(currentStages),
+		errs == nil,
+	)
+
 	return errs
 }

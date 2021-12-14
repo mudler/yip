@@ -5,9 +5,9 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/paultag/go-modprobe"
-	log "github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs"
 )
 
@@ -15,11 +15,11 @@ const (
 	modules = "/proc/modules"
 )
 
-func loadedModules(fs vfs.FS) map[string]interface{} {
+func loadedModules(l logger.Interface, fs vfs.FS) map[string]interface{} {
 	loaded := map[string]interface{}{}
 	f, err := fs.Open(modules)
 	if err != nil {
-		log.Warningf("Cannot open %s: %s", modules, err.Error())
+		l.Warnf("Cannot open %s: %s", modules, err.Error())
 		return loaded
 	}
 	defer f.Close()
@@ -34,26 +34,26 @@ func loadedModules(fs vfs.FS) map[string]interface{} {
 	return loaded
 }
 
-func LoadModules(s schema.Stage, fs vfs.FS, console Console) error {
+func LoadModules(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 	var errs error
 
 	if len(s.Modules) == 0 {
 		return nil
 	}
 
-	loaded := loadedModules(fs)
+	loaded := loadedModules(l, fs)
 
 	for _, m := range s.Modules {
 		if _, ok := loaded[m]; ok {
 			continue
 		}
 		params := strings.SplitN(m, " ", -1)
-		log.Debugf("loading module %s with parameters [%s]", m, params)
+		l.Debugf("loading module %s with parameters [%s]", m, params)
 		if err := modprobe.Load(params[0], strings.Join(params[1:], " ")); err != nil {
 			errs = multierror.Append(errs, err)
 			continue
 		}
-		log.Debugf("module %s loaded", m)
+		l.Debugf("module %s loaded", m)
 	}
 	return errs
 }

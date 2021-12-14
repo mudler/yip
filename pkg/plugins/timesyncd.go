@@ -3,6 +3,7 @@ package plugins
 import (
 	"os"
 
+	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/twpayne/go-vfs"
 	"gopkg.in/ini.v1"
@@ -10,7 +11,7 @@ import (
 
 const timeSyncd = "/etc/systemd/timesyncd.conf"
 
-func Timesyncd(s schema.Stage, fs vfs.FS, console Console) error {
+func Timesyncd(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 	if len(s.TimeSyncd) == 0 {
 		return nil
 	}

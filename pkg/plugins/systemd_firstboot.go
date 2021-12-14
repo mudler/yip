@@ -5,11 +5,12 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/twpayne/go-vfs"
 )
 
-func SystemdFirstboot(s schema.Stage, fs vfs.FS, console Console) error {
+func SystemdFirstboot(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 	var errs error
 
 	args := []string{}

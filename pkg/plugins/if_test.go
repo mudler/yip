@@ -19,6 +19,7 @@ import (
 	. "github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
 	consoletests "github.com/mudler/yip/tests/console"
+	"github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs/vfst"
 
 	. "github.com/onsi/ginkgo"
@@ -36,7 +37,7 @@ var _ = Describe("If", func() {
 			Expect(err).Should(BeNil())
 			defer cleanup()
 
-			err = IfConditional(schema.Stage{
+			err = IfConditional(logrus.New(), schema.Stage{
 				If: "exit 1",
 			}, fs, testConsole)
 

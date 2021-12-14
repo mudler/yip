@@ -6,7 +6,6 @@ require (
 	github.com/Masterminds/sprig/v3 v3.1.0
 	github.com/apex/log v1.9.0
 	github.com/cavaliergopher/grab v2.0.0+incompatible
-	github.com/cloudflare/cfssl v1.5.0
 	github.com/coreos/yaml v0.0.0-20141224210557-6b16a5714269 // indirect
 	github.com/davidcassany/linuxkit/pkg/metadata v0.0.0-20210714125456-8b187a9ffd7e
 	github.com/denisbrodbeck/machineid v1.0.1

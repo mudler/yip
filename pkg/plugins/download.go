@@ -7,6 +7,7 @@ import (
 
 	"github.com/cavaliergopher/grab"
 	"github.com/hashicorp/go-multierror"
+	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/mudler/yip/pkg/utils"
 	"github.com/pkg/errors"
@@ -26,7 +27,7 @@ func grabClient(timeout int) *grab.Client {
 	}
 }
 
-func Download(s schema.Stage, fs vfs.FS, console Console) error {
+func Download(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 	var errs error
 	for _, dl := range s.Downloads {
 		d := &dl
@@ -34,7 +35,7 @@ func Download(s schema.Stage, fs vfs.FS, console Console) error {
 		if err == nil {
 			d.Path = realPath
 		}
-		if err := downloadFile(*d); err != nil {
+		if err := downloadFile(l, *d); err != nil {
 			log.Error(err.Error())
 			errs = multierror.Append(errs, err)
 			continue
@@ -43,8 +44,8 @@ func Download(s schema.Stage, fs vfs.FS, console Console) error {
 	return errs
 }
 
-func downloadFile(dl schema.Download) error {
-	log.Debug("Downloading file ", dl.Path, dl.URL)
+func downloadFile(l logger.Interface, dl schema.Download) error {
+	l.Debug("Downloading file ", dl.Path, dl.URL)
 	client := grabClient(dl.Timeout)
 
 	req, err := grab.NewRequest(dl.Path, dl.URL)
@@ -60,7 +61,7 @@ Loop:
 	for {
 		select {
 		case <-t.C:
-			log.Debugf("  transferred %v / %v bytes (%.2f%%)\n",
+			l.Debugf("  transferred %v / %v bytes (%.2f%%)\n",
 				resp.BytesComplete(),
 				resp.Size,
 				100*resp.Progress())

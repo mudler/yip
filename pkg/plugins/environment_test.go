@@ -22,6 +22,7 @@ import (
 	. "github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
 	consoletests "github.com/mudler/yip/tests/console"
+	"github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs/vfst"
 
 	. "github.com/onsi/ginkgo"
@@ -31,13 +32,13 @@ import (
 var _ = Describe("Environment", func() {
 	Context("setting", func() {
 		testConsole := consoletests.TestConsole{}
-
+		l := logrus.New()
 		It("configures a /etc/environment setting", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/etc/environment": ""})
 			Expect(err).Should(BeNil())
 			defer cleanup()
 
-			err = Environment(schema.Stage{
+			err = Environment(l, schema.Stage{
 				Environment: map[string]string{"foo": "0"},
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
@@ -57,7 +58,7 @@ var _ = Describe("Environment", func() {
 			_, err = fs.Stat("/run/cos")
 			Expect(err).NotTo(BeNil())
 
-			err = Environment(schema.Stage{
+			err = Environment(l, schema.Stage{
 				Environment:     map[string]string{"foo": "0"},
 				EnvironmentFile: "/run/cos/cos-layout.env",
 			}, fs, testConsole)

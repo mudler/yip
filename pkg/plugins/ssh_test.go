@@ -21,6 +21,7 @@ import (
 	. "github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
 	consoletests "github.com/mudler/yip/tests/console"
+	"github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs/vfst"
 
 	. "github.com/onsi/ginkgo"
@@ -30,6 +31,7 @@ import (
 var _ = Describe("SSH", func() {
 	Context("setting", func() {
 		testConsole := consoletests.TestConsole{}
+		l := logrus.New()
 
 		It("configures a user authorized_key", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{
@@ -39,7 +41,7 @@ var _ = Describe("SSH", func() {
 			Expect(err).Should(BeNil())
 			defer cleanup()
 
-			err = SSH(schema.Stage{
+			err = SSH(l, schema.Stage{
 				SSHKeys: map[string][]string{"foo": {"github:mudler", "efafeeafea,t,t,pgl3,pbar"}},
 			}, fs, testConsole)
 			//Expect(err).ShouldNot(HaveOccurred())

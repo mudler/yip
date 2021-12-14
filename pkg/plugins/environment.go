@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/joho/godotenv"
+	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/mudler/yip/pkg/utils"
 	"github.com/pkg/errors"
@@ -14,7 +15,7 @@ import (
 const environmentFile = "/etc/environment"
 const envFilePerm uint32 = 0644
 
-func Environment(s schema.Stage, fs vfs.FS, console Console) error {
+func Environment(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 	if len(s.Environment) == 0 {
 		return nil
 	}
@@ -30,7 +31,7 @@ func Environment(s schema.Stage, fs vfs.FS, console Console) error {
 		if perm < 0700 {
 			perm = perm + 0100
 		}
-		if err = EnsureDirectories(schema.Stage{
+		if err = EnsureDirectories(l, schema.Stage{
 			Directories: []schema.Directory{
 				{
 					Path:        parentDir,
@@ -55,7 +56,7 @@ func Environment(s schema.Stage, fs vfs.FS, console Console) error {
 
 	env, _ := godotenv.Unmarshal(string(content))
 	for key, val := range s.Environment {
-		env[key] = templateSysData(val)
+		env[key] = templateSysData(l, val)
 	}
 
 	p, err := fs.RawPath(environment)

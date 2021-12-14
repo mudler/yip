@@ -21,6 +21,7 @@ import (
 	. "github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
 	consoletests "github.com/mudler/yip/tests/console"
+	"github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs/vfst"
 
 	. "github.com/onsi/ginkgo"
@@ -30,6 +31,7 @@ import (
 var _ = Describe("User", func() {
 	Context("parsing yip file", func() {
 		testConsole := consoletests.TestConsole{}
+		l := logrus.New()
 		BeforeEach(func() {
 			consoletests.Reset()
 		})
@@ -41,7 +43,7 @@ var _ = Describe("User", func() {
 			Expect(err).Should(BeNil())
 			defer cleanup()
 
-			err = User(schema.Stage{
+			err = User(l, schema.Stage{
 				Users: map[string]schema.User{"foo": {PasswordHash: `$fkekofe`, Homedir: "/home/foo", SSHAuthorizedKeys: []string{"github:mudler", "efafeeafea,t,t,pgl3,pbar"}}},
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
@@ -74,7 +76,7 @@ var _ = Describe("User", func() {
 			Expect(err).Should(BeNil())
 			defer cleanup()
 
-			err = User(schema.Stage{
+			err = User(l, schema.Stage{
 				Users: map[string]schema.User{"foo": {
 					PasswordHash: `$fkekofe`,
 					LockPasswd:   true,
@@ -106,7 +108,7 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			Expect(err).Should(BeNil())
 			defer cleanup()
 
-			err = User(schema.Stage{
+			err = User(l, schema.Stage{
 				Users: map[string]schema.User{"foo": {PasswordHash: `$fkekofe`, Homedir: "/home/foo", SSHAuthorizedKeys: []string{"github:mudler", "efafeeafea,t,t,pgl3,pbar"}}},
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
@@ -139,12 +141,12 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			Expect(err).Should(BeNil())
 			defer cleanup()
 
-			err = User(schema.Stage{
+			err = User(l, schema.Stage{
 				Users: map[string]schema.User{"admin": {PasswordHash: `$fkekofe`, Homedir: "/home/foo", SSHAuthorizedKeys: []string{"github:mudler", "efafeeafea,t,t,pgl3,pbar"}}},
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			err = User(schema.Stage{
+			err = User(l, schema.Stage{
 				Users: map[string]schema.User{"bar": {Groups: []string{"admin"}, PasswordHash: `$fkekofe`, Homedir: "/home/foo", SSHAuthorizedKeys: []string{"github:mudler", "efafeeafea,t,t,pgl3,pbar"}}},
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
@@ -154,7 +156,7 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 
 			Expect(string(group)).Should(Equal("admin:x:1000:admin,bar\nbar:x:1001:bar\n"))
 
-			err = User(schema.Stage{
+			err = User(l, schema.Stage{
 				Users: map[string]schema.User{"baz": {Homedir: "/home/foo", Groups: []string{"admin"}}},
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())

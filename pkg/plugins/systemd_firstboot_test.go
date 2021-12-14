@@ -19,6 +19,7 @@ import (
 	. "github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
 	consoletests "github.com/mudler/yip/tests/console"
+	"github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs/vfst"
 
 	. "github.com/onsi/ginkgo"
@@ -36,7 +37,7 @@ var _ = Describe("SystemdFirstboot", func() {
 			Expect(err).Should(BeNil())
 			defer cleanup()
 
-			err = SystemdFirstboot(schema.Stage{
+			err = SystemdFirstboot(logrus.New(), schema.Stage{
 				SystemdFirstBoot: map[string]string{
 					"keymap": "us",
 					"LOCALE": "en_US.UTF-8",

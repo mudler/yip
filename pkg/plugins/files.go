@@ -5,18 +5,18 @@ import (
 	"path/filepath"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/mudler/yip/pkg/utils"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs"
 )
 
-func EnsureFiles(s schema.Stage, fs vfs.FS, console Console) error {
+func EnsureFiles(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 	var errs error
 	for _, file := range s.Files {
-		if err := writeFile(file, fs, console); err != nil {
-			log.Error(err.Error())
+		if err := writeFile(l, file, fs, console); err != nil {
+			l.Error(err.Error())
 			errs = multierror.Append(errs, err)
 			continue
 		}
@@ -24,18 +24,18 @@ func EnsureFiles(s schema.Stage, fs vfs.FS, console Console) error {
 	return errs
 }
 
-func writeFile(file schema.File, fs vfs.FS, console Console) error {
-	log.Debug("Creating file ", file.Path)
+func writeFile(l logger.Interface, file schema.File, fs vfs.FS, console Console) error {
+	l.Debug("Creating file ", file.Path)
 	parentDir := filepath.Dir(file.Path)
 	_, err := fs.Stat(parentDir)
 	if err != nil {
-		log.Debug("Creating parent directories")
+		l.Debug("Creating parent directories")
 		perm := file.Permissions
 		if perm < 0700 {
-			log.Debug("Adding execution bit to parent directory")
+			l.Debug("Adding execution bit to parent directory")
 			perm = perm + 0100
 		}
-		if err = EnsureDirectories(schema.Stage{
+		if err = EnsureDirectories(l, schema.Stage{
 			Directories: []schema.Directory{
 				{
 					Path:        parentDir,
@@ -45,7 +45,7 @@ func writeFile(file schema.File, fs vfs.FS, console Console) error {
 				},
 			},
 		}, fs, console); err != nil {
-			log.Printf("Failed to write %s: %s", parentDir, err)
+			l.Infof("Failed to write %s: %s", parentDir, err)
 			return err
 		}
 	}
@@ -61,7 +61,7 @@ func writeFile(file schema.File, fs vfs.FS, console Console) error {
 		return errors.Wrapf(err, "failed decoding content with encoding %s", file.Encoding)
 	}
 
-	_, err = fsfile.WriteString(templateSysData(string(c)))
+	_, err = fsfile.WriteString(templateSysData(l, string(c)))
 	if err != nil {
 		return err
 

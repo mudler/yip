@@ -21,6 +21,7 @@ import (
 	"os"
 
 	"github.com/mudler/yip/pkg/console"
+	"github.com/sirupsen/logrus"
 
 	. "github.com/mudler/yip/pkg/executor"
 	"github.com/mudler/yip/pkg/schema"
@@ -34,7 +35,7 @@ import (
 
 var _ = Describe("Executor", func() {
 	Context("Loading entities via yaml", func() {
-		def := NewExecutor("default")
+		def := NewExecutor(WithLogger(logrus.New()))
 		testConsole := consoletests.TestConsole{}
 
 		It("Interpolates sys info", func() {
@@ -55,9 +56,8 @@ var _ = Describe("Executor", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 
 			b, err := ioutil.ReadAll(file)
-			if err != nil {
-				log.Fatal(err)
-			}
+			Expect(err).ShouldNot(HaveOccurred())
+
 			var si sysinfo.SysInfo
 			si.GetSysInfo()
 			Expect(string(b)).Should(Equal(si.Node.Hostname))
@@ -122,7 +122,7 @@ var _ = Describe("Executor", func() {
 		})
 
 		It("Run commands", func() {
-			testConsole := console.StandardConsole{}
+			testConsole := console.NewStandardConsole()
 
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/tmp/test/bar": "boo"})
 			Expect(err).Should(BeNil())
@@ -154,7 +154,7 @@ var _ = Describe("Executor", func() {
 		})
 
 		It("Run yip files in sequence", func() {
-			testConsole := console.StandardConsole{}
+			testConsole := console.NewStandardConsole()
 
 			fs2, cleanup2, err := vfst.NewTestFS(map[string]interface{}{})
 			Expect(err).Should(BeNil())
@@ -202,7 +202,7 @@ stages:
 		})
 
 		It("Execute single yip files", func() {
-			testConsole := console.StandardConsole{}
+			testConsole := console.NewStandardConsole()
 
 			fs2, cleanup2, err := vfst.NewTestFS(map[string]interface{}{})
 			Expect(err).Should(BeNil())
@@ -243,7 +243,7 @@ stages:
 		})
 
 		It("Reports error, and executes all yip files", func() {
-			testConsole := console.StandardConsole{}
+			testConsole := console.NewStandardConsole()
 
 			fs2, cleanup2, err := vfst.NewTestFS(map[string]interface{}{})
 			Expect(err).Should(BeNil())
@@ -361,7 +361,7 @@ users: "one,two,tree"
 		})
 
 		It("Skip with if conditionals", func() {
-			testConsole := console.StandardConsole{}
+			testConsole := console.NewStandardConsole()
 
 			fs2, cleanup2, err := vfst.NewTestFS(map[string]interface{}{})
 			Expect(err).Should(BeNil())
