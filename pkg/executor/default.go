@@ -16,6 +16,7 @@
 package executor
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 
@@ -116,25 +117,27 @@ func (e *DefaultExecutor) runStage(stage, uri string, fs vfs.FS, console plugins
 // Run takes a list of URI to run yipfiles from. URI can be also a dir or a local path, as well as a remote
 func (e *DefaultExecutor) Run(stage string, fs vfs.FS, console plugins.Console, args ...string) error {
 	var errs error
-	e.logger.Infof("Executing stage: %s\n", stage)
+	e.logger.Infof("Running stage: %s\n", stage)
 	for _, source := range args {
 		if err := e.runStage(stage, source, fs, console); err != nil {
 			errs = multierror.Append(errs, err)
 		}
 	}
-	e.logger.Infof("Done executing stage '%s'. Errors: %t\n", stage, errs != nil)
+	e.logger.Infof("Done executing stage '%s'\n", stage)
 	return errs
 }
 
 // Apply applies a yip Config file by creating files and running commands defined.
 func (e *DefaultExecutor) Apply(stageName string, s schema.YipConfig, fs vfs.FS, console plugins.Console) error {
-
 	currentStages := s.Stages[stageName]
+	if len(currentStages) == 0 {
+		e.logger.Debugf("No commands to run for %s %s\n", stageName, s.Name)
+		return nil
+	}
+
+	e.logger.Infof("Applying '%s' for stage '%s'. Total stages: %d\n", s.Name, stageName, len(currentStages))
+
 	var errs error
-
-	e.logger.Infof("Executing file name: %s stages: %d stage: %s\n",
-		s.Name, len(currentStages), stageName)
-
 STAGES:
 	for _, stage := range currentStages {
 		for _, p := range e.conditionals {
@@ -146,13 +149,13 @@ STAGES:
 		}
 
 		e.logger.Infof(
-			"Processing stage step '%s'. commands: %d entities: %d nameserver: %d files: %d delete_entities: %d\n",
+			"Processing stage step '%s'. ( commands: %d, files: %d, ... )\n",
 			stage.Name,
 			len(stage.Commands),
-			len(stage.EnsureEntities),
-			len(stage.Dns.Nameservers),
-			len(stage.Files),
-			len(stage.DeleteEntities))
+			len(stage.Files))
+
+		b, _ := json.Marshal(stage)
+		e.logger.Debugf("Stage: %s", string(b))
 
 		for _, p := range e.plugins {
 			if err := p(e.logger, stage, fs, console); err != nil {
@@ -163,10 +166,10 @@ STAGES:
 	}
 
 	e.logger.Infof(
-		"stage '%s' stages: %d success: %t\n",
+		"Stage '%s'. Defined stages: %d. Errors: %t\n",
 		stageName,
 		len(currentStages),
-		errs == nil,
+		errs != nil,
 	)
 
 	return errs
