@@ -116,7 +116,7 @@ func (e *DefaultExecutor) runStage(stage, uri string, fs vfs.FS, console plugins
 // Run takes a list of URI to run yipfiles from. URI can be also a dir or a local path, as well as a remote
 func (e *DefaultExecutor) Run(stage string, fs vfs.FS, console plugins.Console, args ...string) error {
 	var errs error
-	e.logger.Infof("Executing stage: %s stages: %d stage: %s\n", stage)
+	e.logger.Infof("Executing stage: %s\n", stage)
 	for _, source := range args {
 		if err := e.runStage(stage, source, fs, console); err != nil {
 			errs = multierror.Append(errs, err)

@@ -1,4 +1,4 @@
-// Copyright © 2020 Ettore Di Giacinto <mudler@gentoo.org>
+// Copyright © 2019-2021 Ettore Di Giacinto <mudler@gentoo.org>
 //
 // This program is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -64,25 +64,25 @@ type Directory struct {
 }
 
 type DataSource struct {
-	Providers []string `yaml:"providers"`
-	Path      string   `yaml:"path"`
+	Providers []string `yaml:"providers,omitempty"`
+	Path      string   `yaml:"path,omitempty"`
 }
 
 type Git struct {
-	Auth       Auth   `yaml:"auth"`
-	URL        string `yaml:"url"`
-	Path       string `yaml:"path"`
-	Branch     string `yaml:"branch"`
-	BranchOnly bool   `yaml:"branch_only"`
+	Auth       Auth   `yaml:"auth,omitempty"`
+	URL        string `yaml:"url,omitempty"`
+	Path       string `yaml:"path,omitempty"`
+	Branch     string `yaml:"branch,omitempty"`
+	BranchOnly bool   `yaml:"branch_only,omitempty"`
 }
 
 type Auth struct {
-	Username   string `yaml:"username"`
-	Password   string `yaml:"password"`
-	PrivateKey string `yaml:"private_key"`
+	Username   string `yaml:"username,omitempty"`
+	Password   string `yaml:"password,omitempty"`
+	PrivateKey string `yaml:"private_key,omitempty"`
 
-	Insecure  bool   `yaml:"insecure"`
-	PublicKey string `yaml:"public_key"`
+	Insecure  bool   `yaml:"insecure,omitempty"`
+	PublicKey string `yaml:"public_key,omitempty"`
 }
 
 type User struct {
@@ -98,8 +98,8 @@ type User struct {
 	System            bool     `yaml:"system,omitempty"`
 	NoLogInit         bool     `yaml:"no_log_init,omitempty"`
 	Shell             string   `yaml:"shell,omitempty"`
-	LockPasswd        bool     `yaml:"lock_passwd"`
-	UID               string   `yaml:"uid"`
+	LockPasswd        bool     `yaml:"lock_passwd,omitempty"`
+	UID               string   `yaml:"uid,omitempty"`
 }
 
 func (u User) Exists() bool {
@@ -108,74 +108,74 @@ func (u User) Exists() bool {
 }
 
 type Layout struct {
-	Device *Device     `yaml:"device"`
+	Device *Device     `yaml:"device,omitempty"`
 	Expand *Expand     `yaml:"expand_partition,omitempty"`
 	Parts  []Partition `yaml:"add_partitions,omitempty"`
 }
 
 type Device struct {
-	Label string `"yaml:label"`
-	Path  string `"yaml:path"`
+	Label string `yaml:"label,omitempty"`
+	Path  string `yaml:"path,omitempty"`
 }
 
 type Expand struct {
-	Size uint `"yaml:size"`
+	Size uint `yaml:"size,omitempty"`
 }
 
 type Partition struct {
-	FSLabel    string `yaml:"fsLabel"`
+	FSLabel    string `yaml:"fsLabel,omitempty"`
 	Size       uint   `yaml:"size,omitempty"`
 	PLabel     string `yaml:"pLabel,omitempty"`
 	FileSystem string `yaml:"filesystem,omitempty"`
 }
 
 type Stage struct {
-	Commands    []string    `yaml:"commands"`
-	Files       []File      `yaml:"files"`
-	Downloads   []Download  `yaml:"downloads"`
-	Directories []Directory `yaml:"directories"`
-	If          string      `yaml:"if"`
+	Commands    []string    `yaml:"commands,omitempty"`
+	Files       []File      `yaml:"files,omitempty"`
+	Downloads   []Download  `yaml:"downloads,omitempty"`
+	Directories []Directory `yaml:"directories,omitempty"`
+	If          string      `yaml:"if,omitempty"`
 
-	EnsureEntities  []YipEntity         `yaml:"ensure_entities"`
-	DeleteEntities  []YipEntity         `yaml:"delete_entities"`
-	Dns             DNS                 `yaml:"dns"`
-	Hostname        string              `yaml:"hostname"`
-	Name            string              `yaml:"name"`
-	Sysctl          map[string]string   `yaml:"sysctl"`
-	SSHKeys         map[string][]string `yaml:"authorized_keys"`
-	Node            string              `yaml:"node"`
-	Users           map[string]User     `yaml:"users"`
-	Modules         []string            `yaml:"modules"`
-	Systemctl       Systemctl           `yaml:"systemctl"`
-	Environment     map[string]string   `yaml:"environment"`
-	EnvironmentFile string              `yaml:"environment_file"`
+	EnsureEntities  []YipEntity         `yaml:"ensure_entities,omitempty"`
+	DeleteEntities  []YipEntity         `yaml:"delete_entities,omitempty"`
+	Dns             DNS                 `yaml:"dns,omitempty"`
+	Hostname        string              `yaml:"hostname,omitempty"`
+	Name            string              `yaml:"name,omitempty"`
+	Sysctl          map[string]string   `yaml:"sysctl,omitempty"`
+	SSHKeys         map[string][]string `yaml:"authorized_keys,omitempty"`
+	Node            string              `yaml:"node,omitempty"`
+	Users           map[string]User     `yaml:"users,omitempty"`
+	Modules         []string            `yaml:"modules,omitempty"`
+	Systemctl       Systemctl           `yaml:"systemctl,omitempty"`
+	Environment     map[string]string   `yaml:"environment,omitempty"`
+	EnvironmentFile string              `yaml:"environment_file,omitempty"`
 
-	DataSources DataSource `yaml:"datasource"`
-	Layout      Layout     `yaml:"layout"`
+	DataSources DataSource `yaml:"datasource,omitempty"`
+	Layout      Layout     `yaml:"layout,omitempty"`
 
-	SystemdFirstBoot map[string]string `yaml:"systemd_firstboot"`
+	SystemdFirstBoot map[string]string `yaml:"systemd_firstboot,omitempty"`
 
-	TimeSyncd map[string]string `yaml:"timesyncd"`
-	Git       Git               `yaml:"git"`
+	TimeSyncd map[string]string `yaml:"timesyncd,omitempty"`
+	Git       Git               `yaml:"git,omitempty"`
 }
 
 type Systemctl struct {
-	Enable  []string `yaml:"enable"`
-	Disable []string `yaml:"disable"`
-	Start   []string `yaml:"start"`
-	Mask    []string `yaml:"mask"`
+	Enable  []string `yaml:"enable,omitempty"`
+	Disable []string `yaml:"disable,omitempty"`
+	Start   []string `yaml:"start,omitempty"`
+	Mask    []string `yaml:"mask,omitempty"`
 }
 
 type DNS struct {
-	Nameservers []string `yaml:"nameservers"`
-	DnsSearch   []string `yaml:"search"`
-	DnsOptions  []string `yaml:"options"`
-	Path        string   `yaml:"path"`
+	Nameservers []string `yaml:"nameservers,omitempty"`
+	DnsSearch   []string `yaml:"search,omitempty"`
+	DnsOptions  []string `yaml:"options,omitempty"`
+	Path        string   `yaml:"path,omitempty"`
 }
 
 type YipConfig struct {
-	Name   string             `yaml:"name"`
-	Stages map[string][]Stage `yaml:"stages"`
+	Name   string             `yaml:"name,omitempty"`
+	Stages map[string][]Stage `yaml:"stages,omitempty"`
 }
 
 type Loader func(s string, fs vfs.FS, m Modifier) ([]byte, error)
