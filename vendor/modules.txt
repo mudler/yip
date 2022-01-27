@@ -36,7 +36,7 @@ github.com/cavaliergopher/grab
 # github.com/coreos/yaml v0.0.0-20141224210557-6b16a5714269
 ## explicit
 github.com/coreos/yaml
-# github.com/davidcassany/linuxkit/pkg/metadata v0.0.0-20210714125456-8b187a9ffd7e => github.com/mudler/linuxkit/pkg/metadata v0.0.0-20220127105355-e06a1bd70d8f
+# github.com/davidcassany/linuxkit/pkg/metadata v0.0.0-20220127113738-73e2e3a171a0
 ## explicit
 github.com/davidcassany/linuxkit/pkg/metadata/providers
 # github.com/denisbrodbeck/machineid v1.0.1
@@ -182,11 +182,12 @@ github.com/onsi/ginkgo/v2/internal/parallel_support
 github.com/onsi/ginkgo/v2/internal/testingtproxy
 github.com/onsi/ginkgo/v2/reporters
 github.com/onsi/ginkgo/v2/types
-# github.com/onsi/gomega v1.17.0
+# github.com/onsi/gomega v1.18.0
 ## explicit
 github.com/onsi/gomega
 github.com/onsi/gomega/format
 github.com/onsi/gomega/internal
+github.com/onsi/gomega/internal/gutil
 github.com/onsi/gomega/matchers
 github.com/onsi/gomega/matchers/support/goraph/bipartitegraph
 github.com/onsi/gomega/matchers/support/goraph/edge
@@ -325,4 +326,3 @@ gopkg.in/yaml.v2
 pault.ag/go/modprobe
 # pault.ag/go/topsort v0.0.0-20160530003732-f98d2ad46e1a
 pault.ag/go/topsort
-# github.com/davidcassany/linuxkit/pkg/metadata => github.com/mudler/linuxkit/pkg/metadata v0.0.0-20220127105355-e06a1bd70d8f

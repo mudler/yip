@@ -21,8 +21,8 @@ fmt:
 
 .PHONY: test
 test:
-	GO111MODULE=off go get github.com/onsi/ginkgo/v2/ginkgo
-	GO111MODULE=off go get github.com/onsi/gomega/...
+	go get github.com/onsi/ginkgo/v2/ginkgo
+	go get github.com/onsi/gomega/...
 	ginkgo -race -r ./...
 
 .PHONY: coverage
@@ -48,7 +48,7 @@ deps:
 	GO111MODULE=off go get golang.org/x/lint/golint
 	GO111MODULE=off go get github.com/mitchellh/gox
 	GO111MODULE=off go get golang.org/x/tools/cmd/cover
-	GO111MODULE=off go get github.com/onsi/ginkgo/v2/ginkgo
+	go get github.com/onsi/ginkgo/v2/ginkgo
 	GO111MODULE=off go get github.com/onsi/gomega/...
 
 .PHONY: build

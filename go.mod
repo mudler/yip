@@ -7,7 +7,7 @@ require (
 	github.com/apex/log v1.9.0
 	github.com/cavaliergopher/grab v2.0.0+incompatible
 	github.com/coreos/yaml v0.0.0-20141224210557-6b16a5714269 // indirect
-	github.com/davidcassany/linuxkit/pkg/metadata v0.0.0-20210714125456-8b187a9ffd7e
+	github.com/davidcassany/linuxkit/pkg/metadata v0.0.0-20220127113738-73e2e3a171a0
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/diskfs/go-diskfs v1.2.1-0.20211109185859-9509735ba7a4 // indirect
 	github.com/docker/docker v17.12.0-ce-rc1.0.20200417035958-130b0bc6032c+incompatible // indirect
@@ -22,7 +22,7 @@ require (
 	github.com/moby/libnetwork v0.8.0-dev.2.0.20200612180813-9e99af28df21
 	github.com/mudler/entities v0.0.0-20211108084227-d1414478861b
 	github.com/onsi/ginkgo/v2 v2.1.0
-	github.com/onsi/gomega v1.17.0
+	github.com/onsi/gomega v1.18.0
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/xattr v0.4.4 // indirect
@@ -44,5 +44,3 @@ require (
 	gotest.tools/v3 v3.0.2 // indirect
 	pault.ag/go/modprobe v0.1.2
 )
-
-replace github.com/davidcassany/linuxkit/pkg/metadata => github.com/mudler/linuxkit/pkg/metadata v0.0.0-20220127105355-e06a1bd70d8f
