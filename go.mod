@@ -19,11 +19,10 @@ require (
 	github.com/ishidawataru/sctp v0.0.0-20191218070446-00ab2ac2db07 // indirect
 	github.com/itchyny/gojq v0.12.2
 	github.com/joho/godotenv v1.3.0
-	github.com/konsorten/go-windows-terminal-sequences v1.0.3 // indirect
 	github.com/moby/libnetwork v0.8.0-dev.2.0.20200612180813-9e99af28df21
 	github.com/mudler/entities v0.0.0-20211108084227-d1414478861b
-	github.com/onsi/ginkgo v1.16.1
-	github.com/onsi/gomega v1.11.0
+	github.com/onsi/ginkgo/v2 v2.1.0
+	github.com/onsi/gomega v1.17.0
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/xattr v0.4.4 // indirect
