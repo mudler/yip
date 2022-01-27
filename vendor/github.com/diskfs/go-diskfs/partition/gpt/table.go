@@ -475,7 +475,7 @@ func (t *Table) Write(f util.File, size int64) error {
 		return fmt.Errorf("Wrote %d bytes of primary partition array instead of %d", written, len(primaryHeader))
 	}
 
-	written, err = f.WriteAt(partitionArray, int64(t.LogicalSectorSize*int(t.partitionArraySector(false))))
+	written, err = f.WriteAt(partitionArray, int64(t.LogicalSectorSize)*int64(t.partitionArraySector(false)))
 	if err != nil {
 		return fmt.Errorf("Error writing secondary partition array to disk: %v", err)
 	}
@@ -508,7 +508,7 @@ func Read(f util.File, logicalBlockSize, physicalBlockSize int) (*Table, error) 
 	b := make([]byte, gptSize+logicalBlockSize*2, gptSize+logicalBlockSize*2)
 	read, err := f.ReadAt(b, 0)
 	if err != nil {
-		return nil, fmt.Errorf("Error reading GPT from file: %v", err)
+		return nil, fmt.Errorf("Error reading GPT from file: %w", err)
 	}
 	if read != len(b) {
 		return nil, fmt.Errorf("Read only %d bytes of GPT from file instead of expected %d", read, len(b))

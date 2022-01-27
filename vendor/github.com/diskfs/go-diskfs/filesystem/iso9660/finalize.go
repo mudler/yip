@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	dataStartSector = 16
+	dataStartSector         = 16
 	defaultVolumeIdentifier = "ISOIMAGE"
 )
 
@@ -65,6 +65,7 @@ type finalizeFileInfo struct {
 	children           []*finalizeFileInfo
 	trueParent         *finalizeFileInfo
 	trueChild          *finalizeFileInfo
+	elToritoEntry      *ElToritoEntry
 	content            []byte
 }
 
@@ -342,14 +343,6 @@ func (fi *finalizeFileInfo) addChild(entry *finalizeFileInfo) {
 	fi.children = append(fi.children, entry)
 }
 
-func finalizeFileInfoNames(fi []*finalizeFileInfo) []string {
-	ret := make([]string, len(fi))
-	for i, v := range fi {
-		ret[i] = v.name
-	}
-	return ret
-}
-
 // Finalize finalize a read-only filesystem by writing it out to a read-only format
 func (fs *FileSystem) Finalize(options FinalizeOptions) error {
 	if fs.workspace == "" {
@@ -459,6 +452,69 @@ func (fs *FileSystem) Finalize(options FinalizeOptions) error {
 	}
 	location := rootLocation
 
+	var (
+		catEntry *finalizeFileInfo
+		bootcat  []byte
+	)
+
+	if options.ElTorito != nil {
+		bootcat, err = options.ElTorito.generateCatalog()
+		if err != nil {
+			return fmt.Errorf("Unable to generate El Torito boot catalog: %v", err)
+		}
+		// figure out where to save it on disk
+		catname := options.ElTorito.BootCatalog
+		switch {
+		case catname == "" && options.RockRidge:
+			catname = elToritoDefaultCatalogRR
+		case catname == "":
+			catname = elToritoDefaultCatalog
+		}
+		shortname, extension := calculateShortnameExtension(path.Base(catname))
+		// break down the catalog basename from the parent dir
+		catSize := int64(len(bootcat))
+		catEntry = &finalizeFileInfo{
+			content:   bootcat,
+			size:      catSize,
+			path:      catname,
+			name:      path.Base(catname),
+			shortname: shortname,
+			extension: extension,
+			blocks:    calculateBlocks(catSize, fs.blocksize),
+		}
+		// make it the first file
+		files = append([]*finalizeFileInfo{catEntry}, files...)
+
+		// if we were not told to hide the catalog, add it to its parent
+		if !options.ElTorito.HideBootCatalog {
+			var parent *finalizeFileInfo
+			parent, err = root.findEntry(path.Dir(catname))
+			if err != nil {
+				return fmt.Errorf("Error finding parent for boot catalog %s: %v", catname, err)
+			}
+			parent.addChild(catEntry)
+		}
+		for _, e := range options.ElTorito.Entries {
+			var parent, child *finalizeFileInfo
+			parent, err = root.findEntry(path.Dir(e.BootFile))
+			if err != nil {
+				return fmt.Errorf("Error finding parent for boot image file %s: %v", e.BootFile, err)
+			}
+			// did we ask to hide any image files?
+			if e.HideBootFile {
+				child = parent.removeChild(path.Base(e.BootFile))
+			} else {
+				child, err = parent.findEntry(path.Base(e.BootFile))
+				if err != nil {
+					return fmt.Errorf("Unable to find image child %s: %v", e.BootFile, err)
+				}
+			}
+			// save the child so we can add location late
+			e.size = uint16(child.size)
+			child.elToritoEntry = e
+		}
+	}
+
 	var size, ceBlocks int
 	for _, dir := range dirs {
 		dir.location = location
@@ -493,75 +549,17 @@ func (fs *FileSystem) Finalize(options FinalizeOptions) error {
 	location += pathTableBlocks
 
 	// if we asked for ElTorito, need to generate the boot catalog and save it
-	var (
-		catEntry *finalizeFileInfo
-		bootcat  []byte
-		volIdentifier string = defaultVolumeIdentifier
-	)
+	volIdentifier := defaultVolumeIdentifier
 	if options.VolumeIdentifier != "" {
 		volIdentifier = options.VolumeIdentifier
-	}
-	if options.ElTorito != nil {
-		bootcat, err = options.ElTorito.generateCatalog()
-		if err != nil {
-			return fmt.Errorf("Unable to generate El Torito boot catalog: %v", err)
-		}
-		// figure out where to save it on disk
-		catname := options.ElTorito.BootCatalog
-		switch {
-		case catname == "" && options.RockRidge:
-			catname = elToritoDefaultCatalogRR
-		case catname == "":
-			catname = elToritoDefaultCatalog
-		}
-		shortname, extension := calculateShortnameExtension(path.Base(catname))
-		// break down the catalog basename from the parent dir
-		catEntry = &finalizeFileInfo{
-			content:   bootcat,
-			size:      int64(len(bootcat)),
-			path:      catname,
-			name:      path.Base(catname),
-			shortname: shortname,
-			extension: extension,
-		}
-		catEntry.location = location
-		catEntry.blocks = calculateBlocks(catEntry.size, fs.blocksize)
-		location += catEntry.blocks
-		// make it the first file
-		files = append([]*finalizeFileInfo{catEntry}, files...)
-
-		// if we were not told to hide the catalog, add it to its parent
-		if !options.ElTorito.HideBootCatalog {
-			var parent *finalizeFileInfo
-			parent, err = root.findEntry(path.Dir(catname))
-			if err != nil {
-				return fmt.Errorf("Error finding parent for boot catalog %s: %v", catname, err)
-			}
-			parent.addChild(catEntry)
-		}
-		for _, e := range options.ElTorito.Entries {
-			var parent, child *finalizeFileInfo
-			parent, err = root.findEntry(path.Dir(e.BootFile))
-			if err != nil {
-				return fmt.Errorf("Error finding parent for boot image file %s: %v", e.BootFile, err)
-			}
-			// did we ask to hide any image files?
-			if e.HideBootFile {
-				child = parent.removeChild(path.Base(e.BootFile))
-			} else {
-				child, err = parent.findEntry(path.Base(e.BootFile))
-				if err != nil {
-					return fmt.Errorf("Unable to find image child %s: %v", e.BootFile, err)
-				}
-			}
-			e.size = uint16(child.size)
-			e.location = child.location
-		}
 	}
 
 	for _, e := range files {
 		e.location = location
 		location += e.blocks
+		if e.elToritoEntry != nil {
+			e.elToritoEntry.location = e.location
+		}
 	}
 
 	// now that we have all of the files with their locations, we can rebuild the boot catalog using the correct data
@@ -604,11 +602,11 @@ func (fs *FileSystem) Finalize(options FinalizeOptions) error {
 	writeAt = int64(pathTableMLocation) * int64(blocksize)
 	f.WriteAt(pathTableMBytes, writeAt)
 
-	var (
-		from   *os.File
-		copied int
-	)
 	for _, e := range files {
+		var (
+			from   *os.File
+			copied int
+		)
 		writeAt := int64(e.location) * int64(blocksize)
 		if e.content == nil {
 			// for file, just copy the data across
@@ -617,9 +615,37 @@ func (fs *FileSystem) Finalize(options FinalizeOptions) error {
 				return fmt.Errorf("failed to open file for reading %s: %v", e.path, err)
 			}
 			defer from.Close()
-			copied, err = copyFileData(from, f, 0, writeAt)
-			if err != nil {
-				return fmt.Errorf("failed to copy file to disk %s: %v", e.path, err)
+			if e.elToritoEntry != nil && e.elToritoEntry.BootTable {
+				// copy first 8 bytes, then insert the El Torito Boot Information Table, then the rest
+				var count int
+
+				// first 8 bytes
+				count, err = copyFileData(from, f, 0, writeAt, 8)
+				if err != nil {
+					return fmt.Errorf("failed to copy first bytes 0-8 of boot file to disk %s: %v", e.path, err)
+				}
+				copied += count
+				// insert El Torito Boot Information Table
+				bootTable, err := e.elToritoEntry.generateBootTable(dataStartSector, path.Join(fs.workspace, e.path))
+				if err != nil {
+					return fmt.Errorf("failed to generate boot table for %s: %v", e.path, err)
+				}
+				count, err = f.WriteAt(bootTable, writeAt+8)
+				if err != nil {
+					return fmt.Errorf("failed to write 56 byte boot table to disk %s: %v", e.path, err)
+				}
+				copied += count
+				// remainder of file
+				count, err = copyFileData(from, f, 64, writeAt+64, 0)
+				if err != nil {
+					return fmt.Errorf("failed to copy bytes 64 to end of boot file to disk %s: %v", e.path, err)
+				}
+				copied += count
+			} else {
+				copied, err = copyFileData(from, f, 0, writeAt, 0)
+				if err != nil {
+					return fmt.Errorf("failed to copy file to disk %s: %v", e.path, err)
+				}
 			}
 			if copied != int(e.Size()) {
 				return fmt.Errorf("error copying file %s to disk, copied %d bytes, expected %d", e.path, copied, e.Size())
@@ -687,12 +713,16 @@ func (fs *FileSystem) Finalize(options FinalizeOptions) error {
 	b = terminator.toBytes()
 	f.WriteAt(b, int64(location)*int64(blocksize))
 
+	_ = os.RemoveAll(fs.workspace)
+
 	// finish by setting as finalized
 	fs.workspace = ""
 	return nil
 }
 
-func copyFileData(from, to util.File, fromOffset, toOffset int64) (int, error) {
+// copyFileData copy data from file `from` at offset `fromOffset` to file `to` at offset `toOffset`.
+// Copies `size` bytes. If `size` is 0, copies as many bytes as it can.
+func copyFileData(from, to util.File, fromOffset, toOffset int64, size int) (int, error) {
 	buf := make([]byte, 2048)
 	copied := 0
 	for {
@@ -700,6 +730,11 @@ func copyFileData(from, to util.File, fromOffset, toOffset int64) (int, error) {
 		if err != nil && err != io.EOF {
 			return copied, err
 		}
+
+		if size > 0 && n > (size-copied) {
+			n = size - copied
+		}
+
 		if n == 0 {
 			break
 		}
@@ -789,7 +824,10 @@ func walkTree(workspace string) ([]*finalizeFileInfo, map[string]*finalizeFileIn
 	dirList := make(map[string]*finalizeFileInfo)
 	fileList := make([]*finalizeFileInfo, 0)
 	var entry *finalizeFileInfo
-	filepath.Walk(".", func(fp string, fi os.FileInfo, err error) error {
+	err = filepath.Walk(".", func(fp string, fi os.FileInfo, err error) error {
+		if err != nil {
+			return fmt.Errorf("Error walking path %s: %v", fp, err)
+		}
 		isRoot := fp == "."
 		name := fi.Name()
 		shortname, extension := calculateShortnameExtension(name)
@@ -821,6 +859,9 @@ func walkTree(workspace string) ([]*finalizeFileInfo, map[string]*finalizeFileIn
 		}
 		return nil
 	})
+	if err != nil {
+		return nil, nil, err
+	}
 	// reset the workspace
 	os.Chdir(cwd)
 	return fileList, dirList, nil

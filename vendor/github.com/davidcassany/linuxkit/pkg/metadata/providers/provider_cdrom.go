@@ -77,11 +77,12 @@ func FindCIs() []string {
 		dev = fmt.Sprintf("/dev/%s", dev)
 		log.Debugf("checking device: %s", dev)
 		// open readonly, ignore errors
-		disk, err := diskfs.OpenWithMode(dev, diskfs.ReadOnly)
+		disk, err := diskfs.Open(dev, diskfs.WithOpenMode(diskfs.ReadOnly))
 		if err != nil {
 			log.Debugf("failed to open device read-only: %s: %v", dev, err)
 			continue
 		}
+		disk.DefaultBlocks = true
 		fs, err := disk.GetFilesystem(0)
 		if err != nil {
 			log.Debugf("failed to get filesystem on partition 0 for device: %s: %v", dev, err)

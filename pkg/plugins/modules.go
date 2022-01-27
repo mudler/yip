@@ -7,7 +7,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
-	"github.com/paultag/go-modprobe"
+	"pault.ag/go/modprobe"
 	"github.com/twpayne/go-vfs"
 )
 
