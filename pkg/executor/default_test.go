@@ -29,7 +29,7 @@ import (
 	"github.com/twpayne/go-vfs/vfst"
 	"github.com/zcalusic/sysinfo"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
