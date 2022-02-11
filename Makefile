@@ -20,9 +20,7 @@ fmt:
 	go fmt ./...
 
 .PHONY: test
-test:
-	go get github.com/onsi/ginkgo/v2/ginkgo
-	go get github.com/onsi/gomega/...
+test: deps
 	ginkgo -race -r ./...
 
 .PHONY: coverage
@@ -50,6 +48,7 @@ deps:
 	GO111MODULE=off go get golang.org/x/tools/cmd/cover
 	go get github.com/onsi/ginkgo/v2/ginkgo
 	GO111MODULE=off go get github.com/onsi/gomega/...
+	go mod vendor
 
 .PHONY: build
 build:
