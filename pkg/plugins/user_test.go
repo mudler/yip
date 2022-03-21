@@ -44,7 +44,7 @@ var _ = Describe("User", func() {
 			defer cleanup()
 
 			err = User(l, schema.Stage{
-				Users: map[string]schema.User{"foo": {PasswordHash: `$fkekofe`, Homedir: "/home/foo", SSHAuthorizedKeys: []string{"github:mudler", "efafeeafea,t,t,pgl3,pbar"}}},
+				Users: map[string]schema.User{"foo": {PasswordHash: `$fkekofe`, SSHAuthorizedKeys: []string{"github:mudler", "efafeeafea,t,t,pgl3,pbar"}}},
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
@@ -58,7 +58,7 @@ var _ = Describe("User", func() {
 			Expect(string(group)).Should(Equal("foo:x:1000:foo\n"))
 
 			Expect(string(shadow)).Should(ContainSubstring("foo:$fkekofe:"))
-			Expect(string(passwd)).Should(Equal("foo:x:1000:1000:Created by entities:/home/foo:\n"))
+			Expect(string(passwd)).Should(Equal("foo:x:1000:1000:Created by entities:/home/foo:/bin/sh\n"))
 
 			file, err := fs.Open("/home/foo/.ssh/authorized_keys")
 			Expect(err).ShouldNot(HaveOccurred())
@@ -81,7 +81,8 @@ var _ = Describe("User", func() {
 					PasswordHash: `$fkekofe`,
 					LockPasswd:   true,
 					UID:          "0",
-					Homedir:      "/home/foo",
+					Homedir:      "/run/foo",
+					Shell:        "/bin/bash",
 				}},
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
@@ -96,7 +97,7 @@ var _ = Describe("User", func() {
 			Expect(string(group)).Should(Equal("foo:x:1000:foo\n"))
 
 			Expect(string(shadow)).Should(ContainSubstring("foo:!:"))
-			Expect(string(passwd)).Should(Equal("foo:x:0:1000:Created by entities:/home/foo:\n"))
+			Expect(string(passwd)).Should(Equal("foo:x:0:1000:Created by entities:/run/foo:/bin/bash\n"))
 		})
 
 		It("edits already existing user password", func() {
@@ -123,7 +124,7 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			Expect(string(group)).Should(Equal("foo:x:1000:foo\n"))
 
 			Expect(string(shadow)).Should(ContainSubstring("foo:$fkekofe:"))
-			Expect(string(passwd)).Should(Equal("foo:x:1000:1000:Created by entities:/home/foo:\n"))
+			Expect(string(passwd)).Should(Equal("foo:x:1000:1000:Created by entities:/home/foo:/bin/sh\n"))
 
 			file, err := fs.Open("/home/foo/.ssh/authorized_keys")
 			Expect(err).ShouldNot(HaveOccurred())

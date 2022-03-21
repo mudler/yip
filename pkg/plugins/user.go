@@ -1,6 +1,7 @@
 package plugins
 
 import (
+	"fmt"
 	"os"
 	osuser "os/user"
 	"sort"
@@ -9,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/joho/godotenv"
 	entities "github.com/mudler/entities/pkg/entities"
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
@@ -41,6 +43,24 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 	etcpasswd, err := fs.RawPath("/etc/passwd")
 	if err != nil {
 		return errors.Wrap(err, "getting rawpath for /etc/passwd")
+	}
+
+	useradd, err := fs.RawPath("/etc/default/useradd")
+	if err != nil {
+		return errors.Wrap(err, "getting rawpath for /etc/default/useradd")
+	}
+
+	// Set default home and shell
+	usrDefaults := map[string]string{}
+	usrDefaults["SHELL"] = "/bin/sh"
+	usrDefaults["HOME"] = fmt.Sprintf("/home")
+
+	// Load default home and shell from `/etc/default/useradd`
+	if _, err = os.Stat(useradd); err == nil {
+		usrDefaults, err = godotenv.Read(useradd)
+		if err != nil {
+			return errors.Wrapf(err, "could not parse '%s'", useradd)
+		}
 	}
 
 	primaryGroup := u.Name
@@ -102,6 +122,14 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 			uid = usedUids[len(usedUids)-1]
 			uid++
 		}
+	}
+
+	if u.Homedir == "" {
+		u.Homedir = fmt.Sprintf("%s/%s", usrDefaults["HOME"], u.Name)
+	}
+
+	if u.Shell == "" {
+		u.Shell = usrDefaults["SHELL"]
 	}
 
 	userInfo := &entities.UserPasswd{
