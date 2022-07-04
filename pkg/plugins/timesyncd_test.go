@@ -48,7 +48,7 @@ var _ = Describe("Timesyncd", func() {
 
 			b, err := ioutil.ReadAll(file)
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(string(b)).Should(Equal("[Time]\nNTP = 0.pool\n\n"))
+			Expect(string(b)).Should(Equal("[Time]\nNTP = 0.pool\n"))
 		})
 	})
 })

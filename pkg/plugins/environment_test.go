@@ -48,7 +48,7 @@ var _ = Describe("Environment", func() {
 
 			b, err := ioutil.ReadAll(file)
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(string(b)).Should(Equal("foo=\"0\""))
+			Expect(string(b)).Should(Equal("foo=0\n"))
 		})
 		It("configures a /run/cos/cos-layout.env file and creates missing directories", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/run": &vfst.Dir{Perm: 0o755}})
@@ -72,7 +72,7 @@ var _ = Describe("Environment", func() {
 
 			b, err := ioutil.ReadAll(file)
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(string(b)).Should(Equal("foo=\"0\""))
+			Expect(string(b)).Should(Equal("foo=0\n"))
 		})
 	})
 })
