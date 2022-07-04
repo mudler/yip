@@ -47,7 +47,8 @@ func (tn *Network) Sort() ([]*Node, error) {
 }
 
 func (tn *Network) Get(name string) *Node {
-	return tn.nodes[name]
+	node, _ := tn.nodes[name]
+	return node
 }
 
 func (tn *Network) AddNode(name string, value interface{}) *Node {
@@ -102,8 +103,18 @@ func (tn *Network) AddEdge(from string, to string) error {
 	return nil
 }
 
-func (tn *Network) AddEdgeIfExists(from string, to string) {
-	tn.AddEdge(from, to)
+func (tn *Network) AddEdgeAndNodes(from string, to string) error {
+	fromNode := tn.Get(from)
+	if fromNode == nil {
+		fromNode = tn.AddNode(from, nil)
+	}
+
+	toNode := tn.Get(to)
+	if toNode == nil {
+		toNode = tn.AddNode(to, nil)
+	}
+
+	return tn.AddEdge(from, to)
 }
 
 // }}}

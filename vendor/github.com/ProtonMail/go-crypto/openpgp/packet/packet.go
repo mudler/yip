@@ -354,7 +354,7 @@ func Read(r io.Reader) (p Packet, err error) {
 	case packetTypeCompressed:
 		p = new(Compressed)
 	case packetTypeSymmetricallyEncrypted:
-		err = errors.UnsupportedError("Symmetrically encrypted packets without MDC are not supported")
+		p = new(SymmetricallyEncrypted)
 	case packetTypeLiteralData:
 		p = new(LiteralData)
 	case packetTypeUserId:
@@ -395,6 +395,7 @@ const (
 	SigTypeDirectSignature                 = 0x1F
 	SigTypeKeyRevocation                   = 0x20
 	SigTypeSubkeyRevocation                = 0x28
+	SigTypeCertificationRevocation         = 0x30
 )
 
 // PublicKeyAlgorithm represents the different public key system specified for

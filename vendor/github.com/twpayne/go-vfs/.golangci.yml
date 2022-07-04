@@ -33,6 +33,7 @@ linters:
   - staticcheck
   - structcheck
   - stylecheck
+  - thelper
   - typecheck
   - unconvert
   - unparam

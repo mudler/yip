@@ -5,7 +5,6 @@ CURRENT_REVISION := $(shell git rev-parse --short HEAD)
 BUILD_LDFLAGS := "-s -w -X github.com/itchyny/$(BIN)/cli.revision=$(CURRENT_REVISION)"
 GOBIN ?= $(shell go env GOPATH)/bin
 SHELL := /bin/bash
-export GO111MODULE=on
 
 .PHONY: all
 all: build
@@ -20,17 +19,17 @@ build-dev: parser.go builtin.go
 
 .PHONY: build-debug
 build-debug: parser.go builtin.go
-	go build -tags debug -ldflags=$(BUILD_LDFLAGS) -o $(BIN) ./cmd/$(BIN)
+	go build -tags gojq_debug -ldflags=$(BUILD_LDFLAGS) -o $(BIN) ./cmd/$(BIN)
 
 builtin.go: builtin.jq parser.go.y parser.go query.go operator.go _tools/*
 	GOOS= GOARCH= go generate
 
 .SUFFIXES:
-parser.go: parser.go.y lexer.go $(GOBIN)/goyacc
+parser.go: parser.go.y $(GOBIN)/goyacc
 	goyacc -o $@ $<
 
 $(GOBIN)/goyacc:
-	@cd && go get golang.org/x/tools/cmd/goyacc
+	@go install golang.org/x/tools/cmd/goyacc@latest
 
 .PHONY: install
 install:
@@ -42,51 +41,41 @@ install-dev: parser.go builtin.go
 
 .PHONY: install-debug
 install-debug: parser.go builtin.go
-	go install -tags debug -ldflags=$(BUILD_LDFLAGS) ./...
+	go install -tags gojq_debug -ldflags=$(BUILD_LDFLAGS) ./...
 
 .PHONY: show-version
 show-version: $(GOBIN)/gobump
 	@gobump show -r $(VERSION_PATH)
 
 $(GOBIN)/gobump:
-	@cd && go get github.com/x-motemen/gobump/cmd/gobump
+	@go install github.com/x-motemen/gobump/cmd/gobump@latest
 
 .PHONY: cross
 cross: $(GOBIN)/goxz CREDITS
-	build() { \
-		goxz -n $(BIN) -pv=v$(VERSION) -os=$$1 -arch=$$2 \
-			-include _$(BIN) -build-ldflags=$(BUILD_LDFLAGS) ./cmd/$(BIN); \
-	}; \
-	build linux,darwin,windows amd64 && build linux,darwin arm64
+	goxz -n $(BIN) -pv=v$(VERSION) -include _$(BIN) \
+		-build-ldflags=$(BUILD_LDFLAGS) ./cmd/$(BIN)
 
 $(GOBIN)/goxz:
-	cd && go get github.com/Songmu/goxz/cmd/goxz
+	go install github.com/Songmu/goxz/cmd/goxz@latest
 
 CREDITS: $(GOBIN)/gocredits go.sum
 	go mod tidy
 	gocredits -w .
 
 $(GOBIN)/gocredits:
-	cd && go get github.com/Songmu/gocredits/cmd/gocredits
+	go install github.com/Songmu/gocredits/cmd/gocredits@latest
 
 .PHONY: test
 test: build
 	go test -v -race ./...
 
 .PHONY: lint
-lint: $(GOBIN)/golint
+lint: $(GOBIN)/staticcheck
 	go vet ./...
-	golint -set_exit_status ./...
+	staticcheck -checks all,-ST1000 -tags gojq_debug ./...
 
-$(GOBIN)/golint:
-	cd && go get golang.org/x/lint/golint
-
-.PHONY: maligned
-maligned: $(GOBIN)/maligned
-	! maligned . 2>&1 | grep -v pointer | grep ^
-
-$(GOBIN)/maligned:
-	cd && go get github.com/mdempsky/maligned
+$(GOBIN)/staticcheck:
+	go install honnef.co/go/tools/cmd/staticcheck@latest
 
 .PHONY: check-tools
 check-tools:
@@ -98,10 +87,10 @@ clean:
 	go clean
 
 .PHONY: update
+update: export GOPROXY=direct
 update:
-	export GOPROXY=direct
-	rm -f go.sum && go get -u -d ./... && go get github.com/mattn/go-runewidth@v0.0.9 && go mod tidy
-	sed -i.bak '/require (/,/)/d' go.dev.mod && rm -f go.dev.{sum,mod.bak}
+	go get -u -d ./... && go mod tidy
+	go mod edit -modfile=go.dev.mod -droprequire=github.com/itchyny/{astgen,timefmt}-go
 	go get -u -d -modfile=go.dev.mod github.com/itchyny/{astgen,timefmt}-go && go generate
 
 .PHONY: bump
@@ -123,4 +112,4 @@ upload: $(GOBIN)/ghr
 	ghr "v$(VERSION)" goxz
 
 $(GOBIN)/ghr:
-	cd && go get github.com/tcnksm/ghr
+	go install github.com/tcnksm/ghr@latest

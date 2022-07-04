@@ -3,7 +3,6 @@ package gojq
 import (
 	"math"
 	"math/big"
-	"reflect"
 	"strings"
 )
 
@@ -210,22 +209,18 @@ func (op Operator) getFunc() string {
 
 func binopTypeSwitch(
 	l, r interface{},
-	callbackInts func(int, int) interface{},
-	callbackFloats func(float64, float64) interface{},
-	callbackBigInts func(*big.Int, *big.Int) interface{},
-	callbackStrings func(string, string) interface{},
-	callbackArrays func(l, r []interface{}) interface{},
-	callbackMaps func(l, r map[string]interface{}) interface{},
-	fallback func(interface{}, interface{}) interface{}) interface{} {
+	callbackInts func(_, _ int) interface{},
+	callbackFloats func(_, _ float64) interface{},
+	callbackBigInts func(_, _ *big.Int) interface{},
+	callbackStrings func(_, _ string) interface{},
+	callbackArrays func(_, _ []interface{}) interface{},
+	callbackMaps func(_, _ map[string]interface{}) interface{},
+	fallback func(_, _ interface{}) interface{}) interface{} {
 	switch l := l.(type) {
 	case int:
 		switch r := r.(type) {
 		case int:
-			if minHalfInt <= l && l <= maxHalfInt &&
-				minHalfInt <= r && r <= maxHalfInt {
-				return callbackInts(l, r)
-			}
-			return callbackBigInts(big.NewInt(int64(l)), big.NewInt(int64(r)))
+			return callbackInts(l, r)
 		case float64:
 			return callbackFloats(float64(l), r)
 		case *big.Int:
@@ -308,26 +303,36 @@ func funcOpNegate(v interface{}) interface{} {
 }
 
 func funcOpAdd(_, l, r interface{}) interface{} {
-	if l == nil {
-		return r
-	} else if r == nil {
-		return l
-	}
 	return binopTypeSwitch(l, r,
-		func(l, r int) interface{} { return l + r },
+		func(l, r int) interface{} {
+			if v := l + r; (v >= l) == (r >= 0) {
+				return v
+			}
+			x, y := big.NewInt(int64(l)), big.NewInt(int64(r))
+			return x.Add(x, y)
+		},
 		func(l, r float64) interface{} { return l + r },
 		func(l, r *big.Int) interface{} { return new(big.Int).Add(l, r) },
 		func(l, r string) interface{} { return l + r },
 		func(l, r []interface{}) interface{} {
-			if len(r) == 0 {
-				return l
-			} else if len(l) == 0 {
+			if len(l) == 0 {
 				return r
 			}
-			v := make([]interface{}, 0, len(l)+len(r))
-			return append(append(v, l...), r...)
+			if len(r) == 0 {
+				return l
+			}
+			v := make([]interface{}, len(l)+len(r))
+			copy(v, l)
+			copy(v[len(l):], r)
+			return v
 		},
 		func(l, r map[string]interface{}) interface{} {
+			if len(l) == 0 {
+				return r
+			}
+			if len(r) == 0 {
+				return l
+			}
 			m := make(map[string]interface{}, len(l)+len(r))
 			for k, v := range l {
 				m[k] = v
@@ -337,31 +342,42 @@ func funcOpAdd(_, l, r interface{}) interface{} {
 			}
 			return m
 		},
-		func(l, r interface{}) interface{} { return &binopTypeError{"add", l, r} },
+		func(l, r interface{}) interface{} {
+			if l == nil {
+				return r
+			}
+			if r == nil {
+				return l
+			}
+			return &binopTypeError{"add", l, r}
+		},
 	)
 }
 
 func funcOpSub(_, l, r interface{}) interface{} {
 	return binopTypeSwitch(l, r,
-		func(l, r int) interface{} { return l - r },
+		func(l, r int) interface{} {
+			if v := l - r; (v <= l) == (r >= 0) {
+				return v
+			}
+			x, y := big.NewInt(int64(l)), big.NewInt(int64(r))
+			return x.Sub(x, y)
+		},
 		func(l, r float64) interface{} { return l - r },
 		func(l, r *big.Int) interface{} { return new(big.Int).Sub(l, r) },
 		func(l, r string) interface{} { return &binopTypeError{"subtract", l, r} },
 		func(l, r []interface{}) interface{} {
-			a := make([]interface{}, 0, len(l))
-			for _, v := range l {
-				var found bool
-				for _, w := range r {
-					if reflect.DeepEqual(normalizeNumbers(v), normalizeNumbers(w)) {
-						found = true
-						break
+			v := make([]interface{}, 0, len(l))
+		L:
+			for _, l := range l {
+				for _, r := range r {
+					if compare(l, r) == 0 {
+						continue L
 					}
 				}
-				if !found {
-					a = append(a, v)
-				}
+				v = append(v, l)
 			}
-			return a
+			return v
 		},
 		func(l, r map[string]interface{}) interface{} { return &binopTypeError{"subtract", l, r} },
 		func(l, r interface{}) interface{} { return &binopTypeError{"subtract", l, r} },
@@ -370,30 +386,27 @@ func funcOpSub(_, l, r interface{}) interface{} {
 
 func funcOpMul(_, l, r interface{}) interface{} {
 	return binopTypeSwitch(l, r,
-		func(l, r int) interface{} { return l * r },
+		func(l, r int) interface{} {
+			if v := l * r; r == 0 || v/r == l {
+				return v
+			}
+			x, y := big.NewInt(int64(l)), big.NewInt(int64(r))
+			return x.Mul(x, y)
+		},
 		func(l, r float64) interface{} { return l * r },
 		func(l, r *big.Int) interface{} { return new(big.Int).Mul(l, r) },
 		func(l, r string) interface{} { return &binopTypeError{"multiply", l, r} },
 		func(l, r []interface{}) interface{} { return &binopTypeError{"multiply", l, r} },
 		deepMergeObjects,
 		func(l, r interface{}) interface{} {
-			multiplyString := func(s string, cnt float64) interface{} {
-				if cnt <= 0.0 || int(cnt) < 0 || int(cnt) > maxHalfInt/(16*(len(s)+1)) {
-					return nil
-				}
-				if cnt < 1.0 {
-					return s
-				}
-				return strings.Repeat(s, int(cnt))
-			}
 			if l, ok := l.(string); ok {
-				if f, ok := toFloat(r); ok {
-					return multiplyString(l, f)
+				if r, ok := toFloat(r); ok {
+					return repeatString(l, r)
 				}
 			}
 			if r, ok := r.(string); ok {
-				if f, ok := toFloat(l); ok {
-					return multiplyString(r, f)
+				if l, ok := toFloat(l); ok {
+					return repeatString(r, l)
 				}
 			}
 			return &binopTypeError{"multiply", l, r}
@@ -419,6 +432,16 @@ func deepMergeObjects(l, r map[string]interface{}) interface{} {
 	return m
 }
 
+func repeatString(s string, n float64) interface{} {
+	if n <= 0.0 || len(s) > 0 && n > float64(0x10000000/len(s)) || math.IsNaN(n) {
+		return nil
+	}
+	if n < 1.0 {
+		return s
+	}
+	return strings.Repeat(s, int(n))
+}
+
 func funcOpDiv(_, l, r interface{}) interface{} {
 	return binopTypeSwitch(l, r,
 		func(l, r int) interface{} {
@@ -427,6 +450,9 @@ func funcOpDiv(_, l, r interface{}) interface{} {
 					return math.NaN()
 				}
 				return &zeroDivisionError{l, r}
+			}
+			if l%r == 0 {
+				return l / r
 			}
 			return float64(l) / float64(r)
 		},
@@ -446,9 +472,9 @@ func funcOpDiv(_, l, r interface{}) interface{} {
 				}
 				return &zeroDivisionError{l, r}
 			}
-			x := new(big.Int).Div(l, r)
-			if new(big.Int).Mul(x, r).Cmp(l) == 0 {
-				return x
+			d, m := new(big.Int).DivMod(l, r, new(big.Int))
+			if m.Sign() == 0 {
+				return d
 			}
 			return bigToFloat(l) / bigToFloat(r)
 		},
@@ -478,16 +504,17 @@ func funcOpMod(_, l, r interface{}) interface{} {
 			return l % r
 		},
 		func(l, r float64) interface{} {
-			if int(r) == 0 {
+			ri := floatToInt(r)
+			if ri == 0 {
 				return &zeroModuloError{l, r}
 			}
-			return int(l) % int(r)
+			return floatToInt(l) % ri
 		},
 		func(l, r *big.Int) interface{} {
 			if r.Sign() == 0 {
 				return &zeroModuloError{l, r}
 			}
-			return new(big.Int).Mod(l, r)
+			return new(big.Int).Rem(l, r)
 		},
 		func(l, r string) interface{} { return &binopTypeError{"modulo", l, r} },
 		func(l, r []interface{}) interface{} { return &binopTypeError{"modulo", l, r} },

@@ -15,8 +15,8 @@ import (
 	vfs "github.com/twpayne/go-vfs"
 )
 
-// DefaultUmask is the default umask.
-const DefaultUmask = os.FileMode(0o22)
+//nolint:gochecknoglobals
+var umask os.FileMode
 
 // A Dir is a directory with a specified permissions and zero or more Entries.
 type Dir struct {
@@ -68,7 +68,7 @@ func BuilderVerbose(verbose bool) BuilderOption {
 // NewBuilder returns a new Builder with the given options set.
 func NewBuilder(options ...BuilderOption) *Builder {
 	b := &Builder{
-		umask:   DefaultUmask,
+		umask:   umask,
 		verbose: false,
 	}
 	for _, option := range options {
@@ -275,6 +275,7 @@ func (b *Builder) WriteFile(fs vfs.FS, path string, contents []byte, perm os.Fil
 
 // runTests recursively runs tests on fs.
 func runTests(t *testing.T, fs vfs.FS, name string, test interface{}) {
+	t.Helper()
 	prefix := ""
 	if name != "" {
 		prefix = name + "_"
@@ -322,6 +323,7 @@ func runTests(t *testing.T, fs vfs.FS, name string, test interface{}) {
 
 // RunTests recursively runs tests on fs.
 func RunTests(t *testing.T, fs vfs.FS, name string, tests ...interface{}) {
+	t.Helper()
 	runTests(t, fs, name, tests)
 }
 
@@ -329,6 +331,7 @@ func RunTests(t *testing.T, fs vfs.FS, name string, tests ...interface{}) {
 // equal to wantContents.
 func TestContents(wantContents []byte) PathTest {
 	return func(t *testing.T, fs vfs.FS, path string) {
+		t.Helper()
 		if gotContents, err := fs.ReadFile(path); err != nil || !bytes.Equal(gotContents, wantContents) {
 			t.Errorf("fs.ReadFile(%q) == %v, %v, want %v, <nil>", path, gotContents, err, wantContents)
 		}
@@ -339,6 +342,7 @@ func TestContents(wantContents []byte) PathTest {
 // file are equal to wantContentsStr.
 func TestContentsString(wantContentsStr string) PathTest {
 	return func(t *testing.T, fs vfs.FS, path string) {
+		t.Helper()
 		if gotContents, err := fs.ReadFile(path); err != nil || string(gotContents) != wantContentsStr {
 			t.Errorf("fs.ReadFile(%q) == %q, %v, want %q, <nil>", path, gotContents, err, wantContentsStr)
 		}
@@ -349,6 +353,7 @@ func TestContentsString(wantContentsStr string) PathTest {
 // not exist.
 //nolint:gochecknoglobals
 var testDoesNotExist = func(t *testing.T, fs vfs.FS, path string) {
+	t.Helper()
 	_, err := fs.Lstat(path)
 	if got, want := os.IsNotExist(err), true; got != want {
 		t.Errorf("_, err := fs.Lstat(%q); os.IsNotExist(err) == %v, want %v", path, got, want)
@@ -368,6 +373,7 @@ var TestIsDir = TestModeType(os.ModeDir)
 // are equal to wantPerm.
 func TestModePerm(wantPerm os.FileMode) PathTest {
 	return func(t *testing.T, fs vfs.FS, path string) {
+		t.Helper()
 		info, err := fs.Lstat(path)
 		if err != nil {
 			t.Errorf("fs.Lstat(%q) == %+v, %v, want !<nil>, <nil>", path, info, err)
@@ -387,6 +393,7 @@ var TestModeIsRegular = TestModeType(0)
 // equal to wantModeType.
 func TestModeType(wantModeType os.FileMode) PathTest {
 	return func(t *testing.T, fs vfs.FS, path string) {
+		t.Helper()
 		info, err := fs.Lstat(path)
 		if err != nil {
 			t.Errorf("fs.Lstat(%q) == %+v, %v, want !<nil>, <nil>", path, info, err)
@@ -401,6 +408,7 @@ func TestModeType(wantModeType os.FileMode) PathTest {
 // TestPath returns a Test that runs pathTests on path.
 func TestPath(path string, pathTests ...PathTest) Test {
 	return func(t *testing.T, fs vfs.FS) {
+		t.Helper()
 		for i, pathTest := range pathTests {
 			t.Run(strconv.Itoa(i), func(t *testing.T) {
 				//nolint:scopelint
@@ -414,6 +422,7 @@ func TestPath(path string, pathTests ...PathTest) Test {
 // wantSize.
 func TestSize(wantSize int64) PathTest {
 	return func(t *testing.T, fs vfs.FS, path string) {
+		t.Helper()
 		info, err := fs.Lstat(path)
 		if err != nil {
 			t.Errorf("fs.Lstat(%q) == %+v, %v, want !<nil>, <nil>", path, info, err)
@@ -428,6 +437,7 @@ func TestSize(wantSize int64) PathTest {
 // TestSymlinkTarget returns a PathTest that tests that path's target is wantTarget.
 func TestSymlinkTarget(wantTarget string) PathTest {
 	return func(t *testing.T, fs vfs.FS, path string) {
+		t.Helper()
 		if gotTarget, err := fs.Readlink(path); err != nil || gotTarget != wantTarget {
 			t.Errorf("fs.Readlink(%q) == %q, %v, want %q, <nil>", path, gotTarget, err, wantTarget)
 			return
@@ -439,6 +449,7 @@ func TestSymlinkTarget(wantTarget string) PathTest {
 // wantMinSize.
 func TestMinSize(wantMinSize int64) PathTest {
 	return func(t *testing.T, fs vfs.FS, path string) {
+		t.Helper()
 		info, err := fs.Lstat(path)
 		if err != nil {
 			t.Errorf("fs.Lstat(%q) == %+v, %v, want !<nil>, <nil>", path, info, err)

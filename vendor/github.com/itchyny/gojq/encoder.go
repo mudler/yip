@@ -3,37 +3,46 @@ package gojq
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"math"
 	"math/big"
 	"sort"
 	"strconv"
+	"strings"
 	"unicode/utf8"
 )
 
 // Marshal returns the jq-flavored JSON encoding of v.
 //
-// This method only accepts limited types (nil, bool, int, float64, *big.Int,
-// string, []interface{} and map[string]interface{}) because these are the
+// This method accepts only limited types (nil, bool, int, float64, *big.Int,
+// string, []interface{}, and map[string]interface{}) because these are the
 // possible types a gojq iterator can emit. This method marshals NaN to null,
-// truncates infinities to (+|-) math.MaxFloat64 and does not escape '<' and
-// '>' for embedding in HTML. These behaviors are based on the marshaler of jq
-// command and different from the standard library method json.Marshal.
+// truncates infinities to (+|-) math.MaxFloat64, uses \b and \f in strings,
+// and does not escape '<', '>', '&', '\u2028', and '\u2029'. These behaviors
+// are based on the marshaler of jq command, and different from json.Marshal in
+// the Go standard library. Note that the result is not safe to embed in HTML.
 func Marshal(v interface{}) ([]byte, error) {
-	return jsonMarshalBytes(v), nil
+	var b bytes.Buffer
+	(&encoder{w: &b}).encode(v)
+	return b.Bytes(), nil
 }
 
 func jsonMarshal(v interface{}) string {
-	return string(jsonMarshalBytes(v))
+	var sb strings.Builder
+	(&encoder{w: &sb}).encode(v)
+	return sb.String()
 }
 
-func jsonMarshalBytes(v interface{}) []byte {
-	var b bytes.Buffer
-	(&encoder{w: &b}).encode(v)
-	return b.Bytes()
+func jsonEncodeString(sb *strings.Builder, v string) {
+	(&encoder{w: sb}).encodeString(v)
 }
 
 type encoder struct {
-	w   *bytes.Buffer
+	w interface {
+		io.Writer
+		io.ByteWriter
+		io.StringWriter
+	}
 	buf [64]byte
 }
 
@@ -60,7 +69,7 @@ func (e *encoder) encode(v interface{}) {
 	case map[string]interface{}:
 		e.encodeMap(v)
 	default:
-		panic(fmt.Sprintf("invalid value: %v", v))
+		panic(fmt.Sprintf("invalid type: %[1]T (%[1]v)", v))
 	}
 }
 
@@ -96,26 +105,31 @@ func (e *encoder) encodeString(s string) {
 	start := 0
 	for i := 0; i < len(s); {
 		if b := s[i]; b < utf8.RuneSelf {
-			if ']' <= b && b <= '~' || '#' <= b && b <= '[' || b == ' ' || b == '!' {
+			if ' ' <= b && b <= '~' && b != '"' && b != '\\' {
 				i++
 				continue
 			}
 			if start < i {
 				e.w.WriteString(s[start:i])
 			}
-			e.w.WriteByte('\\')
 			switch b {
-			case '\\', '"':
-				e.w.WriteByte(b)
+			case '"':
+				e.w.WriteString(`\"`)
+			case '\\':
+				e.w.WriteString(`\\`)
+			case '\b':
+				e.w.WriteString(`\b`)
+			case '\f':
+				e.w.WriteString(`\f`)
 			case '\n':
-				e.w.WriteByte('n')
+				e.w.WriteString(`\n`)
 			case '\r':
-				e.w.WriteByte('r')
+				e.w.WriteString(`\r`)
 			case '\t':
-				e.w.WriteByte('t')
+				e.w.WriteString(`\t`)
 			default:
 				const hex = "0123456789abcdef"
-				e.w.WriteString("u00")
+				e.w.WriteString(`\u00`)
 				e.w.WriteByte(hex[b>>4])
 				e.w.WriteByte(hex[b&0xF])
 			}

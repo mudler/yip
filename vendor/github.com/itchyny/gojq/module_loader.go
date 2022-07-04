@@ -4,18 +4,29 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
-type moduleLoader struct {
-	paths []string
-}
+// ModuleLoader is the interface for loading modules.
+//
+// Implement following optional methods. Use NewModuleLoader to load local modules.
+//
+//   LoadModule(string) (*Query, error)
+//   LoadModuleWithMeta(string, map[string]interface{}) (*Query, error)
+//   LoadInitModules() ([]*Query, error)
+//   LoadJSON(string) (interface{}, error)
+//   LoadJSONWithMeta(string, map[string]interface{}) (interface{}, error)
+type ModuleLoader interface{}
 
 // NewModuleLoader creates a new ModuleLoader reading local modules in the paths.
 func NewModuleLoader(paths []string) ModuleLoader {
-	return &moduleLoader{paths}
+	return &moduleLoader{expandHomeDir(paths)}
+}
+
+type moduleLoader struct {
+	paths []string
 }
 
 func (l *moduleLoader) LoadInitModules() ([]*Query, error) {
@@ -34,13 +45,13 @@ func (l *moduleLoader) LoadInitModules() ([]*Query, error) {
 		if fi.IsDir() {
 			continue
 		}
-		cnt, err := ioutil.ReadFile(path)
+		cnt, err := os.ReadFile(path)
 		if err != nil {
 			return nil, err
 		}
 		q, err := parseModule(path, string(cnt))
 		if err != nil {
-			return nil, &queryParseError{"query in module", path, string(cnt), err}
+			return nil, &queryParseError{path, string(cnt), err}
 		}
 		qs = append(qs, q)
 	}
@@ -52,13 +63,13 @@ func (l *moduleLoader) LoadModuleWithMeta(name string, meta map[string]interface
 	if err != nil {
 		return nil, err
 	}
-	cnt, err := ioutil.ReadFile(path)
+	cnt, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 	q, err := parseModule(path, string(cnt))
 	if err != nil {
-		return nil, &queryParseError{"query in module", path, string(cnt), err}
+		return nil, &queryParseError{path, string(cnt), err}
 	}
 	return q, nil
 }
@@ -85,7 +96,7 @@ func (l *moduleLoader) LoadJSONWithMeta(name string, meta map[string]interface{}
 			if _, err := f.Seek(0, io.SeekStart); err != nil {
 				return nil, err
 			}
-			cnt, er := ioutil.ReadAll(f)
+			cnt, er := io.ReadAll(f)
 			if er != nil {
 				return nil, er
 			}
@@ -136,15 +147,7 @@ func parseModule(path, cnt string) (*Query, error) {
 }
 
 func searchPath(meta map[string]interface{}) string {
-	x, ok := meta["$$path"]
-	if !ok {
-		return ""
-	}
-	path, ok := x.(string)
-	if !ok {
-		return ""
-	}
-	x, ok = meta["search"]
+	x, ok := meta["search"]
 	if !ok {
 		return ""
 	}
@@ -152,5 +155,36 @@ func searchPath(meta map[string]interface{}) string {
 	if !ok {
 		return ""
 	}
+	if filepath.IsAbs(s) {
+		return s
+	}
+	if strings.HasPrefix(s, "~") {
+		if homeDir, err := os.UserHomeDir(); err == nil {
+			return filepath.Join(homeDir, s[1:])
+		}
+	}
+	var path string
+	if x, ok := meta["$$path"]; ok {
+		path, _ = x.(string)
+	}
+	if path == "" {
+		return s
+	}
 	return filepath.Join(filepath.Dir(path), s)
+}
+
+func expandHomeDir(paths []string) []string {
+	var homeDir string
+	var err error
+	for i, path := range paths {
+		if strings.HasPrefix(path, "~") {
+			if homeDir == "" && err == nil {
+				homeDir, err = os.UserHomeDir()
+			}
+			if homeDir != "" {
+				paths[i] = filepath.Join(homeDir, path[1:])
+			}
+		}
+	}
+	return paths
 }
