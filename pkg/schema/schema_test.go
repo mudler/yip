@@ -28,7 +28,7 @@ func loadstdYip(s string) *YipConfig {
 	defer cleanup()
 
 	yipConfig, err := Load("/yip.yaml", fs, FromFile, nil)
-	Expect(err).ToNot(HaveOccurred())
+	ExpectWithOffset(1, err).ToNot(HaveOccurred())
 	return yipConfig
 }
 
