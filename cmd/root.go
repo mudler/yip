@@ -29,16 +29,13 @@ import (
 	"github.com/twpayne/go-vfs"
 )
 
-const (
-	CLIVersion = "0.11.2"
-)
-
 // Build time and commit information.
 //
 // ⚠️ WARNING: should only be set by "-ldflags".
 var (
 	BuildTime   string
 	BuildCommit string
+	CLIVersion string
 )
 
 func initLogger() logger.Interface {
