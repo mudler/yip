@@ -150,6 +150,7 @@ type Stage struct {
 	Users           map[string]User     `yaml:"users,omitempty"`
 	Modules         []string            `yaml:"modules,omitempty"`
 	Systemctl       Systemctl           `yaml:"systemctl,omitempty"`
+	NetworkManager  []NetConnection     `yaml:"networkmanager,omitempty"`
 	Environment     map[string]string   `yaml:"environment,omitempty"`
 	EnvironmentFile string              `yaml:"environment_file,omitempty"`
 

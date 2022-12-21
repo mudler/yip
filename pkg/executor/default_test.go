@@ -530,7 +530,6 @@ stages:
 
 			Expect(string(b)).Should(Equal("rootfs.before\nrootfs\n2\ninitramfs\n"))
 		})
-
 		It("has multiple instructions in different files", func() {
 			testConsole := console.NewStandardConsole()
 

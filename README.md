@@ -579,3 +579,39 @@ stages:
              # default filesystem is ext2 if omitted
              filesystem: ext4
 ```
+
+
+### `stages.<stageID>.[<stepN>].NetworkManager`
+
+Configure NetworkManager `connection` files.
+It's a list of connections profiles, which support all NetworkManager config options by specifying the different sections on each profile.
+For example to use the `wifi` section we would create a `wifi` entry and specify the options as a list of key/value pairs.
+
+No uppercase and no dashes are allowed under the section names, if the section has a dash, its equivalent on the config yaml its removed (i.e. ip-tunnel section turns to iptunnel in the yaml) 
+
+Some sections are mapped under a different name due to constraints on golang naming conventions. These are as follows:
+
+| yaml name | NetworkManager section name |
+|-----------|-----------------------------|
+| x8021     | 802-1x                      |
+
+
+```yaml
+stages:
+  default:
+      - networkmanager:
+        - name: "Connection1"
+          Connection:
+            - interface-name: "wlan0"
+            - type: "wifi"
+          wifi:
+            - ssid: "testSSID"
+            - mode: "infrastructure"
+          wifisecurity:
+            - key-mgmt: "wpa-psk"
+            - psk: "123456789"
+          x8021:
+            - ca-path: "/path/ca.pem"
+```
+
+For a comprehensive list of all sections and their values check the [NetworkManager documentation](https://networkmanager.dev/docs/api/latest/nm-settings-nmcli.html)

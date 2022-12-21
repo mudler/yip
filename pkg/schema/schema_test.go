@@ -126,4 +126,53 @@ write_files:
 			Expect(yipConfig.Stages["boot"][1].Layout.Device.Path).To(Equal("/"))
 		})
 	})
+	Context("NetworkManager schema", func() {
+		It("Loads it correctly", func() {
+			yipConfig := loadstdYip(`
+stages:
+  default:
+    - networkmanager:
+      - name: "Connection1"
+        connection:
+          - interface-name: "wlan0"
+          - type: "wifi"
+        wifi:
+          - ssid: "testSSID"
+          - mode: "infrastructure"
+        wifisecurity:
+          - key-mgmt: "wpa-psk"
+          - psk: "123456789"
+      - name: "Connection2"
+        connection:
+          - interface-name: "wlan1"
+          - type: "wifi"
+        wifi:
+          - ssid: "testSSID"
+          - mode: "infrastructure"
+        wifisecurity:
+          - key-mgmt: "wpa-psk"
+          - psk: "123456789"
+        x8021:
+          - key: "value"
+        olpcmesh:
+          - key: "value"
+`)
+			// Should have 2 connections
+			Expect(len(yipConfig.Stages["default"][0].NetworkManager)).To(Equal(2))
+			// Check values
+			Expect(yipConfig.Stages["default"][0].NetworkManager[0].Name).To(Equal("Connection1"))
+			Expect(yipConfig.Stages["default"][0].NetworkManager[1].Name).To(Equal("Connection2"))
+			Expect(len(yipConfig.Stages["default"][0].NetworkManager[0].Connection)).To(Equal(2))
+			Expect(len(yipConfig.Stages["default"][0].NetworkManager[1].Connection)).To(Equal(2))
+			Expect(yipConfig.Stages["default"][0].NetworkManager[0].Connection).To(ContainElement(map[string]string{"interface-name": "wlan0"}))
+			Expect(yipConfig.Stages["default"][0].NetworkManager[1].Connection).To(ContainElement(map[string]string{"interface-name": "wlan1"}))
+			Expect(len(yipConfig.Stages["default"][0].NetworkManager[0].Wifi)).To(Equal(2))
+			Expect(len(yipConfig.Stages["default"][0].NetworkManager[1].Wifi)).To(Equal(2))
+			Expect(yipConfig.Stages["default"][0].NetworkManager[0].Wifi).To(ContainElement(map[string]string{"ssid": "testSSID"}))
+			Expect(yipConfig.Stages["default"][0].NetworkManager[1].Wifi).To(ContainElement(map[string]string{"ssid": "testSSID"}))
+			Expect(yipConfig.Stages["default"][0].NetworkManager[1].X8021).To(ContainElement(map[string]string{"key": "value"}))
+			Expect(yipConfig.Stages["default"][0].NetworkManager[1].Olpcmesh).To(ContainElement(map[string]string{"key": "value"}))
+
+		})
+	})
 })
