@@ -35,13 +35,13 @@ github.com/apex/log
 # github.com/cavaliergopher/grab v2.0.0+incompatible
 ## explicit
 github.com/cavaliergopher/grab
-# github.com/davidcassany/linuxkit/pkg/metadata v0.0.0-20220725140037-b49d0fec13b3
+# github.com/davidcassany/linuxkit/pkg/metadata v0.0.0-20230124104020-93ac9dd5b8e1
 ## explicit
 github.com/davidcassany/linuxkit/pkg/metadata/providers
 # github.com/denisbrodbeck/machineid v1.0.1
 ## explicit
 github.com/denisbrodbeck/machineid
-# github.com/diskfs/go-diskfs v1.2.1-0.20211109185859-9509735ba7a4
+# github.com/diskfs/go-diskfs v1.2.1-0.20230123115902-fce1828bbbfa
 ## explicit
 github.com/diskfs/go-diskfs
 github.com/diskfs/go-diskfs/disk
@@ -172,7 +172,7 @@ github.com/mitchellh/reflectwalk
 # github.com/moby/libnetwork v0.8.0-dev.2.0.20200612180813-9e99af28df21
 ## explicit
 github.com/moby/libnetwork/resolvconf
-# github.com/mudler/entities v0.0.0-20211108084227-d1414478861b
+# github.com/mudler/entities v0.0.0-20220905203055-68348bae0f49
 ## explicit
 github.com/mudler/entities/pkg/entities
 # github.com/onsi/ginkgo/v2 v2.1.0
@@ -199,7 +199,7 @@ github.com/onsi/gomega/matchers/support/goraph/edge
 github.com/onsi/gomega/matchers/support/goraph/node
 github.com/onsi/gomega/matchers/support/goraph/util
 github.com/onsi/gomega/types
-# github.com/packethost/packngo v0.25.0
+# github.com/packethost/packngo v0.29.0
 ## explicit
 github.com/packethost/packngo/metadata
 # github.com/phayes/permbits v0.0.0-20190612203442-39d7c581d2ee
@@ -211,7 +211,7 @@ github.com/pierrec/lz4/internal/xxh32
 # github.com/pkg/errors v0.9.1
 ## explicit
 github.com/pkg/errors
-# github.com/pkg/xattr v0.4.7
+# github.com/pkg/xattr v0.4.9
 ## explicit
 github.com/pkg/xattr
 # github.com/satori/go.uuid v1.2.1-0.20180404165556-75cca531ea76
@@ -223,7 +223,7 @@ github.com/sergi/go-diff/diffmatchpatch
 # github.com/shopspring/decimal v1.3.1
 ## explicit
 github.com/shopspring/decimal
-# github.com/sirupsen/logrus v1.8.1
+# github.com/sirupsen/logrus v1.9.0
 ## explicit
 github.com/sirupsen/logrus
 # github.com/spf13/cast v1.5.0
@@ -242,7 +242,8 @@ github.com/tredoe/osutil/v2/userutil/crypt/sha512_crypt
 ## explicit
 github.com/twpayne/go-vfs
 github.com/twpayne/go-vfs/vfst
-# github.com/ulikunitz/xz v0.5.10
+# github.com/ulikunitz/xz v0.5.11
+## explicit
 github.com/ulikunitz/xz
 github.com/ulikunitz/xz/internal/hash
 github.com/ulikunitz/xz/internal/xlog
@@ -251,7 +252,7 @@ github.com/ulikunitz/xz/lzma
 ## explicit
 github.com/vishvananda/netlink
 github.com/vishvananda/netlink/nl
-# github.com/vishvananda/netns v0.0.0-20211101163701-50045581ed74
+# github.com/vishvananda/netns v0.0.4
 ## explicit
 github.com/vishvananda/netns
 # github.com/willdonnelly/passwd v0.0.0-20141013001024-7935dab3074c
@@ -289,7 +290,7 @@ golang.org/x/net/html/atom
 golang.org/x/net/html/charset
 golang.org/x/net/internal/socks
 golang.org/x/net/proxy
-# golang.org/x/sys v0.0.0-20220704084225-05e143d24a9e
+# golang.org/x/sys v0.4.0
 ## explicit
 golang.org/x/sys/cpu
 golang.org/x/sys/execabs
