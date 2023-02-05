@@ -103,7 +103,6 @@ func (e *DefaultExecutor) genOpFromSchema(file, stage string, config schema.YipC
 		}
 
 		opName := fmt.Sprintf("%s-%s-%s", rootname, stage, name)
-		fmt.Println("ADDING OP", file)
 		o := &op{
 			fn: func(ctx context.Context) error {
 				e.logger.Infof("Executing %s", file)
@@ -187,39 +186,56 @@ func writeDAG(dag [][]herd.GraphEntry) {
 	return
 }
 
-func (e *DefaultExecutor) runStage(stage, uri string, fs vfs.FS, console plugins.Console) (err error) {
+func (e *DefaultExecutor) Analyze(stage string, fs vfs.FS, console plugins.Console, args ...string) {
+	var errs error
+	for _, source := range args {
+		g, err := e.prepareDAG(stage, source, fs, console)
+		if err != nil {
+			errs = multierror.Append(errs, err)
+			continue
+		}
+		for i, layer := range g.Analyze() {
+			e.logger.Infof("%d.", (i + 1))
+			for _, op := range layer {
+				if op.Error != nil {
+					e.logger.Infof(" <%s> (error: %s) (background: %t) (weak: %t)", op.Name, op.Error.Error(), op.Background, op.WeakDeps)
+				} else {
+					e.logger.Infof(" <%s> (background: %t) (weak: %t)", op.Name, op.Background, op.WeakDeps)
+				}
+			}
+		}
+	}
+}
+
+func (e *DefaultExecutor) prepareDAG(stage, uri string, fs vfs.FS, console plugins.Console) (*herd.Graph, error) {
 	f, err := fs.Stat(uri)
 
 	g := herd.DAG(herd.EnableInit)
 	var ops []*op
-
 	switch {
 	case err == nil && f.IsDir():
 		ops, err = e.dirOps(stage, uri, fs, console)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	case err == nil:
 		config, err := schema.Load(uri, fs, schema.FromFile, e.modifier)
 		if err != nil {
-			return err
-
+			return nil, err
 		}
 
 		ops = e.genOpFromSchema(uri, stage, *config, fs, console)
 	case utils.IsUrl(uri):
 		config, err := schema.Load(uri, fs, schema.FromUrl, e.modifier)
 		if err != nil {
-			return err
-
+			return nil, err
 		}
 
 		ops = e.genOpFromSchema(uri, stage, *config, fs, console)
 	default:
 		config, err := schema.Load(uri, fs, nil, e.modifier)
 		if err != nil {
-			return err
-
+			return nil, err
 		}
 
 		ops = e.genOpFromSchema("<STDIN>", stage, *config, fs, console)
@@ -229,12 +245,19 @@ func (e *DefaultExecutor) runStage(stage, uri string, fs vfs.FS, console plugins
 		g.Add(o.name, append(o.options, herd.WithCallback(o.fn), herd.WithDeps(o.deps...))...)
 	}
 
-	err = g.Run(context.Background())
+	return g, nil
+}
+
+func (e *DefaultExecutor) runStage(stage, uri string, fs vfs.FS, console plugins.Console) (err error) {
+	g, err := e.prepareDAG(stage, uri, fs, console)
 	if err != nil {
 		return err
 	}
 
-	writeDAG(g.Analyze())
+	err = g.Run(context.Background())
+	if err != nil {
+		return err
+	}
 
 	for _, g := range g.Analyze() {
 		for _, gg := range g {
