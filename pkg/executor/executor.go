@@ -18,6 +18,7 @@ import (
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/plugins"
 	"github.com/sirupsen/logrus"
+	"github.com/spectrocloud-labs/herd"
 	"github.com/twpayne/go-vfs"
 
 	"github.com/mudler/yip/pkg/schema"
@@ -64,6 +65,7 @@ func WithConditionals(p ...Plugin) Options {
 func NewExecutor(opts ...Options) Executor {
 	d := &DefaultExecutor{
 		logger: logrus.New(),
+		g:      herd.DAG(herd.EnableInit),
 		conditionals: []Plugin{
 			plugins.NodeConditional,
 			plugins.IfConditional,
