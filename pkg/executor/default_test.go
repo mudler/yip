@@ -238,7 +238,7 @@ stages:
 				log.Fatal(err)
 			}
 
-			Expect(string(b)).Should(Equal("bar"))
+			Expect(string(b)).Should(Equal("bar"), string(b))
 		})
 
 		It("Reports error, and executes all yip files", func() {

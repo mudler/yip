@@ -33,7 +33,6 @@ import (
 // DefaultExecutor is the default yip Executor.
 // It simply creates file and executes command for a linux executor
 type DefaultExecutor struct {
-	g            *herd.Graph
 	plugins      []Plugin
 	conditionals []Plugin
 	modifier     schema.Modifier
@@ -104,7 +103,7 @@ func (e *DefaultExecutor) genOpFromSchema(file, stage string, config schema.YipC
 		}
 
 		opName := fmt.Sprintf("%s-%s-%s", rootname, stage, name)
-
+		fmt.Println("ADDING OP", file)
 		o := &op{
 			fn: func(ctx context.Context) error {
 				e.logger.Infof("Executing %s", file)
@@ -187,9 +186,11 @@ func writeDAG(dag [][]herd.GraphEntry) {
 	}
 	return
 }
+
 func (e *DefaultExecutor) runStage(stage, uri string, fs vfs.FS, console plugins.Console) (err error) {
 	f, err := fs.Stat(uri)
 
+	g := herd.DAG(herd.EnableInit)
 	var ops []*op
 
 	switch {
@@ -225,15 +226,17 @@ func (e *DefaultExecutor) runStage(stage, uri string, fs vfs.FS, console plugins
 	}
 
 	for _, o := range ops {
-		e.g.Add(o.name, append(o.options, herd.WithCallback(o.fn), herd.WithDeps(o.deps...))...)
+		g.Add(o.name, append(o.options, herd.WithCallback(o.fn), herd.WithDeps(o.deps...))...)
 	}
 
-	err = e.g.Run(context.Background())
+	err = g.Run(context.Background())
 	if err != nil {
 		return err
 	}
 
-	for _, g := range e.g.Analyze() {
+	writeDAG(g.Analyze())
+
+	for _, g := range g.Analyze() {
 		for _, gg := range g {
 			if gg.Error != nil {
 				err = multierror.Append(err, gg.Error)
