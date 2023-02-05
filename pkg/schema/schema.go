@@ -153,7 +153,7 @@ type Stage struct {
 	Environment     map[string]string   `yaml:"environment,omitempty"`
 	EnvironmentFile string              `yaml:"environment_file,omitempty"`
 
-	Depends []Dependency `yaml:"depends,omitempty"`
+	After []Dependency `yaml:"after,omitempty"`
 
 	DataSources DataSource `yaml:"datasource,omitempty"`
 	Layout      Layout     `yaml:"layout,omitempty"`

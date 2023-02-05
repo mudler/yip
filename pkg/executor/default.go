@@ -113,7 +113,7 @@ func (e *DefaultExecutor) genOpFromSchema(file, stage string, config schema.YipC
 			options: []herd.OpOption{herd.WeakDeps},
 		}
 
-		for _, d := range st.Depends {
+		for _, d := range st.After {
 			o.deps = append(o.deps, d.Name)
 		}
 
