@@ -97,12 +97,13 @@ func (e *DefaultExecutor) genOpFromSchema(file, stage string, config schema.YipC
 		if name == "" {
 			name = fmt.Sprint(i)
 		}
+
 		rootname := file
 		if config.Name != "" {
 			rootname = config.Name
 		}
 
-		opName := fmt.Sprintf("%s-%s-%s", rootname, stage, name)
+		opName := fmt.Sprintf("%s-%s", rootname, name)
 		o := &op{
 			fn: func(ctx context.Context) error {
 				e.logger.Infof("Executing %s", file)
