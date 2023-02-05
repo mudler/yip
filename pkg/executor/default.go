@@ -119,7 +119,6 @@ func (e *DefaultExecutor) genOpFromSchema(file, stage string, config schema.YipC
 
 		if i != 0 {
 			o.deps = append(o.deps, prev)
-			o.options = []herd.OpOption{herd.WeakDeps}
 		}
 
 		results = append(results, o)
@@ -156,18 +155,19 @@ func (e *DefaultExecutor) dirOps(stage, dir string, fs vfs.FS, console plugins.C
 
 			}
 			ops := e.genOpFromSchema(path, stage, *config, fs, console)
+			// mark lexicographic order dependency
 			if len(prev) > 0 {
-				fmt.Println("APPENDING")
 				for _, o := range ops {
 					o.deps = append(o.deps, prev...)
 				}
 			}
 			prev = []string{}
 			for _, o := range ops {
-				fmt.Println("APPENDING ops", o.name)
-
 				prev = append(prev, o.name)
+				o.options = append(o.options, herd.WeakDeps)
 			}
+
+			// append results
 			results = append(results, ops...)
 			return nil
 		})
@@ -221,6 +221,19 @@ func (e *DefaultExecutor) run(stage, uri string, fs vfs.FS, console plugins.Cons
 	return nil
 }
 
+func writeDAG(dag [][]herd.GraphEntry) {
+	for i, layer := range dag {
+		fmt.Printf("%d.\n", (i + 1))
+		for _, op := range layer {
+			if op.Error != nil {
+				fmt.Printf(" <%s> (error: %s) (background: %t) (weak: %t)\n", op.Name, op.Error.Error(), op.Background, op.WeakDeps)
+			} else {
+				fmt.Printf(" <%s> (background: %t) (weak: %t)\n", op.Name, op.Background, op.WeakDeps)
+			}
+		}
+	}
+	return
+}
 func (e *DefaultExecutor) runStage(stage, uri string, fs vfs.FS, console plugins.Console) (err error) {
 	f, err := fs.Stat(uri)
 
@@ -234,7 +247,6 @@ func (e *DefaultExecutor) runStage(stage, uri string, fs vfs.FS, console plugins
 		for _, o := range ops {
 			e.g.Add(o.name, append(o.options, herd.WithCallback(o.fn), herd.WithDeps(o.deps...))...)
 		}
-		fmt.Println(e.g.Analyze())
 		err = e.g.Run(context.Background())
 		if err != nil {
 			return err
