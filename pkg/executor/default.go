@@ -119,6 +119,7 @@ func (e *DefaultExecutor) genOpFromSchema(file, stage string, config schema.YipC
 
 		if i != 0 {
 			o.deps = append(o.deps, prev)
+			o.options = []herd.OpOption{herd.WeakDeps}
 		}
 
 		results = append(results, o)
@@ -231,10 +232,23 @@ func (e *DefaultExecutor) runStage(stage, uri string, fs vfs.FS, console plugins
 			return err
 		}
 		for _, o := range ops {
-			e.g.Add(o.name, herd.WithCallback(o.fn), herd.WithDeps(o.deps...))
+			e.g.Add(o.name, append(o.options, herd.WithCallback(o.fn), herd.WithDeps(o.deps...))...)
 		}
 		fmt.Println(e.g.Analyze())
-		return e.g.Run(context.Background())
+		err = e.g.Run(context.Background())
+		if err != nil {
+			return err
+		}
+
+		for _, g := range e.g.Analyze() {
+			for _, gg := range g {
+				if gg.Error != nil {
+					err = multierror.Append(err, gg.Error)
+				}
+			}
+		}
+
+		return err
 	case err == nil:
 		err = e.run(stage, uri, fs, console, schema.FromFile, e.modifier)
 	case utils.IsUrl(uri):
