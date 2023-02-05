@@ -110,7 +110,8 @@ func (e *DefaultExecutor) genOpFromSchema(file, stage string, config schema.YipC
 				e.logger.Infof("Executing %s", file)
 				return e.applyStage(st, fs, console)
 			},
-			name: opName,
+			name:    opName,
+			options: []herd.OpOption{herd.WeakDeps},
 		}
 
 		for _, d := range st.Depends {
@@ -164,7 +165,6 @@ func (e *DefaultExecutor) dirOps(stage, dir string, fs vfs.FS, console plugins.C
 			prev = []string{}
 			for _, o := range ops {
 				prev = append(prev, o.name)
-				o.options = append(o.options, herd.WeakDeps)
 			}
 
 			// append results
@@ -172,53 +172,6 @@ func (e *DefaultExecutor) dirOps(stage, dir string, fs vfs.FS, console plugins.C
 			return nil
 		})
 	return results, err
-}
-
-func (e *DefaultExecutor) walkDir(stage, dir string, fs vfs.FS, console plugins.Console) error {
-	var errs error
-
-	err := vfs.Walk(fs, dir,
-		func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			if path == dir {
-				return nil
-			}
-			// Process only files
-			if info.IsDir() {
-				return nil
-			}
-			ext := filepath.Ext(path)
-			if ext != ".yaml" && ext != ".yml" {
-				return nil
-			}
-
-			if err = e.run(stage, path, fs, console, schema.FromFile, e.modifier); err != nil {
-				errs = multierror.Append(errs, err)
-				return nil
-			}
-
-			return nil
-		})
-	if err != nil {
-		errs = multierror.Append(errs, err)
-	}
-	return errs
-}
-
-func (e *DefaultExecutor) run(stage, uri string, fs vfs.FS, console plugins.Console, l schema.Loader, m schema.Modifier) error {
-	config, err := schema.Load(uri, fs, l, m)
-	if err != nil {
-		return err
-	}
-
-	e.logger.Infof("Executing %s", uri)
-	if err = e.Apply(stage, *config, fs, console); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func writeDAG(dag [][]herd.GraphEntry) {
@@ -237,40 +190,58 @@ func writeDAG(dag [][]herd.GraphEntry) {
 func (e *DefaultExecutor) runStage(stage, uri string, fs vfs.FS, console plugins.Console) (err error) {
 	f, err := fs.Stat(uri)
 
+	var ops []*op
+
 	switch {
 	case err == nil && f.IsDir():
-
-		ops, err := e.dirOps(stage, uri, fs, console)
+		ops, err = e.dirOps(stage, uri, fs, console)
 		if err != nil {
 			return err
 		}
-		for _, o := range ops {
-			e.g.Add(o.name, append(o.options, herd.WithCallback(o.fn), herd.WithDeps(o.deps...))...)
-		}
-		err = e.g.Run(context.Background())
-		if err != nil {
-			return err
-		}
-
-		for _, g := range e.g.Analyze() {
-			for _, gg := range g {
-				if gg.Error != nil {
-					err = multierror.Append(err, gg.Error)
-				}
-			}
-		}
-
-		return err
 	case err == nil:
-		err = e.run(stage, uri, fs, console, schema.FromFile, e.modifier)
-	case utils.IsUrl(uri):
-		err = e.run(stage, uri, fs, console, schema.FromUrl, e.modifier)
-	default:
+		config, err := schema.Load(uri, fs, schema.FromFile, e.modifier)
+		if err != nil {
+			return err
 
-		err = e.run(stage, uri, fs, console, nil, e.modifier)
+		}
+
+		ops = e.genOpFromSchema(uri, stage, *config, fs, console)
+	case utils.IsUrl(uri):
+		config, err := schema.Load(uri, fs, schema.FromUrl, e.modifier)
+		if err != nil {
+			return err
+
+		}
+
+		ops = e.genOpFromSchema(uri, stage, *config, fs, console)
+	default:
+		config, err := schema.Load(uri, fs, nil, e.modifier)
+		if err != nil {
+			return err
+
+		}
+
+		ops = e.genOpFromSchema("<STDIN>", stage, *config, fs, console)
 	}
 
-	return
+	for _, o := range ops {
+		e.g.Add(o.name, append(o.options, herd.WithCallback(o.fn), herd.WithDeps(o.deps...))...)
+	}
+
+	err = e.g.Run(context.Background())
+	if err != nil {
+		return err
+	}
+
+	for _, g := range e.g.Analyze() {
+		for _, gg := range g {
+			if gg.Error != nil {
+				err = multierror.Append(err, gg.Error)
+			}
+		}
+	}
+
+	return err
 }
 
 // Run takes a list of URI to run yipfiles from. URI can be also a dir or a local path, as well as a remote

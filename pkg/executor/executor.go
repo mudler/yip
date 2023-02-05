@@ -65,7 +65,7 @@ func WithConditionals(p ...Plugin) Options {
 func NewExecutor(opts ...Options) Executor {
 	d := &DefaultExecutor{
 		logger: logrus.New(),
-		g:      herd.DAG(herd.EnableInit),
+		g:      herd.DAG(),
 		conditionals: []Plugin{
 			plugins.NodeConditional,
 			plugins.IfConditional,
