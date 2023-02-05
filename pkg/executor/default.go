@@ -62,7 +62,7 @@ func (e *DefaultExecutor) applyStage(stage schema.Stage, fs vfs.FS, console plug
 	var errs error
 	for _, p := range e.conditionals {
 		if err := p(e.logger, stage, fs, console); err != nil {
-			e.logger.Warnf("Skip '%s' stage name: %s\n",
+			e.logger.Warnf("(conditional) Skip '%s' stage name: %s\n",
 				err.Error(), stage.Name)
 			return nil
 		}
@@ -106,7 +106,7 @@ func (e *DefaultExecutor) genOpFromSchema(file, stage string, config schema.YipC
 		opName := fmt.Sprintf("%s.%s", rootname, name)
 		o := &op{
 			fn: func(ctx context.Context) error {
-				e.logger.Infof("Executing %s", file)
+				e.logger.Debugf("Reading %s", file)
 				return e.applyStage(st, fs, console)
 			},
 			name:    opName,
