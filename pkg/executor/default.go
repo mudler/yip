@@ -54,6 +54,7 @@ func (e *DefaultExecutor) Modifier(m schema.Modifier) {
 type op struct {
 	fn      func(context.Context) error
 	deps    []string
+	after   []string
 	options []herd.OpOption
 	name    string
 }
@@ -104,9 +105,12 @@ func (e *DefaultExecutor) genOpFromSchema(file, stage string, config schema.YipC
 		}
 
 		opName := fmt.Sprintf("%s.%s", rootname, name)
+
+		e.logger.Debugf("Generating op for stage '%s'", opName)
 		o := &op{
 			fn: func(ctx context.Context) error {
-				e.logger.Debugf("Reading %s", file)
+				e.logger.Debugf("Reading '%s'", file)
+				e.logger.Debugf("Executing stage '%s'", opName)
 				return e.applyStage(st, fs, console)
 			},
 			name:    opName,
@@ -114,10 +118,10 @@ func (e *DefaultExecutor) genOpFromSchema(file, stage string, config schema.YipC
 		}
 
 		for _, d := range st.After {
-			o.deps = append(o.deps, d.Name)
+			o.after = append(o.after, d.Name)
 		}
 
-		if i != 0 {
+		if i != 0 && len(st.After) == 0 {
 			o.deps = append(o.deps, prev)
 		}
 
@@ -131,7 +135,7 @@ func (e *DefaultExecutor) genOpFromSchema(file, stage string, config schema.YipC
 
 func (e *DefaultExecutor) dirOps(stage, dir string, fs vfs.FS, console plugins.Console) ([]*op, error) {
 	results := []*op{}
-	prev := []string{}
+	prev := []*op{}
 	err := vfs.Walk(fs, dir,
 		func(path string, info os.FileInfo, err error) error {
 			if err != nil {
@@ -155,16 +159,20 @@ func (e *DefaultExecutor) dirOps(stage, dir string, fs vfs.FS, console plugins.C
 
 			}
 			ops := e.genOpFromSchema(path, stage, *config, fs, console)
-			// mark lexicographic order dependency
-			if len(prev) > 0 {
-				for _, o := range ops {
-					o.deps = append(o.deps, prev...)
+
+			// mark lexicographic order dependency from previous blocks
+			if len(prev) > 0 && len(ops) > 0 && len(ops[0].after) == 0 {
+				for _, p := range prev {
+					if len(p.after) == 0 {
+						all := []string{}
+						for _, pp := range prev {
+							all = append(all, pp.name)
+						}
+						ops[0].deps = append(ops[0].deps, all...)
+					}
 				}
 			}
-			prev = []string{}
-			for _, o := range ops {
-				prev = append(prev, o.name)
-			}
+			prev = ops
 
 			// append results
 			results = append(results, ops...)
@@ -243,7 +251,7 @@ func (e *DefaultExecutor) prepareDAG(stage, uri string, fs vfs.FS, console plugi
 	}
 
 	for _, o := range ops {
-		g.Add(o.name, append(o.options, herd.WithCallback(o.fn), herd.WithDeps(o.deps...))...)
+		g.Add(o.name, append(o.options, herd.WithCallback(o.fn), herd.WithDeps(append(o.after, o.deps...)...))...)
 	}
 
 	return g, nil
@@ -253,6 +261,10 @@ func (e *DefaultExecutor) runStage(stage, uri string, fs vfs.FS, console plugins
 	g, err := e.prepareDAG(stage, uri, fs, console)
 	if err != nil {
 		return err
+	}
+
+	if g == nil {
+		return fmt.Errorf("no dag could be created")
 	}
 
 	err = g.Run(context.Background())

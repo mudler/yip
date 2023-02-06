@@ -200,6 +200,58 @@ stages:
 
 		})
 
+		It("Run yip files in sequence with after", func() {
+			testConsole := console.NewStandardConsole()
+
+			fs2, cleanup2, err := vfst.NewTestFS(map[string]interface{}{})
+			Expect(err).Should(BeNil())
+			temp := fs2.TempDir()
+
+			defer cleanup2()
+
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{
+				"/some/yip/01_first.yaml": `
+stages:
+  test:
+  - after: 
+    - name: "test.test"
+    commands:
+    - sed -i 's/bar/baz/g' ` + temp + `/tmp/test/bar
+`,
+				"/some/yip/02_second.yaml": `
+name: "test"
+stages:
+  test:
+  - name: "test"
+    commands:
+    - sed -i 's/boo/bar/g' ` + temp + `/tmp/test/bar
+`,
+			})
+			Expect(err).Should(BeNil())
+			defer cleanup()
+
+			err = fs2.Mkdir("/tmp", os.ModePerm)
+			Expect(err).Should(BeNil())
+			err = fs2.Mkdir("/tmp/test", os.ModePerm)
+			Expect(err).Should(BeNil())
+
+			err = fs2.WriteFile("/tmp/test/bar", []byte(`boo`), os.ModePerm)
+			Expect(err).Should(BeNil())
+
+			err = def.Run("test", fs, testConsole, "/some/yip")
+			Expect(err).Should(BeNil())
+			file, err := os.Open(temp + "/tmp/test/bar")
+			Expect(err).ShouldNot(HaveOccurred())
+
+			b, err := ioutil.ReadAll(file)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			Expect(string(b)).Should(Equal("baz"))
+
+		})
+
 		It("Execute single yip files", func() {
 			testConsole := console.NewStandardConsole()
 
