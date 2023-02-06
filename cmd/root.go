@@ -35,7 +35,7 @@ import (
 var (
 	BuildTime   string
 	BuildCommit string
-	CLIVersion string
+	CLIVersion  string
 )
 
 func initLogger() logger.Interface {
@@ -69,6 +69,7 @@ For example:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		stage, _ := cmd.Flags().GetString("stage")
 		dot, _ := cmd.Flags().GetBool("dotnotation")
+		analyze, _ := cmd.Flags().GetBool("analyze")
 
 		ll := initLogger()
 		runner := executor.NewExecutor(executor.WithLogger(ll))
@@ -93,6 +94,10 @@ For example:
 			args = []string{string(std)}
 		}
 
+		if analyze {
+			runner.Analyze(stage, vfs.OSFS, stdConsole, args...)
+			return nil
+		}
 		return runner.Run(stage, vfs.OSFS, stdConsole, args...)
 	},
 }
@@ -108,5 +113,6 @@ func Execute() {
 
 func init() {
 	rootCmd.PersistentFlags().StringP("stage", "s", "default", "Stage to apply")
+	rootCmd.PersistentFlags().BoolP("analyze", "a", false, "Analize execution graph")
 	rootCmd.PersistentFlags().BoolP("dotnotation", "d", false, "Parse input in dotnotation ( e.g. `stages.foo.name=..` ) ")
 }

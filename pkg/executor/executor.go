@@ -30,6 +30,7 @@ type Executor interface {
 	Plugins([]Plugin)
 	Conditionals([]Plugin)
 	Modifier(m schema.Modifier)
+	Analyze(string, vfs.FS, plugins.Console, ...string)
 }
 
 type Plugin func(logger.Interface, schema.Stage, vfs.FS, plugins.Console) error

@@ -15,11 +15,12 @@ require (
 	github.com/joho/godotenv v1.4.0
 	github.com/moby/libnetwork v0.8.0-dev.2.0.20200612180813-9e99af28df21
 	github.com/mudler/entities v0.0.0-20220905203055-68348bae0f49
-	github.com/onsi/ginkgo/v2 v2.7.0
+	github.com/onsi/ginkgo/v2 v2.7.1
 	github.com/onsi/gomega v1.26.0
 	github.com/pkg/errors v0.9.1
 	github.com/satori/go.uuid v1.2.1-0.20180404165556-75cca531ea76
 	github.com/sirupsen/logrus v1.9.0
+	github.com/spectrocloud-labs/herd v0.3.0
 	github.com/spf13/cobra v1.5.0
 	github.com/twpayne/go-vfs v1.7.2
 	github.com/willdonnelly/passwd v0.0.0-20141013001024-7935dab3074c
@@ -44,10 +45,7 @@ require (
 	github.com/go-git/gcfg v1.5.0 // indirect
 	github.com/go-git/go-billy/v5 v5.3.1 // indirect
 	github.com/go-logr/logr v1.2.3 // indirect
-	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0 // indirect
-	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
-	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/huandu/xstrings v1.3.2 // indirect
@@ -56,6 +54,7 @@ require (
 	github.com/ishidawataru/sctp v0.0.0-20210707070123-9a39160e9062 // indirect
 	github.com/itchyny/timefmt-go v0.1.3 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
+	github.com/kendru/darwin/go/depgraph v0.0.0-20221105232959-877d6a81060c // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
@@ -76,8 +75,6 @@ require (
 	golang.org/x/net v0.5.0 // indirect
 	golang.org/x/sys v0.4.0 // indirect
 	golang.org/x/text v0.6.0 // indirect
-	golang.org/x/tools v0.4.0 // indirect
-	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/djherbis/times.v1 v1.3.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
