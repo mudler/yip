@@ -161,14 +161,16 @@ func (e *DefaultExecutor) dirOps(stage, dir string, fs vfs.FS, console plugins.C
 			ops := e.genOpFromSchema(path, stage, *config, fs, console)
 
 			// mark lexicographic order dependency from previous blocks
-			if len(prev) > 0 && len(ops) > 0 && len(ops[0].after) == 0 {
+			if len(prev) > 0 && len(ops) > 0 {
 				for _, p := range prev {
 					if len(p.after) == 0 {
 						all := []string{}
 						for _, pp := range prev {
 							all = append(all, pp.name)
 						}
-						ops[0].deps = append(ops[0].deps, all...)
+						for _, o := range ops {
+							o.deps = append(o.deps, all...)
+						}
 					}
 				}
 			}
