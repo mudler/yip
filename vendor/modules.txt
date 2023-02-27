@@ -239,7 +239,7 @@ github.com/pkg/errors
 # github.com/pkg/xattr v0.4.9
 ## explicit; go 1.14
 github.com/pkg/xattr
-# github.com/satori/go.uuid v1.2.1-0.20180404165556-75cca531ea76
+# github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b
 ## explicit
 github.com/satori/go.uuid
 # github.com/sergi/go-diff v1.2.0
