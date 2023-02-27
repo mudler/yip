@@ -90,6 +90,8 @@ loop:
 				case *tryEndError:
 					err = er.err
 					break loop
+				case *breakError:
+					break loop
 				case ValueError:
 					if er, ok := er.(*exitCodeError); ok && er.halt {
 						break loop
@@ -306,10 +308,6 @@ loop:
 					return xs[i].path.(string) < xs[j].path.(string)
 				})
 			case Iter:
-				if !env.paths.empty() && env.expdepth == 0 {
-					err = &invalidPathIterError{v}
-					break loop
-				}
 				if w, ok := v.Next(); ok {
 					env.push(v)
 					env.pushfork(pc)

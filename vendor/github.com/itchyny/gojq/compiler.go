@@ -30,10 +30,11 @@ type Code struct {
 }
 
 // Run runs the code with the variable values (which should be in the
-// same order as the given variables using WithVariables) and returns
+// same order as the given variables using [WithVariables]) and returns
 // a result iterator.
 //
-// It is safe to call this method of a *Code in multiple goroutines.
+// It is safe to call this method in goroutines, to reuse a compiled [*Code].
+// But for arguments, do not give values sharing same data between goroutines.
 func (c *Code) Run(v interface{}, values ...interface{}) Iter {
 	return c.RunWithContext(context.Background(), v, values...)
 }
@@ -278,6 +279,21 @@ func (c *compiler) lookupBuiltin(name string, argcnt int) *funcinfo {
 	return nil
 }
 
+func (c *compiler) appendBuiltin(name string, argcnt int) func() {
+	setjump := c.lazy(func() *code {
+		return &code{op: opjump, v: len(c.codes)}
+	})
+	c.appendCodeInfo(name)
+	c.builtinScope.funcs = append(
+		c.builtinScope.funcs,
+		&funcinfo{name, len(c.codes), argcnt},
+	)
+	return func() {
+		setjump()
+		c.appendCodeInfo("end of " + name)
+	}
+}
+
 func (c *compiler) newScope() *scopeinfo {
 	i := c.scopecnt // do not use len(c.scopes) because it pops
 	c.scopecnt++
@@ -341,10 +357,12 @@ func (c *compiler) compileFuncDef(e *FuncDef, builtin bool) error {
 		}
 		for _, w := range vis {
 			c.append(&code{op: opload, v: v})
+			c.append(&code{op: opexpbegin})
 			c.append(&code{op: opload, v: w.index})
 			c.append(&code{op: opcallpc})
 			c.appendCodeInfo(w.name)
 			c.append(&code{op: opstore, v: c.pushVariable(w.name)})
+			c.append(&code{op: opexpend})
 		}
 		c.append(&code{op: opload, v: v})
 	}
@@ -771,9 +789,7 @@ func (c *compiler) compileForeach(e *Foreach) error {
 func (c *compiler) compileLabel(e *Label) error {
 	c.appendCodeInfo(e)
 	v := c.pushVariable("$%" + e.Ident[1:])
-	defer c.lazy(func() *code {
-		return &code{op: opforklabel, v: v}
-	})()
+	c.append(&code{op: opforklabel, v: v})
 	return c.compileQuery(e.Body)
 }
 
@@ -784,14 +800,14 @@ func (c *compiler) compileBreak(label string) error {
 	}
 	c.append(&code{op: oppop})
 	c.append(&code{op: opload, v: v})
-	c.append(&code{op: opcall, v: [3]interface{}{
-		func(v interface{}, _ []interface{}) interface{} {
-			return &breakError{label, v}
-		},
-		0,
-		"_break",
-	}})
+	c.append(&code{op: opcall, v: [3]interface{}{funcBreak(label), 0, "_break"}})
 	return nil
+}
+
+func funcBreak(label string) func(interface{}, []interface{}) interface{} {
+	return func(v interface{}, _ []interface{}) interface{} {
+		return &breakError{label, v}
+	}
 }
 
 func (c *compiler) compileTerm(e *Term) error {
@@ -926,6 +942,14 @@ func (c *compiler) compileFunc(e *Func) error {
 				break
 			}
 		}
+		if len(fds) == 0 {
+			switch e.Name {
+			case "_assign":
+				c.compileAssign()
+			case "_modify":
+				c.compileModify()
+			}
+		}
 		if f := c.lookupBuiltin(e.Name, len(e.Args)); f != nil {
 			return c.compileCallPc(f, e.Args)
 		}
@@ -947,7 +971,7 @@ func (c *compiler) compileFunc(e *Func) error {
 				[3]interface{}{c.funcBuiltins, 0, e.Name},
 				e.Args,
 				true,
-				false,
+				-1,
 			)
 		case "input":
 			if c.inputIter == nil {
@@ -957,14 +981,14 @@ func (c *compiler) compileFunc(e *Func) error {
 				[3]interface{}{c.funcInput, 0, e.Name},
 				e.Args,
 				true,
-				false,
+				-1,
 			)
 		case "modulemeta":
 			return c.compileCallInternal(
 				[3]interface{}{c.funcModulemeta, 0, e.Name},
 				e.Args,
 				true,
-				false,
+				-1,
 			)
 		default:
 			return c.compileCall(e.Name, e.Args)
@@ -975,7 +999,7 @@ func (c *compiler) compileFunc(e *Func) error {
 			[3]interface{}{fn.callback, len(e.Args), e.Name},
 			e.Args,
 			true,
-			false,
+			-1,
 		); err != nil {
 			return err
 		}
@@ -985,6 +1009,111 @@ func (c *compiler) compileFunc(e *Func) error {
 		return nil
 	}
 	return &funcNotFoundError{e}
+}
+
+// Appends the compiled code for the assignment operator (`=`) to maximize
+// performance. Originally the operator was implemented as follows.
+//
+//	def _assign(p; $x): reduce path(p) as $q (.; setpath($q; $x));
+//
+// To overcome the difficulty of reducing allocations on `setpath`, we use the
+// `allocator` type and track the allocated addresses during the reduction.
+func (c *compiler) compileAssign() {
+	defer c.appendBuiltin("_assign", 2)()
+	scope := c.newScope()
+	v, p := [2]int{scope.id, 0}, [2]int{scope.id, 1}
+	x, a := [2]int{scope.id, 2}, [2]int{scope.id, 3}
+	q := [2]int{scope.id, 4} // Cannot reuse p due to backtracking in x.
+	c.appends(
+		&code{op: opscope, v: [3]int{scope.id, 5, 2}},
+		&code{op: opstore, v: v}, //                def _assign(p; $x):
+		&code{op: opstore, v: p},
+		&code{op: opstore, v: x},
+		&code{op: opload, v: v},
+		&code{op: opexpbegin},
+		&code{op: opload, v: x},
+		&code{op: opcallpc},
+		&code{op: opstore, v: x},
+		&code{op: opexpend},
+		&code{op: oppush, v: nil},
+		&code{op: opcall, v: [3]interface{}{funcAllocator, 0, "_allocator"}},
+		&code{op: opstore, v: a},
+		&code{op: opload, v: v},
+		&code{op: opfork, v: len(c.codes) + 28}, // reduce [L1]
+		&code{op: oppathbegin},                  // path(p)
+		&code{op: opload, v: p},
+		&code{op: opcallpc},
+		&code{op: opload, v: v},
+		&code{op: oppathend},
+		&code{op: opstore, v: q}, //                as $q (.;
+		&code{op: opload, v: a},  //                setpath($q; $x)
+		&code{op: opload, v: x},
+		&code{op: opload, v: q},
+		&code{op: opload, v: v},
+		&code{op: opcall, v: [3]interface{}{funcSetpathWithAllocator, 3, "_setpath"}},
+		&code{op: opstore, v: v},
+		&code{op: opbacktrack}, //                  );
+		&code{op: oppop},       //                  [L1]
+		&code{op: opload, v: v},
+		&code{op: opret},
+	)
+}
+
+// Appends the compiled code for the update-assignment operator (`|=`) to
+// maximize performance. We use the `allocator` type, just like `_assign/2`.
+func (c *compiler) compileModify() {
+	defer c.appendBuiltin("_modify", 2)()
+	scope := c.newScope()
+	v, p := [2]int{scope.id, 0}, [2]int{scope.id, 1}
+	f, d := [2]int{scope.id, 2}, [2]int{scope.id, 3}
+	a, l := [2]int{scope.id, 4}, [2]int{scope.id, 5}
+	c.appends(
+		&code{op: opscope, v: [3]int{scope.id, 6, 2}},
+		&code{op: opstore, v: v}, //                def _modify(p; f):
+		&code{op: opstore, v: p},
+		&code{op: opstore, v: f},
+		&code{op: oppush, v: []interface{}{}},
+		&code{op: opstore, v: d},
+		&code{op: oppush, v: nil},
+		&code{op: opcall, v: [3]interface{}{funcAllocator, 0, "_allocator"}},
+		&code{op: opstore, v: a},
+		&code{op: opload, v: v},
+		&code{op: opfork, v: len(c.codes) + 39}, // reduce [L1]
+		&code{op: oppathbegin},                  // path(p)
+		&code{op: opload, v: p},
+		&code{op: opcallpc},
+		&code{op: opload, v: v},
+		&code{op: oppathend},
+		&code{op: opstore, v: p},                // as $p (.;
+		&code{op: opforklabel, v: l},            // label $l |
+		&code{op: opload, v: v},                 //
+		&code{op: opfork, v: len(c.codes) + 36}, // [L2]
+		&code{op: oppop},                        // (getpath($p) |
+		&code{op: opload, v: a},
+		&code{op: opload, v: p},
+		&code{op: opload, v: v},
+		&code{op: opcall, v: [3]interface{}{internalFuncs["getpath"].callback, 1, "getpath"}},
+		&code{op: opload, v: f}, //                 f)
+		&code{op: opcallpc},
+		&code{op: opload, v: p}, //                 setpath($p; ...)
+		&code{op: opload, v: v},
+		&code{op: opcall, v: [3]interface{}{funcSetpathWithAllocator, 3, "_setpath"}},
+		&code{op: opstore, v: v},
+		&code{op: opload, v: v},                 // ., break $l
+		&code{op: opfork, v: len(c.codes) + 34}, // [L4]
+		&code{op: opjump, v: len(c.codes) + 38}, // [L3]
+		&code{op: opload, v: l},                 // [L4]
+		&code{op: opcall, v: [3]interface{}{funcBreak(""), 0, "_break"}},
+		&code{op: opload, v: p},   //               append $p to $d [L2]
+		&code{op: opappend, v: d}, //
+		&code{op: opbacktrack},    //               ) |           [L3]
+		&code{op: oppop},          //               delpaths($d); [L1]
+		&code{op: opload, v: a},
+		&code{op: opload, v: d},
+		&code{op: opload, v: v},
+		&code{op: opcall, v: [3]interface{}{funcDelpathsWithAllocator, 2, "_delpaths"}},
+		&code{op: opret},
+	)
 }
 
 func (c *compiler) funcBuiltins(interface{}, []interface{}) interface{} {
@@ -1344,11 +1473,20 @@ func (c *compiler) compileTermSuffix(e *Term, s *Suffix) error {
 
 func (c *compiler) compileCall(name string, args []*Query) error {
 	fn := internalFuncs[name]
+	var indexing int
+	switch name {
+	case "_index", "_slice":
+		indexing = 1
+	case "getpath":
+		indexing = 0
+	default:
+		indexing = -1
+	}
 	if err := c.compileCallInternal(
 		[3]interface{}{fn.callback, len(args), name},
 		args,
 		true,
-		name == "_index" || name == "_slice",
+		indexing,
 	); err != nil {
 		return err
 	}
@@ -1359,18 +1497,19 @@ func (c *compiler) compileCall(name string, args []*Query) error {
 }
 
 func (c *compiler) compileCallPc(fn *funcinfo, args []*Query) error {
-	return c.compileCallInternal(fn.pc, args, false, false)
+	return c.compileCallInternal(fn.pc, args, false, -1)
 }
 
 func (c *compiler) compileCallInternal(
-	fn interface{}, args []*Query, internal, indexing bool) error {
+	fn interface{}, args []*Query, internal bool, indexing int,
+) error {
 	if len(args) == 0 {
 		c.append(&code{op: opcall, v: fn})
 		return nil
 	}
 	v := c.newVariable()
 	c.append(&code{op: opstore, v: v})
-	if indexing {
+	if indexing >= 0 {
 		c.append(&code{op: opexpbegin})
 	}
 	for i := len(args) - 1; i >= 0; i-- {
@@ -1409,7 +1548,7 @@ func (c *compiler) compileCallInternal(
 		} else {
 			c.append(&code{op: oppushpc, v: pc})
 		}
-		if indexing && i == 1 {
+		if i == indexing {
 			if c.codes[len(c.codes)-2].op == opexpbegin {
 				c.codes[len(c.codes)-2] = c.codes[len(c.codes)-1]
 				c.codes = c.codes[:len(c.codes)-1]
@@ -1418,7 +1557,7 @@ func (c *compiler) compileCallInternal(
 			}
 		}
 	}
-	if indexing {
+	if indexing > 0 {
 		c.append(&code{op: oppush, v: nil})
 	} else {
 		c.append(&code{op: opload, v: v})
@@ -1429,6 +1568,10 @@ func (c *compiler) compileCallInternal(
 
 func (c *compiler) append(code *code) {
 	c.codes = append(c.codes, code)
+}
+
+func (c *compiler) appends(codes ...*code) {
+	c.codes = append(c.codes, codes...)
 }
 
 func (c *compiler) lazy(f func() *code) func() {

@@ -4,9 +4,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"math/big"
 	"net/url"
+	"reflect"
 	"regexp"
 	"sort"
 	"strconv"
@@ -69,6 +71,8 @@ func init() {
 		"explode":        argFunc0(funcExplode),
 		"implode":        argFunc0(funcImplode),
 		"split":          {argcount1 | argcount2, false, funcSplit},
+		"ascii_downcase": argFunc0(funcASCIIDowncase),
+		"ascii_upcase":   argFunc0(funcASCIIUpcase),
 		"tojson":         argFunc0(funcToJSON),
 		"fromjson":       argFunc0(funcFromJSON),
 		"format":         argFunc1(funcFormat),
@@ -746,6 +750,32 @@ func funcSplit(v interface{}, args []interface{}) interface{} {
 	return xs
 }
 
+func funcASCIIDowncase(v interface{}) interface{} {
+	s, ok := v.(string)
+	if !ok {
+		return &funcTypeError{"ascii_downcase", v}
+	}
+	return strings.Map(func(r rune) rune {
+		if 'A' <= r && r <= 'Z' {
+			return r + ('a' - 'A')
+		}
+		return r
+	}, s)
+}
+
+func funcASCIIUpcase(v interface{}) interface{} {
+	s, ok := v.(string)
+	if !ok {
+		return &funcTypeError{"ascii_upcase", v}
+	}
+	return strings.Map(func(r rune) rune {
+		if 'a' <= r && r <= 'z' {
+			return r - ('a' - 'A')
+		}
+		return r
+	}, s)
+}
+
 func funcToJSON(v interface{}) interface{} {
 	return jsonMarshal(v)
 }
@@ -760,6 +790,9 @@ func funcFromJSON(v interface{}) interface{} {
 	dec.UseNumber()
 	if err := dec.Decode(&w); err != nil {
 		return err
+	}
+	if _, err := dec.Token(); err != io.EOF {
+		return &funcTypeError{"fromjson", v}
 	}
 	return normalizeNumbers(w)
 }
@@ -803,9 +836,14 @@ func funcToURI(v interface{}) interface{} {
 	}
 }
 
+var csvEscaper = strings.NewReplacer(
+	`"`, `""`,
+	"\x00", `\0`,
+)
+
 func funcToCSV(v interface{}) interface{} {
 	return formatJoin("csv", v, ",", func(s string) string {
-		return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
+		return `"` + csvEscaper.Replace(s) + `"`
 	})
 }
 
@@ -814,18 +852,24 @@ var tsvEscaper = strings.NewReplacer(
 	"\r", `\r`,
 	"\n", `\n`,
 	"\\", `\\`,
+	"\x00", `\0`,
 )
 
 func funcToTSV(v interface{}) interface{} {
 	return formatJoin("tsv", v, "\t", tsvEscaper.Replace)
 }
 
+var shEscaper = strings.NewReplacer(
+	"'", `'\''`,
+	"\x00", `\0`,
+)
+
 func funcToSh(v interface{}) interface{} {
 	if _, ok := v.([]interface{}); !ok {
 		v = []interface{}{v}
 	}
 	return formatJoin("sh", v, " ", func(s string) string {
-		return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+		return "'" + shEscaper.Replace(s) + "'"
 	})
 }
 
@@ -1367,17 +1411,64 @@ func funcIsnan(v interface{}) interface{} {
 }
 
 func funcIsnormal(v interface{}) interface{} {
-	x, ok := toFloat(v)
-	return ok && !math.IsNaN(x) && !math.IsInf(x, 0) && x != 0.0
+	if v, ok := toFloat(v); ok {
+		e := math.Float64bits(v) & 0x7ff0000000000000 >> 52
+		return 0 < e && e < 0x7ff
+	}
+	return false
+}
+
+// An `allocator` creates new maps and slices, stores the allocated addresses.
+// This allocator is used to reduce allocations on assignment operator (`=`),
+// update-assignment operator (`|=`), and the `map_values`, `del`, `delpaths`
+// functions.
+type allocator map[uintptr]struct{}
+
+func funcAllocator(interface{}, []interface{}) interface{} {
+	return allocator{}
+}
+
+func (a allocator) allocated(v interface{}) bool {
+	_, ok := a[reflect.ValueOf(v).Pointer()]
+	return ok
+}
+
+func (a allocator) makeObject(l int) map[string]interface{} {
+	v := make(map[string]interface{}, l)
+	if a != nil {
+		a[reflect.ValueOf(v).Pointer()] = struct{}{}
+	}
+	return v
+}
+
+func (a allocator) makeArray(l, c int) []interface{} {
+	if c < l {
+		c = l
+	}
+	v := make([]interface{}, l, c)
+	if a != nil {
+		a[reflect.ValueOf(v).Pointer()] = struct{}{}
+	}
+	return v
 }
 
 func funcSetpath(v, p, n interface{}) interface{} {
+	// There is no need to use an allocator on a single update.
+	return setpath(v, p, n, nil)
+}
+
+// Used in compiler#compileAssign and compiler#compileModify.
+func funcSetpathWithAllocator(v interface{}, args []interface{}) interface{} {
+	return setpath(v, args[0], args[1], args[2].(allocator))
+}
+
+func setpath(v, p, n interface{}, a allocator) interface{} {
 	path, ok := p.([]interface{})
 	if !ok {
 		return &funcTypeError{"setpath", p}
 	}
 	var err error
-	if v, err = update(v, path, n); err != nil {
+	if v, err = update(v, path, n, a); err != nil {
 		if err, ok := err.(*funcTypeError); ok {
 			err.name = "setpath"
 		}
@@ -1387,9 +1478,21 @@ func funcSetpath(v, p, n interface{}) interface{} {
 }
 
 func funcDelpaths(v, p interface{}) interface{} {
+	return delpaths(v, p, allocator{})
+}
+
+// Used in compiler#compileAssign and compiler#compileModify.
+func funcDelpathsWithAllocator(v interface{}, args []interface{}) interface{} {
+	return delpaths(v, args[0], args[1].(allocator))
+}
+
+func delpaths(v, p interface{}, a allocator) interface{} {
 	paths, ok := p.([]interface{})
 	if !ok {
 		return &funcTypeError{"delpaths", p}
+	}
+	if len(paths) == 0 {
+		return v
 	}
 	// Fills the paths with an empty value and then delete them. We cannot delete
 	// in each loop because array indices should not change. For example,
@@ -1401,14 +1504,14 @@ func funcDelpaths(v, p interface{}) interface{} {
 		if !ok {
 			return &funcTypeError{"delpaths", p}
 		}
-		if v, err = update(v, path, empty); err != nil {
+		if v, err = update(v, path, empty, a); err != nil {
 			return err
 		}
 	}
 	return deleteEmpty(v)
 }
 
-func update(v interface{}, path []interface{}, n interface{}) (interface{}, error) {
+func update(v interface{}, path []interface{}, n interface{}, a allocator) (interface{}, error) {
 	if len(path) == 0 {
 		return n, nil
 	}
@@ -1416,9 +1519,9 @@ func update(v interface{}, path []interface{}, n interface{}) (interface{}, erro
 	case string:
 		switch v := v.(type) {
 		case nil:
-			return updateObject(nil, p, path[1:], n)
+			return updateObject(nil, p, path[1:], n, a)
 		case map[string]interface{}:
-			return updateObject(v, p, path[1:], n)
+			return updateObject(v, p, path[1:], n, a)
 		case struct{}:
 			return v, nil
 		default:
@@ -1428,9 +1531,9 @@ func update(v interface{}, path []interface{}, n interface{}) (interface{}, erro
 		i, _ := toInt(p)
 		switch v := v.(type) {
 		case nil:
-			return updateArrayIndex(nil, i, path[1:], n)
+			return updateArrayIndex(nil, i, path[1:], n, a)
 		case []interface{}:
-			return updateArrayIndex(v, i, path[1:], n)
+			return updateArrayIndex(v, i, path[1:], n, a)
 		case struct{}:
 			return v, nil
 		default:
@@ -1439,9 +1542,9 @@ func update(v interface{}, path []interface{}, n interface{}) (interface{}, erro
 	case map[string]interface{}:
 		switch v := v.(type) {
 		case nil:
-			return updateArraySlice(nil, p, path[1:], n)
+			return updateArraySlice(nil, p, path[1:], n, a)
 		case []interface{}:
-			return updateArraySlice(v, p, path[1:], n)
+			return updateArraySlice(v, p, path[1:], n, a)
 		case struct{}:
 			return v, nil
 		default:
@@ -1457,16 +1560,20 @@ func update(v interface{}, path []interface{}, n interface{}) (interface{}, erro
 	}
 }
 
-func updateObject(v map[string]interface{}, k string, path []interface{}, n interface{}) (interface{}, error) {
+func updateObject(v map[string]interface{}, k string, path []interface{}, n interface{}, a allocator) (interface{}, error) {
 	x, ok := v[k]
 	if !ok && n == struct{}{} {
 		return v, nil
 	}
-	u, err := update(x, path, n)
+	u, err := update(x, path, n, a)
 	if err != nil {
 		return nil, err
 	}
-	w := make(map[string]interface{}, len(v)+1)
+	if a.allocated(v) {
+		v[k] = u
+		return v, nil
+	}
+	w := a.makeObject(len(v) + 1)
 	for k, v := range v {
 		w[k] = v
 	}
@@ -1474,7 +1581,7 @@ func updateObject(v map[string]interface{}, k string, path []interface{}, n inte
 	return w, nil
 }
 
-func updateArrayIndex(v []interface{}, i int, path []interface{}, n interface{}) (interface{}, error) {
+func updateArrayIndex(v []interface{}, i int, path []interface{}, n interface{}, a allocator) (interface{}, error) {
 	var x interface{}
 	if j := clampIndex(i, -1, len(v)); j < 0 {
 		if n == struct{}{} {
@@ -1492,21 +1599,31 @@ func updateArrayIndex(v []interface{}, i int, path []interface{}, n interface{})
 			return nil, &arrayIndexTooLargeError{i}
 		}
 	}
-	u, err := update(x, path, n)
+	u, err := update(x, path, n, a)
 	if err != nil {
 		return nil, err
 	}
-	l := len(v)
+	l, c := len(v), cap(v)
+	if a.allocated(v) {
+		if i < c {
+			if i >= l {
+				v = v[:i+1]
+			}
+			v[i] = u
+			return v, nil
+		}
+		c *= 2
+	}
 	if i >= l {
 		l = i + 1
 	}
-	w := make([]interface{}, l)
+	w := a.makeArray(l, c)
 	copy(w, v)
 	w[i] = u
 	return w, nil
 }
 
-func updateArraySlice(v []interface{}, m map[string]interface{}, path []interface{}, n interface{}) (interface{}, error) {
+func updateArraySlice(v []interface{}, m map[string]interface{}, path []interface{}, n interface{}, a allocator) (interface{}, error) {
 	s, ok := m["start"]
 	if !ok {
 		return nil, &expectedStartEndError{m}
@@ -1527,20 +1644,30 @@ func updateArraySlice(v []interface{}, m map[string]interface{}, path []interfac
 	if start == end && n == struct{}{} {
 		return v, nil
 	}
-	u, err := update(v[start:end], path, n)
+	u, err := update(v[start:end], path, n, a)
 	if err != nil {
 		return nil, err
 	}
 	switch u := u.(type) {
 	case []interface{}:
-		w := make([]interface{}, len(v)-(end-start)+len(u))
-		copy(w, v[:start])
+		var w []interface{}
+		if len(u) == end-start && a.allocated(v) {
+			w = v
+		} else {
+			w = a.makeArray(len(v)-(end-start)+len(u), 0)
+			copy(w, v[:start])
+			copy(w[start+len(u):], v[end:])
+		}
 		copy(w[start:], u)
-		copy(w[start+len(u):], v[end:])
 		return w, nil
 	case struct{}:
-		w := make([]interface{}, len(v))
-		copy(w, v)
+		var w []interface{}
+		if a.allocated(v) {
+			w = v
+		} else {
+			w = a.makeArray(len(v), 0)
+			copy(w, v)
+		}
 		for i := start; i < end; i++ {
 			w[i] = u
 		}
@@ -1928,27 +2055,27 @@ func toInt(x interface{}) (int, bool) {
 		return floatToInt(x), true
 	case *big.Int:
 		if x.IsInt64() {
-			if i := x.Int64(); minInt <= i && i <= maxInt {
+			if i := x.Int64(); math.MinInt <= i && i <= math.MaxInt {
 				return int(i), true
 			}
 		}
 		if x.Sign() > 0 {
-			return maxInt, true
+			return math.MaxInt, true
 		}
-		return minInt, true
+		return math.MinInt, true
 	default:
 		return 0, false
 	}
 }
 
 func floatToInt(x float64) int {
-	if minInt <= x && x <= maxInt {
+	if math.MinInt <= x && x <= math.MaxInt {
 		return int(x)
 	}
 	if x > 0 {
-		return maxInt
+		return math.MaxInt
 	}
-	return minInt
+	return math.MinInt
 }
 
 func toFloat(x interface{}) (float64, bool) {
