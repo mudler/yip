@@ -20,7 +20,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b
 	github.com/sirupsen/logrus v1.9.0
-	github.com/spectrocloud-labs/herd v0.3.0
+	github.com/spectrocloud-labs/herd v0.4.2
 	github.com/spf13/cobra v1.5.0
 	github.com/twpayne/go-vfs v1.7.2
 	github.com/willdonnelly/passwd v0.0.0-20141013001024-7935dab3074c
@@ -65,6 +65,7 @@ require (
 	github.com/phayes/permbits v0.0.0-20190612203442-39d7c581d2ee // indirect
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
 	github.com/pkg/xattr v0.4.9 // indirect
+	github.com/samber/lo v1.37.0 // indirect
 	github.com/sergi/go-diff v1.2.0 // indirect
 	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/spf13/cast v1.5.0 // indirect
@@ -74,6 +75,7 @@ require (
 	github.com/vishvananda/netlink v1.1.0 // indirect
 	github.com/vishvananda/netns v0.0.4 // indirect
 	github.com/xanzy/ssh-agent v0.3.1 // indirect
+	golang.org/x/exp v0.0.0-20220303212507-bbda1eaf7a17 // indirect
 	golang.org/x/net v0.7.0 // indirect
 	golang.org/x/sys v0.5.0 // indirect
 	golang.org/x/text v0.7.0 // indirect
