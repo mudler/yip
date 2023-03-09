@@ -11,7 +11,7 @@ require (
 	github.com/go-git/go-git/v5 v5.4.2
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/itchyny/gojq v0.12.11
+	github.com/itchyny/gojq v0.12.12
 	github.com/joho/godotenv v1.4.0
 	github.com/moby/libnetwork v0.8.0-dev.2.0.20200612180813-9e99af28df21
 	github.com/mudler/entities v0.0.0-20220905203055-68348bae0f49
