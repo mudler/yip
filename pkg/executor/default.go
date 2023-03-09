@@ -104,6 +104,8 @@ func (e *DefaultExecutor) genOpFromSchema(file, stage string, config schema.YipC
 			rootname = config.Name
 		}
 
+		// Copy here so it doesn't get overwritten and points to the same state
+		stageLocal := st
 		opName := fmt.Sprintf("%s.%s", rootname, name)
 
 		e.logger.Debugf("Generating op for stage '%s'", opName)
@@ -111,7 +113,7 @@ func (e *DefaultExecutor) genOpFromSchema(file, stage string, config schema.YipC
 			fn: func(ctx context.Context) error {
 				e.logger.Debugf("Reading '%s'", file)
 				e.logger.Debugf("Executing stage '%s'", opName)
-				return e.applyStage(st, fs, console)
+				return e.applyStage(stageLocal, fs, console)
 			},
 			name:    opName,
 			options: []herd.OpOption{herd.WeakDeps},
