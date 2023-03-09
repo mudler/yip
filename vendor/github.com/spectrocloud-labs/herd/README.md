@@ -1,4 +1,8 @@
-# herd
+# :checkered_flag:  herd
+
+[![Go Reference](https://pkg.go.dev/badge/github.com/spectrocloud-labs/herd.svg)](https://pkg.go.dev/github.com/spectrocloud-labs/herd)
+[![Lint](https://github.com/spectrocloud-labs/herd/actions/workflows/lint.yaml/badge.svg)](https://github.com/spectrocloud-labs/herd/actions/workflows/lint.yaml)
+[![Unit tests](https://github.com/spectrocloud-labs/herd/actions/workflows/test.yaml/badge.svg)](https://github.com/spectrocloud-labs/herd/actions/workflows/test.yaml)
 
 Herd is a Embedded Runnable DAG (H.E.R.D.). it aims to be a tiny library that allows to define arbitrary DAG, and associate job operations on them.
 

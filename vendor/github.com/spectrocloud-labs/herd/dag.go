@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/kendru/darwin/go/depgraph"
+	"github.com/samber/lo"
 )
 
 // Graph represents a directed graph.
@@ -21,12 +22,14 @@ type Graph struct {
 // GraphEntry is the external representation of
 // the operation to execute (OpState).
 type GraphEntry struct {
-	WithCallback    bool
-	Background      bool
-	Callback        []func(context.Context) error
-	Error           error
-	Fatal, WeakDeps bool
-	Name            string
+	WithCallback                       bool
+	Background                         bool
+	Callback                           []func(context.Context) error
+	Error                              error
+	Ignored, Fatal, WeakDeps, Executed bool
+	Name                               string
+	Dependencies                       []string
+	WeakDependencies                   []string
 }
 
 // DAG creates a new instance of a runnable Graph.
@@ -57,6 +60,7 @@ func (g *Graph) Add(name string, opts ...OpOption) error {
 			return err
 		}
 	}
+
 	g.ops[name] = state
 
 	if g.init && len(g.Graph.Dependents(name)) == 0 && name != "init" {
@@ -115,13 +119,17 @@ func (g *Graph) Run(ctx context.Context) error {
 
 	LAYER:
 		for _, r := range layer {
-			if !r.WithCallback {
+			if !r.WithCallback || r.Ignored {
 				continue
 			}
 			fns := r.Callback
 
 			if !r.WeakDeps {
 				for k := range g.Graph.Dependencies(r.Name) {
+					if len(r.WeakDependencies) != 0 && lo.Contains(r.WeakDependencies, k) {
+						continue
+					}
+
 					g.ops[r.Name].Lock()
 					g.ops[k].Lock()
 
@@ -153,6 +161,8 @@ func (g *Graph) Run(ctx context.Context) error {
 					if err != nil {
 						g.ops[key].err = multierror.Append(g.ops[key].err, err)
 					}
+					g.ops[key].executed = true
+
 					if !g.ops[key].background {
 						wg.Done()
 					} else if g.collectOrphans {
