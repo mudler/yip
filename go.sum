@@ -319,6 +319,7 @@ github.com/tredoe/osutil/v2 v2.0.0-rc.16 h1:5A2SKvyB2c3lhPYUIHyFtu6jbaXlaA3Hu5gW
 github.com/tredoe/osutil/v2 v2.0.0-rc.16/go.mod h1:uLRVx/3pb7Y4RQhG8cQFbPE9ha5r81e6MXpBsxbTAYc=
 github.com/twpayne/go-vfs v1.7.2 h1:ZNYMAXcu2Av8c109USrSGYm8dIIIV0xPlG19I2088Kw=
 github.com/twpayne/go-vfs v1.7.2/go.mod h1:1eni2ntkiiAHZG27xfLOO4CYvMR4Kw8V7rYiLeeolsQ=
+github.com/twpayne/go-vfs/v4 v4.2.0/go.mod h1:zEoSYKpoOQmqu2Rrjclu2TlDEK+I5ydlh58sGdPKNYI=
 github.com/ugorji/go v1.1.4/go.mod h1:uQMGLiO92mf5W77hV/PUCpI3pbzQx3CRekS0kk+RGrc=
 github.com/ulikunitz/xz v0.5.10/go.mod h1:nbz6k7qbPmH4IRqmfOplQw/tblSgqTqBwxkY0oWt/14=
 github.com/ulikunitz/xz v0.5.11 h1:kpFauv27b6ynzBNT/Xy+1k+fK4WswhN/6PN5WhFAGw8=
@@ -499,6 +500,7 @@ gopkg.in/yaml.v2 v2.4.0 h1:D8xgwECY7CYvx+Y2n4sBz93Jn9JRvxdiyyo8CTfuKaY=
 gopkg.in/yaml.v2 v2.4.0/go.mod h1:RDklbk79AGWmwhnvt/jBztapEOGDOx6ZbXqjP6csGnQ=
 gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
 gopkg.in/yaml.v3 v3.0.0-20200605160147-a5ece683394c/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
+gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
 gopkg.in/yaml.v3 v3.0.0/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
 gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
 gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
