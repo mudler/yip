@@ -15,6 +15,7 @@
 package executor_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -34,7 +35,9 @@ import (
 
 var _ = Describe("Executor", func() {
 	Context("Loading entities via yaml", func() {
-		def := NewExecutor(WithLogger(logrus.New()))
+		l := logrus.New()
+		l.SetLevel(logrus.DebugLevel)
+		def := NewExecutor(WithLogger(l))
 		testConsole := consoletests.TestConsole{}
 
 		It("Interpolates sys info", func() {
@@ -527,7 +530,7 @@ stages:
 			Expect(string(b)).Should(Equal("rootfs.before\nrootfs\n2\ninitramfs\n"))
 		})
 
-		FIt("has multiple instructions in different files", func() {
+		It("has multiple instructions in different files", func() {
 			testConsole := console.NewStandardConsole()
 
 			fs2, cleanup2, err := vfst.NewTestFS(map[string]interface{}{})
@@ -541,7 +544,7 @@ stages:
 name: "Rootfs Layout Settings"
 stages:
     rootfs.before:
-    - name: "before rootds"
+    - name: "before roots"
       commands:
       - echo "rootfs.before" >> ` + temp + `/tmp/test/bar
     rootfs:
@@ -557,21 +560,21 @@ stages:
       - echo "initramfs" >> ` + temp + `/tmp/test/bar
 `,
 				"/some/yip/02_second.yaml": `
-name: "Rootfs Layout Settings"
+name: "second Rootfs Layout Settings"
 stages:
     rootfs.before:
-    - name: "before roots"
+    - name: "second before roots"
       commands:
       - echo "second.rootfs.before" >> ` + temp + `/tmp/test/bar
     rootfs:
-    - name: "rootfs"
+    - name: "second rootfs"
       commands:
       - echo "second.rootfs" >> ` + temp + `/tmp/test/bar
-    - name: "rootfs 2"
+    - name: "second rootfs 2"
       commands:
       - echo "second.2" >> ` + temp + `/tmp/test/bar
     initramfs:
-    - name: "initramfs"
+    - name: "second initramfs"
       commands:
       - echo "second.initramfs" >> ` + temp + `/tmp/test/bar
 `,
@@ -586,6 +589,25 @@ stages:
 
 			err = fs2.WriteFile("/tmp/test/bar", []byte(``), os.ModePerm)
 			Expect(err).Should(BeNil())
+
+			g, err := def.Graph("rootfs.before", fs, testConsole, "/some/yip")
+			Expect(err).Should(BeNil())
+
+			Expect(len(g)).To(Equal(3), fmt.Sprintf("%+v", g))
+			Expect(len(g[1])).To(Equal(1))
+			Expect(len(g[2])).To(Equal(1))
+			Expect(g[1][0].Name).To(Equal("Rootfs Layout Settings.before roots"))
+			Expect(g[2][0].Name).To(Equal("second Rootfs Layout Settings.second before roots"))
+
+			g1, err := def.Graph("rootfs", fs, testConsole, "/some/yip")
+			Expect(err).Should(BeNil())
+			Expect(len(g1)).To(Equal(5), fmt.Sprintf("%+v", g1))
+			Expect(len(g1[1])).To(Equal(1))
+			Expect(len(g1[2])).To(Equal(1))
+			Expect(g1[1][0].Name).To(Equal("Rootfs Layout Settings.rootfs"))
+			Expect(g1[2][0].Name).To(Equal("Rootfs Layout Settings.rootfs 2"))
+			Expect(g1[3][0].Name).To(Equal("second Rootfs Layout Settings.second rootfs"))
+			Expect(g1[4][0].Name).To(Equal("second Rootfs Layout Settings.second rootfs 2"))
 
 			err = def.Run("rootfs.before", fs, testConsole, "/some/yip")
 			Expect(err).Should(BeNil())
@@ -602,7 +624,7 @@ stages:
 				log.Fatal(err)
 			}
 
-			Expect(string(b)).Should(Equal("rootfs.before\nsecond.rootfs.before\nrootfs\nsecond.rootfs\n2\nsecond.2\ninitramfs\nsecond.initramfs\n"), string(b))
+			Expect(string(b)).Should(Equal("rootfs.before\nsecond.rootfs.before\nrootfs\n2\nsecond.rootfs\nsecond.2\ninitramfs\nsecond.initramfs\n"), string(b))
 		})
 	})
 })

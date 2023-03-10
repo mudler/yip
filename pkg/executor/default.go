@@ -166,12 +166,8 @@ func (e *DefaultExecutor) dirOps(stage, dir string, fs vfs.FS, console plugins.C
 			if len(prev) > 0 && len(ops) > 0 {
 				for _, p := range prev {
 					if len(p.after) == 0 {
-						all := []string{}
-						for _, pp := range prev {
-							all = append(all, pp.name)
-						}
 						for _, o := range ops {
-							o.deps = append(o.deps, all...)
+							o.deps = append(o.deps, p.name)
 						}
 					}
 				}
@@ -197,6 +193,14 @@ func writeDAG(dag [][]herd.GraphEntry) {
 		}
 	}
 	return
+}
+
+func (e *DefaultExecutor) Graph(stage string, fs vfs.FS, console plugins.Console, source string) ([][]herd.GraphEntry, error) {
+	g, err := e.prepareDAG(stage, source, fs, console)
+	if err != nil {
+		return nil, err
+	}
+	return g.Analyze(), err
 }
 
 func (e *DefaultExecutor) Analyze(stage string, fs vfs.FS, console plugins.Console, args ...string) {
