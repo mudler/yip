@@ -63,14 +63,14 @@ func (e *DefaultExecutor) applyStage(stage schema.Stage, fs vfs.FS, console plug
 	var errs error
 	for _, p := range e.conditionals {
 		if err := p(e.logger, stage, fs, console); err != nil {
-			e.logger.Warnf("(conditional) Skip '%s' stage name: %s\n",
+			e.logger.Warnf("(conditional) Skip '%s' stage name: %s",
 				err.Error(), stage.Name)
 			return nil
 		}
 	}
 
 	e.logger.Infof(
-		"Processing stage step '%s'. ( commands: %d, files: %d, ... )\n",
+		"Processing stage step '%s'. ( commands: %d, files: %d, ... )",
 		stage.Name,
 		len(stage.Commands),
 		len(stage.Files))
@@ -166,12 +166,8 @@ func (e *DefaultExecutor) dirOps(stage, dir string, fs vfs.FS, console plugins.C
 			if len(prev) > 0 && len(ops) > 0 {
 				for _, p := range prev {
 					if len(p.after) == 0 {
-						all := []string{}
-						for _, pp := range prev {
-							all = append(all, pp.name)
-						}
 						for _, o := range ops {
-							o.deps = append(o.deps, all...)
+							o.deps = append(o.deps, p.name)
 						}
 					}
 				}
@@ -197,6 +193,14 @@ func writeDAG(dag [][]herd.GraphEntry) {
 		}
 	}
 	return
+}
+
+func (e *DefaultExecutor) Graph(stage string, fs vfs.FS, console plugins.Console, source string) ([][]herd.GraphEntry, error) {
+	g, err := e.prepareDAG(stage, source, fs, console)
+	if err != nil {
+		return nil, err
+	}
+	return g.Analyze(), err
 }
 
 func (e *DefaultExecutor) Analyze(stage string, fs vfs.FS, console plugins.Console, args ...string) {

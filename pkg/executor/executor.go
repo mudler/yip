@@ -18,6 +18,7 @@ import (
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/plugins"
 	"github.com/sirupsen/logrus"
+	"github.com/spectrocloud-labs/herd"
 	"github.com/twpayne/go-vfs"
 
 	"github.com/mudler/yip/pkg/schema"
@@ -31,6 +32,7 @@ type Executor interface {
 	Conditionals([]Plugin)
 	Modifier(m schema.Modifier)
 	Analyze(string, vfs.FS, plugins.Console, ...string)
+	Graph(string, vfs.FS, plugins.Console, string) ([][]herd.GraphEntry, error)
 }
 
 type Plugin func(logger.Interface, schema.Stage, vfs.FS, plugins.Console) error
