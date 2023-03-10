@@ -467,5 +467,142 @@ stages:
 			_, err = os.Open(temp + "/tmp/test/nope")
 			Expect(err).Should(HaveOccurred())
 		})
+
+		It("has multiple instructions", func() {
+			testConsole := console.NewStandardConsole()
+
+			fs2, cleanup2, err := vfst.NewTestFS(map[string]interface{}{})
+			Expect(err).Should(BeNil())
+			temp := fs2.TempDir()
+
+			defer cleanup2()
+
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{
+				"/some/yip/01_first.yaml": `
+name: "Rootfs Layout Settings"
+stages:
+    rootfs.before:
+    - name: "before rootds"
+      commands:
+      - echo "rootfs.before" >> ` + temp + `/tmp/test/bar
+    rootfs:
+    - name: "rootfs"
+      commands:
+      - echo "rootfs" >> ` + temp + `/tmp/test/bar
+    - name: "rootfs 2"
+      commands:
+      - echo "2" >> ` + temp + `/tmp/test/bar
+    initramfs:
+    - name: "initramfs"
+      commands:
+      - echo "initramfs" >> ` + temp + `/tmp/test/bar
+`,
+			})
+			Expect(err).Should(BeNil())
+			defer cleanup()
+
+			err = fs2.Mkdir("/tmp", os.ModePerm)
+			Expect(err).Should(BeNil())
+			err = fs2.Mkdir("/tmp/test", os.ModePerm)
+			Expect(err).Should(BeNil())
+
+			err = fs2.WriteFile("/tmp/test/bar", []byte(``), os.ModePerm)
+			Expect(err).Should(BeNil())
+
+			err = def.Run("rootfs.before", fs, testConsole, "/some/yip")
+			Expect(err).Should(BeNil())
+			err = def.Run("rootfs", fs, testConsole, "/some/yip")
+			Expect(err).Should(BeNil())
+			err = def.Run("initramfs", fs, testConsole, "/some/yip")
+			Expect(err).Should(BeNil())
+
+			file, err := os.Open(temp + "/tmp/test/bar")
+			Expect(err).ShouldNot(HaveOccurred())
+
+			b, err := ioutil.ReadAll(file)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			Expect(string(b)).Should(Equal("rootfs.before\nrootfs\n2\ninitramfs\n"))
+		})
+
+		FIt("has multiple instructions in different files", func() {
+			testConsole := console.NewStandardConsole()
+
+			fs2, cleanup2, err := vfst.NewTestFS(map[string]interface{}{})
+			Expect(err).Should(BeNil())
+			temp := fs2.TempDir()
+
+			defer cleanup2()
+
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{
+				"/some/yip/01_first.yaml": `
+name: "Rootfs Layout Settings"
+stages:
+    rootfs.before:
+    - name: "before rootds"
+      commands:
+      - echo "rootfs.before" >> ` + temp + `/tmp/test/bar
+    rootfs:
+    - name: "rootfs"
+      commands:
+      - echo "rootfs" >> ` + temp + `/tmp/test/bar
+    - name: "rootfs 2"
+      commands:
+      - echo "2" >> ` + temp + `/tmp/test/bar
+    initramfs:
+    - name: "initramfs"
+      commands:
+      - echo "initramfs" >> ` + temp + `/tmp/test/bar
+`,
+				"/some/yip/02_second.yaml": `
+name: "Rootfs Layout Settings"
+stages:
+    rootfs.before:
+    - name: "before roots"
+      commands:
+      - echo "second.rootfs.before" >> ` + temp + `/tmp/test/bar
+    rootfs:
+    - name: "rootfs"
+      commands:
+      - echo "second.rootfs" >> ` + temp + `/tmp/test/bar
+    - name: "rootfs 2"
+      commands:
+      - echo "second.2" >> ` + temp + `/tmp/test/bar
+    initramfs:
+    - name: "initramfs"
+      commands:
+      - echo "second.initramfs" >> ` + temp + `/tmp/test/bar
+`,
+			})
+			Expect(err).Should(BeNil())
+			defer cleanup()
+
+			err = fs2.Mkdir("/tmp", os.ModePerm)
+			Expect(err).Should(BeNil())
+			err = fs2.Mkdir("/tmp/test", os.ModePerm)
+			Expect(err).Should(BeNil())
+
+			err = fs2.WriteFile("/tmp/test/bar", []byte(``), os.ModePerm)
+			Expect(err).Should(BeNil())
+
+			err = def.Run("rootfs.before", fs, testConsole, "/some/yip")
+			Expect(err).Should(BeNil())
+			err = def.Run("rootfs", fs, testConsole, "/some/yip")
+			Expect(err).Should(BeNil())
+			err = def.Run("initramfs", fs, testConsole, "/some/yip")
+			Expect(err).Should(BeNil())
+
+			file, err := os.Open(temp + "/tmp/test/bar")
+			Expect(err).ShouldNot(HaveOccurred())
+
+			b, err := ioutil.ReadAll(file)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			Expect(string(b)).Should(Equal("rootfs.before\nsecond.rootfs.before\nrootfs\nsecond.rootfs\n2\nsecond.2\ninitramfs\nsecond.initramfs\n"), string(b))
+		})
 	})
 })

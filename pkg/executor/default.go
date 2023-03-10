@@ -63,14 +63,14 @@ func (e *DefaultExecutor) applyStage(stage schema.Stage, fs vfs.FS, console plug
 	var errs error
 	for _, p := range e.conditionals {
 		if err := p(e.logger, stage, fs, console); err != nil {
-			e.logger.Warnf("(conditional) Skip '%s' stage name: %s\n",
+			e.logger.Warnf("(conditional) Skip '%s' stage name: %s",
 				err.Error(), stage.Name)
 			return nil
 		}
 	}
 
 	e.logger.Infof(
-		"Processing stage step '%s'. ( commands: %d, files: %d, ... )\n",
+		"Processing stage step '%s'. ( commands: %d, files: %d, ... )",
 		stage.Name,
 		len(stage.Commands),
 		len(stage.Files))
