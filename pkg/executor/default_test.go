@@ -217,7 +217,7 @@ stages:
 stages:
   test:
   - after: 
-    - name: "test.test"
+    - name: "test.test.step-0"
     commands:
     - sed -i 's/bar/baz/g' ` + temp + `/tmp/test/bar
 `,
@@ -596,18 +596,18 @@ stages:
 			Expect(len(g)).To(Equal(3), fmt.Sprintf("%+v", g))
 			Expect(len(g[1])).To(Equal(1))
 			Expect(len(g[2])).To(Equal(1))
-			Expect(g[1][0].Name).To(Equal("Rootfs Layout Settings.before roots"))
-			Expect(g[2][0].Name).To(Equal("second Rootfs Layout Settings.second before roots"))
+			Expect(g[1][0].Name).To(Equal("Rootfs Layout Settings.rootfs.before.step-0"))
+			Expect(g[2][0].Name).To(Equal("second Rootfs Layout Settings.rootfs.before.step-0"))
 
 			g1, err := def.Graph("rootfs", fs, testConsole, "/some/yip")
 			Expect(err).Should(BeNil())
 			Expect(len(g1)).To(Equal(5), fmt.Sprintf("%+v", g1))
 			Expect(len(g1[1])).To(Equal(1))
 			Expect(len(g1[2])).To(Equal(1))
-			Expect(g1[1][0].Name).To(Equal("Rootfs Layout Settings.rootfs"))
-			Expect(g1[2][0].Name).To(Equal("Rootfs Layout Settings.rootfs 2"))
-			Expect(g1[3][0].Name).To(Equal("second Rootfs Layout Settings.second rootfs"))
-			Expect(g1[4][0].Name).To(Equal("second Rootfs Layout Settings.second rootfs 2"))
+			Expect(g1[1][0].Name).To(Equal("Rootfs Layout Settings.rootfs.step-0"))
+			Expect(g1[2][0].Name).To(Equal("Rootfs Layout Settings.rootfs.step-1"))
+			Expect(g1[3][0].Name).To(Equal("second Rootfs Layout Settings.rootfs.step-0"))
+			Expect(g1[4][0].Name).To(Equal("second Rootfs Layout Settings.rootfs.step-1"))
 
 			err = def.Run("rootfs.before", fs, testConsole, "/some/yip")
 			Expect(err).Should(BeNil())
