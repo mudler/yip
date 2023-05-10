@@ -94,11 +94,6 @@ func (e *DefaultExecutor) genOpFromSchema(file, stage string, config schema.YipC
 
 	prev := ""
 	for i, st := range currentStages {
-		name := st.Name
-		if name == "" {
-			name = fmt.Sprint(i)
-		}
-
 		rootname := file
 		if config.Name != "" {
 			rootname = config.Name
@@ -106,7 +101,7 @@ func (e *DefaultExecutor) genOpFromSchema(file, stage string, config schema.YipC
 
 		// Copy here so it doesn't get overwritten and points to the same state
 		stageLocal := st
-		opName := fmt.Sprintf("%s.%s", rootname, name)
+		opName := fmt.Sprintf("%s.%s.step-%d", rootname, stage, i)
 
 		e.logger.Debugf("Generating op for stage '%s'", opName)
 		o := &op{
