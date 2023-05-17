@@ -15,6 +15,7 @@
 package plugins_test
 
 import (
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -50,6 +51,7 @@ var _ = Describe("Git", func() {
 	Context("creating", func() {
 		testConsole := consoletests.TestConsole{}
 		l := logrus.New()
+		l.SetOutput(io.Discard)
 		It("clones a public repo in a path that doesn't exist", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/testarea": &vfst.Dir{Perm: 0o755}})
 			Expect(err).Should(BeNil())

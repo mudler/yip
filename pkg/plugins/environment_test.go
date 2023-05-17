@@ -15,6 +15,7 @@
 package plugins_test
 
 import (
+	"io"
 	"io/ioutil"
 	"os"
 
@@ -32,6 +33,7 @@ var _ = Describe("Environment", func() {
 	Context("setting", func() {
 		testConsole := consoletests.TestConsole{}
 		l := logrus.New()
+		l.SetOutput(io.Discard)
 		It("configures a /etc/environment setting", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/etc/environment": ""})
 			Expect(err).Should(BeNil())

@@ -15,6 +15,7 @@
 package plugins_test
 
 import (
+	"io"
 	"runtime"
 
 	. "github.com/mudler/yip/pkg/plugins"
@@ -31,6 +32,7 @@ var _ = Describe("Commands", func() {
 	Context("parsing yip file", func() {
 		testConsole := consoletests.TestConsole{}
 		l := logrus.New()
+		l.SetOutput(io.Discard)
 
 		BeforeEach(func() {
 			consoletests.Reset()

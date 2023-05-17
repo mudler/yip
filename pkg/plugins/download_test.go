@@ -15,6 +15,7 @@
 package plugins_test
 
 import (
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -35,6 +36,7 @@ var _ = Describe("Download", func() {
 	Context("download a simple file", func() {
 		testConsole := consoletests.TestConsole{}
 		l := logrus.New()
+		l.SetOutput(io.Discard)
 		It("downloads correctly in the specified location", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/tmp/test/bar": "boo"})
 			Expect(err).Should(BeNil())

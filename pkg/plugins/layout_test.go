@@ -2,6 +2,7 @@ package plugins_test
 
 import (
 	"fmt"
+	"io"
 
 	. "github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
@@ -144,6 +145,7 @@ var _ = Describe("Layout", func() {
 		defer cleanup()
 
 		l := logrus.New()
+		l.SetOutput(io.Discard)
 
 		It("Adds a new partition of 1024MiB in reflabel device", func() {
 			testConsole := console.New()
