@@ -125,5 +125,17 @@ write_files:
 			Expect(yipConfig.Stages["boot"][1].Layout.Expand.Size).To(Equal(uint(0)))
 			Expect(yipConfig.Stages["boot"][1].Layout.Device.Path).To(Equal("/"))
 		})
+		It("Picks the run type", func() {
+			yipConfig := loadstdYip(`#cloud-config
+
+stages:
+  test:
+  - commands:
+      - echo "hi"
+    run_type: ignore
+`)
+			Expect(yipConfig.Stages["test"][0].RunType).To(Equal("ignore"))
+
+		})
 	})
 })

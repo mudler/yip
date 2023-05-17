@@ -133,6 +133,7 @@ type Dependency struct {
 }
 
 type Stage struct {
+	RunType     string      `yaml:"run_type,omitempty"`
 	Commands    []string    `yaml:"commands,omitempty"`
 	Files       []File      `yaml:"files,omitempty"`
 	Downloads   []Download  `yaml:"downloads,omitempty"`
