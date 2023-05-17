@@ -15,6 +15,7 @@
 package plugins_test
 
 import (
+	"io"
 	"io/ioutil"
 
 	. "github.com/mudler/yip/pkg/plugins"
@@ -31,6 +32,7 @@ var _ = Describe("Sysctl", func() {
 	Context("setting", func() {
 		testConsole := consoletests.TestConsole{}
 		l := logrus.New()
+		l.SetOutput(io.Discard)
 
 		It("configures a /sys/proc setting", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/proc/sys/debug/.keep": ""})

@@ -13,24 +13,23 @@ override LDFLAGS += -X "github.com/mudler/yip/cmd.BuildTime=$(shell date -u '+%Y
 override LDFLAGS += -X "github.com/mudler/yip/cmd.BuildCommit=$(shell git rev-parse HEAD)"
 
 .PHONY: all
-all: deps build
+all: build
 
 .PHONY: fmt
 fmt:
 	go fmt ./...
 
 .PHONY: test
-test: deps
-	ginkgo -race -r ./...
+test:
+	go run github.com/onsi/ginkgo/v2/ginkgo -race -r ./...
 
 .PHONY: coverage
 coverage:
-	go test ./... -race -coverprofile=coverage.txt -covermode=atomic
+	go run github.com/onsi/ginkgo/v2/ginkgo -race -coverprofile=coverage.txt -covermode=atomic ./...
 
 .PHONY: help
 help:
-	# make all => deps test lint build
-	# make deps - install all dependencies
+	# make all => test lint build
 	# make test - run project tests
 	# make lint - check project code style
 	# make build - build project for all supported OSes
@@ -39,23 +38,9 @@ help:
 clean:
 	rm -rf release/
 
-.PHONY: deps
-deps:
-	go env
-	# Installing dependencies...
-	GO111MODULE=off go get golang.org/x/lint/golint
-	GO111MODULE=off go get github.com/mitchellh/gox
-	go get github.com/onsi/gomega/...
-	go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
-	go mod vendor
-
 .PHONY: build
 build:
 	CGO_ENABLED=0 go build -ldflags '$(LDFLAGS)'
-
-.PHONY: gox-build
-gox-build:
-	CGO_ENABLED=0 gox $(BUILD_PLATFORMS) -ldflags '$(LDFLAGS)' -output="release/$(NAME)-$(VERSION)-{{.OS}}-{{.Arch}}"
 
 .PHONY: build-small
 build-small:
@@ -64,11 +49,5 @@ build-small:
 
 .PHONY: lint
 lint:
-	golint ./... | grep -v "be unexported"
-
-.PHONY: vendor
-vendor:
-	go mod vendor
-
-.PHONY: multiarch-build
-multiarch-build: gox-build
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.52.2
+	golangci-lint run

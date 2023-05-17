@@ -15,6 +15,7 @@
 package plugins_test
 
 import (
+	"io"
 	"io/ioutil"
 
 	. "github.com/mudler/yip/pkg/plugins"
@@ -31,6 +32,7 @@ var _ = Describe("Timesyncd", func() {
 	Context("setting", func() {
 		testConsole := consoletests.TestConsole{}
 		l := logrus.New()
+		l.SetOutput(io.Discard)
 
 		It("configures timesyncd", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/etc/systemd/foo.conf": ""})

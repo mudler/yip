@@ -15,6 +15,7 @@
 package plugins_test
 
 import (
+	"io"
 	"os"
 
 	. "github.com/mudler/yip/pkg/plugins"
@@ -31,6 +32,7 @@ var _ = Describe("Files", func() {
 	Context("creating", func() {
 		testConsole := consoletests.TestConsole{}
 		l := logrus.New()
+		l.SetOutput(io.Discard)
 		It("Creates a /tmp/dir directory", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/tmp": &vfst.Dir{Perm: 0o755}})
 			Expect(err).Should(BeNil())

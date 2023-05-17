@@ -16,6 +16,7 @@ package executor_test
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -36,7 +37,7 @@ import (
 var _ = Describe("Executor", func() {
 	Context("Loading entities via yaml", func() {
 		l := logrus.New()
-		l.SetLevel(logrus.DebugLevel)
+		l.SetOutput(io.Discard)
 		def := NewExecutor(WithLogger(l))
 		testConsole := consoletests.TestConsole{}
 
