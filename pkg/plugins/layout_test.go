@@ -3,6 +3,7 @@ package plugins_test
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	. "github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
@@ -15,6 +16,54 @@ import (
 
 var deviceLabel = "reflabel"
 var label = "MYLABEL"
+
+var pTableEmpty console.CmdMock = console.CmdMock{
+	Cmd: "sgdisk -p /some/device",
+	Output: `Creating new GPT entries in memory.
+Disk /dev/vda: 125829120 sectors, 60.0 GiB
+Sector size (logical/physical): 512/512 bytes
+Disk identifier (GUID): 3C5D1BFB-99A7-4FCD-9599-3FBF7736CA6F
+Partition table holds up to 128 entries
+Main partition table begins at sector 2 and ends at sector 33
+First usable sector is 34, last usable sector is 125829086
+Partitions will be aligned on 2048-sector boundaries
+Total free space is 125829053 sectors (60.0 GiB)
+
+Number  Start (sector)    End (sector)  Size       Code  Name
+`,
+}
+
+var pTablePostCreation console.CmdMock = console.CmdMock{
+	Cmd: "sgdisk -p /some/device",
+	Output: `Disk /dev/vda: 125829120 sectors, 60.0 GiB
+Sector size (logical/physical): 512/512 bytes
+Disk identifier (GUID): CBDE0A39-8EF4-45E1-A296-18E8FCB79C80
+Partition table holds up to 128 entries
+Main partition table begins at sector 2 and ends at sector 33
+First usable sector is 34, last usable sector is 125829086
+Partitions will be aligned on 2048-sector boundaries
+Total free space is 123731901 sectors (59.0 GiB)
+
+Number  Start (sector)    End (sector)  Size       Code  Name
+   1            2048         2099199   1024.0 MiB  8300 
+`,
+}
+
+var pTablePostExpansion console.CmdMock = console.CmdMock{
+	Cmd: "sgdisk -p /some/device",
+	Output: `Disk /dev/vda: 125829120 sectors, 60.0 GiB
+Sector size (logical/physical): 512/512 bytes
+Disk identifier (GUID): CBDE0A39-8EF4-45E1-A296-18E8FCB79C80
+Partition table holds up to 128 entries
+Main partition table begins at sector 2 and ends at sector 33
+First usable sector is 34, last usable sector is 125829086
+Partitions will be aligned on 2048-sector boundaries
+Total free space is 123731901 sectors (59.0 GiB)
+
+Number  Start (sector)    End (sector)  Size       Code  Name
+   1            2048         2099199   1024.0 MiB  8300 
+`,
+}
 
 var pTable console.CmdMock = console.CmdMock{
 	Cmd: "sgdisk -p /some/device",
@@ -45,7 +94,7 @@ var sync console.CmdMock = console.CmdMock{
 	Cmd: "sync",
 }
 
-var CmdsAddPartByDevPath []console.CmdMock = append([]console.CmdMock{
+var CmdsAddPartByDevPath []console.CmdMock = []console.CmdMock{
 	{Cmd: "lsblk -npo type /some/device", Output: "loop"},
 	{Cmd: "sgdisk --verify /some/device", Output: "the end of the disk"},
 	{Cmd: "sgdisk -P -e /some/device"},
@@ -64,7 +113,7 @@ var CmdsAddPartByDevPath []console.CmdMock = append([]console.CmdMock{
 	sync,
 	{Cmd: "udevadm settle"},
 	{Cmd: "blkid -l --match-token LABEL=MYLABEL -o device"},
-})
+}
 
 var CmdsAddAlreadyExistingPart []console.CmdMock = []console.CmdMock{
 	{Cmd: "udevadm settle"},
@@ -89,6 +138,35 @@ var CmdsExpandPart []console.CmdMock = []console.CmdMock{
 	{Cmd: "blkid /some/device4 -s TYPE -o value", Output: "ext4"},
 	{Cmd: "e2fsck -fy /some/device4"},
 	{Cmd: "resize2fs /some/device4"}, pTable,
+	{Cmd: "udevadm settle"},
+	{Cmd: "partprobe /some/device"},
+	sync,
+}
+
+var CmdsAddAndExpandPart []console.CmdMock = []console.CmdMock{
+	{Cmd: "lsblk -npo type /some/device", Output: "disk"},
+	{Cmd: "sgdisk --verify /some/device", Output: "the end of the disk"},
+	{Cmd: "sgdisk -P -e /some/device"},
+	{Cmd: "sgdisk -e /some/device"},
+	pTableEmpty,
+	{Cmd: "udevadm settle"},
+	{Cmd: "blkid -l --match-token LABEL=MYLABEL -o device"},
+	{Cmd: "sgdisk -P -n=1:2048:+2097152 -t=1:8300 /some/device"},
+	{Cmd: "sgdisk -n=1:2048:+2097152 -t=1:8300 /some/device"},
+	pTablePostCreation,
+	{Cmd: "udevadm settle"},
+	{Cmd: "partprobe /some/device"},
+	sync,
+	{Cmd: "udevadm settle"},
+	{Cmd: "lsblk -ltnpo name,type /some/device", Output: `/some/device disk
+/some/device1 part`},
+	{Cmd: "mkfs.ext2 -L MYLABEL /some/device1"},
+	{Cmd: "sgdisk -P -d=1 -n=1:2048:+6291456 -t=1:8300 /some/device"},
+	{Cmd: "sgdisk -d=1 -n=1:2048:+6291456 -t=1:8300 /some/device"},
+	{Cmd: "blkid /some/device1 -s TYPE -o value", Output: "ext2"},
+	{Cmd: "e2fsck -fy /some/device1"},
+	{Cmd: "resize2fs /some/device1"},
+	pTablePostExpansion,
 	{Cmd: "udevadm settle"},
 	{Cmd: "partprobe /some/device"},
 	sync,
@@ -211,6 +289,24 @@ var _ = Describe("Layout", func() {
 					Expand: &schema.Expand{Size: 3072},
 				},
 			}, fs, testConsole)
+			Expect(err).Should(BeNil())
+		})
+		It("Expands last partition after creating the partitions", func() {
+			testConsole := console.New()
+			testConsole.AddCmds(CmdsAddAndExpandPart)
+
+			buf := new(strings.Builder)
+			l.SetOutput(buf)
+
+			err := Layout(l, schema.Stage{
+				Layout: schema.Layout{
+					Device: &schema.Device{Path: "/some/device"},
+					Parts:  []schema.Partition{{FSLabel: "MYLABEL", Size: 1024}},
+					Expand: &schema.Expand{Size: 3072},
+				},
+			}, fs, testConsole)
+
+			Expect(buf.String()).ToNot(MatchRegexp("level=warning"))
 			Expect(err).Should(BeNil())
 		})
 		It("Expands last partition with XFS fs", func() {

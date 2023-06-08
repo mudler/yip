@@ -88,16 +88,6 @@ func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) erro
 		return nil
 	}
 
-	if s.Layout.Expand != nil {
-		l.Infof("Extending last partition up to %d MiB", s.Layout.Expand.Size)
-		out, err := dev.ExpandLastPartition(l, s.Layout.Expand.Size, console)
-		if err != nil {
-			l.Error(out)
-			return err
-		}
-		changed = true
-	}
-
 	for _, part := range s.Layout.Parts {
 		if match := MatchPartitionFSLabel(l, part.FSLabel, console); match != "" {
 			l.Warnf("Partition with FSLabel: %s already exists, ignoring", part.FSLabel)
@@ -113,6 +103,16 @@ func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) erro
 
 		l.Infof("Creating %s partition", part.FSLabel)
 		out, err := dev.AddPartition(l, part.FSLabel, part.Size, part.FileSystem, part.PLabel, console)
+		if err != nil {
+			l.Error(out)
+			return err
+		}
+		changed = true
+	}
+
+	if s.Layout.Expand != nil {
+		l.Infof("Extending last partition up to %d MiB", s.Layout.Expand.Size)
+		out, err := dev.ExpandLastPartition(l, s.Layout.Expand.Size, console)
 		if err != nil {
 			l.Error(out)
 			return err
@@ -214,7 +214,7 @@ func (dev *Disk) Reload(console Console) error {
 func (dev *Disk) CheckDiskFreeSpaceMiB(l logger.Interface, minSpace uint, console Console) bool {
 	freeS, err := dev.GetFreeSpace(l, console)
 	if err != nil {
-		l.Warnf("Could not calculate disk free space")
+		l.Warnf("Could not calculate disk free space: %s", err.Error())
 		return false
 	}
 	minSec := MiBToSectors(minSpace, dev.SectorS)
@@ -271,7 +271,7 @@ func (dev Disk) computeFreeSpaceWithoutLast() uint {
 	}
 }
 
-//Size is expressed in MiB here
+// Size is expressed in MiB here
 func (dev *Disk) AddPartition(l logger.Interface, label string, size uint, fileSystem string, pLabel string, console Console) (string, error) {
 	gd := NewGdiskCall(dev.String())
 	pType := "8300"
@@ -409,7 +409,7 @@ func (dev Disk) FindPartitionDevice(l logger.Interface, partNum int, console Con
 	return match, nil
 }
 
-//Size is expressed in MiB here
+// Size is expressed in MiB here
 func (dev *Disk) ExpandLastPartition(l logger.Interface, size uint, console Console) (string, error) {
 	if len(dev.Parts) == 0 {
 		return "", errors.New("There is no partition to expand")
@@ -584,12 +584,24 @@ func (gd GdiskCall) GetLastSector(printOut string) (uint, error) {
 
 // Parses the output of a GdiskCall.Print call
 func (gd GdiskCall) GetSectorSize(printOut string) (uint, error) {
+
+	// Matching: "Logical sector size: 512 bytes"
 	re := regexp.MustCompile("sector size: (\\d+)")
 	match := re.FindStringSubmatch(printOut)
 	if match != nil {
 		size, err := strconv.ParseUint(match[1], 10, 0)
 		return uint(size), err
 	}
+
+	// Matching: "Sector size (logical/physical): 512/512 bytes"
+	// TODO: Why are there 2 different possible outputs from `sgdisk -p` ?
+	re = regexp.MustCompile(`Sector size \(logical\/physical\): (\d+)\/\d+ bytes`)
+	match = re.FindStringSubmatch(printOut)
+	if match != nil {
+		size, err := strconv.ParseUint(match[1], 10, 0)
+		return uint(size), err
+	}
+
 	return 0, errors.New("Could not determine sector size")
 }
 

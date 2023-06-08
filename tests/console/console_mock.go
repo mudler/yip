@@ -14,8 +14,8 @@ import (
 )
 
 type CmdMock struct {
-	Cmd    string
-	Output string
+	Cmd       string
+	Output    string
 	UseRegexp bool
 }
 
