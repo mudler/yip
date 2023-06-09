@@ -583,6 +583,9 @@ func (gd GdiskCall) GetLastSector(printOut string) (uint, error) {
 }
 
 // Parses the output of a GdiskCall.Print call
+// There was a change in the output of sgdisk in version 1.0.2
+// https://www.rodsbooks.com/gdisk/revisions.html
+// We are trying to match both possible outputs
 func (gd GdiskCall) GetSectorSize(printOut string) (uint, error) {
 
 	// Matching: "Logical sector size: 512 bytes"
@@ -594,7 +597,6 @@ func (gd GdiskCall) GetSectorSize(printOut string) (uint, error) {
 	}
 
 	// Matching: "Sector size (logical/physical): 512/512 bytes"
-	// TODO: Why are there 2 different possible outputs from `sgdisk -p` ?
 	re = regexp.MustCompile(`Sector size \(logical\/physical\): (\d+)\/\d+ bytes`)
 	match = re.FindStringSubmatch(printOut)
 	if match != nil {
