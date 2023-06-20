@@ -16,14 +16,32 @@ import (
 	"github.com/twpayne/go-vfs"
 )
 
+func unique(stringSlice []string) []string {
+	keys := make(map[string]bool)
+	list := []string{}
+
+	// If the key(values of the slice) is not equal
+	// to the already present value in new slice (list)
+	// then we append it. else we jump on another element.
+	for _, entry := range stringSlice {
+		if _, value := keys[entry]; !value {
+			keys[entry] = true
+			list = append(list, entry)
+		}
+	}
+	return list
+}
+
 func DataSources(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 	var AvailableProviders = []prv.Provider{}
 
 	if s.DataSources.Providers == nil || len(s.DataSources.Providers) == 0 {
 		return nil
 	}
+	// Avoid duplication
+	uniqueProviders := unique(s.DataSources.Providers)
 
-	for _, dSProviders := range s.DataSources.Providers {
+	for _, dSProviders := range uniqueProviders {
 		switch {
 		case dSProviders == "aws":
 			AvailableProviders = append(AvailableProviders, prv.NewAWS())
