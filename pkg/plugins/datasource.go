@@ -7,23 +7,42 @@ import (
 	"os/user"
 	"path"
 	"strings"
-
-	"github.com/pkg/errors"
+	"sync"
 
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
+	"github.com/pkg/errors"
 	prv "github.com/rancher-sandbox/linuxkit/providers"
 	"github.com/twpayne/go-vfs"
 )
 
+func unique(stringSlice []string) []string {
+	keys := make(map[string]bool)
+	var list []string
+
+	// If the key(values of the slice) is not equal
+	// to the already present value in new slice (list)
+	// then we append it. else we jump on another element.
+	for _, entry := range stringSlice {
+		if _, value := keys[entry]; !value {
+			keys[entry] = true
+			list = append(list, entry)
+		}
+	}
+	return list
+}
+
 func DataSources(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 	var AvailableProviders = []prv.Provider{}
+	var CdromProviders = []prv.Provider{}
 
 	if s.DataSources.Providers == nil || len(s.DataSources.Providers) == 0 {
 		return nil
 	}
+	// Avoid duplication
+	uniqueProviders := unique(s.DataSources.Providers)
 
-	for _, dSProviders := range s.DataSources.Providers {
+	for _, dSProviders := range uniqueProviders {
 		switch {
 		case dSProviders == "aws":
 			AvailableProviders = append(AvailableProviders, prv.NewAWS())
@@ -48,7 +67,7 @@ func DataSources(l logger.Interface, s schema.Stage, fs vfs.FS, console Console)
 		case dSProviders == "vmware":
 			AvailableProviders = append(AvailableProviders, prv.NewVMware())
 		case dSProviders == "cdrom":
-			AvailableProviders = append(AvailableProviders, prv.ListCDROMs()...)
+			CdromProviders = append(CdromProviders, prv.ListCDROMs()...)
 		case dSProviders == "file" && s.DataSources.Path != "":
 			AvailableProviders = append(AvailableProviders, prv.FileProvider(s.DataSources.Path))
 		}
@@ -70,25 +89,65 @@ func DataSources(l logger.Interface, s schema.Stage, fs vfs.FS, console Console)
 	var p prv.Provider
 	var userdata []byte
 	var err error
-	found := false
-	for _, p = range AvailableProviders {
+
+	if len(AvailableProviders) > 0 {
+		l.Debugf("Full provider list: %s", AvailableProviders)
+	}
+
+	// Run first cdrom providers
+	for _, p = range CdromProviders {
+		l.Debugf("Starting provider %s", p.String())
 		if p.Probe() {
 			userdata, err = p.Extract()
 			if err != nil {
 				l.Warnf("Failed extracting data from %s provider: %s", p.String(), err.Error())
 			}
-			found = true
+			l.Debugf("Found userdata from %s", p.String())
 			break
+		}
+		l.Debugf("Didnt found userdata from %s", p.String())
+	}
+
+	// If we haven't found the userdata on cdroms, continue with the other datasources
+	if userdata == nil {
+		userdataDone := make(chan []byte, len(uniqueProviders))
+		var wg sync.WaitGroup
+		for _, p = range AvailableProviders {
+			l.Debugf("Starting provider %s", p.String())
+			prov := p
+			wg.Add(1)
+			go func(l logger.Interface, p prv.Provider) {
+				defer wg.Done()
+				if p.Probe() {
+					userdata, err := p.Extract()
+					if err != nil {
+						l.Warnf("Failed extracting data from %s provider: %s", p.String(), err.Error())
+						return
+					}
+					userdataDone <- userdata
+					l.Debugf("Found userdata from %s", p.String())
+					return
+				}
+				l.Debugf("Didnt found userdata from %s", p.String())
+				return
+			}(l, prov)
+		}
+
+		// wait until all have finished
+		wg.Wait()
+
+		// Try to get the userdata from the channel
+		select {
+		case v, ok := <-userdataDone:
+			if ok { // check if it was ok, otherwise the channel can be closed and dragons happen
+				userdata = v
+			}
+		default: // no userdata :(
 		}
 	}
 
-	if !found {
-		return fmt.Errorf("No metadata/userdata found. Bye")
-	}
-
-	err = writeToFile(l, path.Join(prv.ConfigPath, "provider"), p.String(), 0644, fs, console)
-	if err != nil {
-		return err
+	if userdata == nil {
+		return fmt.Errorf("no metadata/userdata found")
 	}
 
 	basePath := prv.ConfigPath
