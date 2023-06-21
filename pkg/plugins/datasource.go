@@ -7,18 +7,18 @@ import (
 	"os/user"
 	"path"
 	"strings"
-
-	"github.com/pkg/errors"
+	"sync"
 
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
+	"github.com/pkg/errors"
 	prv "github.com/rancher-sandbox/linuxkit/providers"
 	"github.com/twpayne/go-vfs"
 )
 
 func unique(stringSlice []string) []string {
 	keys := make(map[string]bool)
-	list := []string{}
+	var list []string
 
 	// If the key(values of the slice) is not equal
 	// to the already present value in new slice (list)
@@ -87,26 +87,48 @@ func DataSources(l logger.Interface, s schema.Stage, fs vfs.FS, console Console)
 
 	var p prv.Provider
 	var userdata []byte
-	var err error
-	found := false
+
+	userdataDone := make(chan []byte, len(uniqueProviders))
+	var wg sync.WaitGroup
+	if len(AvailableProviders) > 0 {
+		l.Debugf("Full provider list: %s", AvailableProviders)
+	}
+
 	for _, p = range AvailableProviders {
-		if p.Probe() {
-			userdata, err = p.Extract()
-			if err != nil {
-				l.Warnf("Failed extracting data from %s provider: %s", p.String(), err.Error())
+		l.Debugf("Starting provider %s", p.String())
+		prov := p
+		wg.Add(1)
+		go func(l logger.Interface, p prv.Provider) {
+			defer wg.Done()
+			if p.Probe() {
+				userdata, err := p.Extract()
+				if err != nil {
+					l.Warnf("Failed extracting data from %s provider: %s", p.String(), err.Error())
+					return
+				}
+				userdataDone <- userdata
+				l.Debugf("Found userdata from %s", p.String())
+				return
 			}
-			found = true
-			break
+			l.Debugf("Didnt found userdata from %s", p.String())
+			return
+		}(l, prov)
+	}
+
+	// wait until all have finished
+	wg.Wait()
+
+	// Try to get the userdata from the channel
+	select {
+	case v, ok := <-userdataDone:
+		if ok { // check if it was ok, otherwise the channel can be closed and dragons happen
+			userdata = v
 		}
+	default: // no userdata :(
 	}
 
-	if !found {
-		return fmt.Errorf("No metadata/userdata found. Bye")
-	}
-
-	err = writeToFile(l, path.Join(prv.ConfigPath, "provider"), p.String(), 0644, fs, console)
-	if err != nil {
-		return err
+	if userdata == nil {
+		return fmt.Errorf("no metadata/userdata found")
 	}
 
 	basePath := prv.ConfigPath

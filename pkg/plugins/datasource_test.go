@@ -23,6 +23,9 @@ import (
 	"github.com/rancher-sandbox/linuxkit/providers"
 	"github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs/vfst"
+	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -32,8 +35,8 @@ var _ = Describe("Datasources", func() {
 		testConsole := consoletests.TestConsole{}
 		l := logrus.New()
 		l.SetLevel(logrus.DebugLevel)
-		//l.SetOutput(io.Discard)
-		It("Runs datasources and fails to ", func() {
+		l.SetOutput(io.Discard)
+		It("Runs datasources and fails to adquire any metadata", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{})
 			Expect(err).Should(BeNil())
 			defer cleanup()
@@ -51,7 +54,7 @@ var _ = Describe("Datasources", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{})
 			Expect(err).Should(BeNil())
 			defer cleanup()
-			prv := []string{"aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws",
+			prv := []string{"vmware", "hetzner", "gcp", "scaleway", "vultr", "digitalocean", "metaldata", "azure", "openstack", "cdrom",
 				"aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws",
 				"aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws",
 				"aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws",
@@ -62,7 +65,7 @@ var _ = Describe("Datasources", func() {
 				"aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws",
 				"aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws",
 				"aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws",
-				"aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws"}
+				"aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws"}
 			start := time.Now()
 			err = DataSources(l, schema.Stage{
 				DataSources: schema.DataSource{
@@ -77,6 +80,31 @@ var _ = Describe("Datasources", func() {
 			Expect(elapsed).To(BeNumerically("<", 10*time.Second))
 			_, err = fs.Stat(providers.ConfigPath)
 			Expect(err).ShouldNot(HaveOccurred())
+		})
+		It("Properly finds a datasource and transforms it into a userdata file", func() {
+			cloudConfigData := "#cloud-config\nhostname: test"
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/oem": ""})
+			Expect(err).ToNot(HaveOccurred())
+			defer cleanup()
+			temp, err := os.MkdirTemp("", "yip-xxx")
+			Expect(err).ToNot(HaveOccurred())
+			err = os.WriteFile(filepath.Join(temp, "datasource"), []byte(cloudConfigData), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+			err = DataSources(l, schema.Stage{
+				DataSources: schema.DataSource{
+					Providers: []string{"file"},
+					// This is the path that the file datasource is using. It doesn't use any vfs passed, so it checks the real os fs
+					Path: filepath.Join(temp, "datasource"),
+				},
+			}, fs, testConsole)
+			Expect(err).ToNot(HaveOccurred())
+			// Final userdata its set on the test fs
+			_, err = fs.Stat(filepath.Join(providers.ConfigPath, "userdata.yaml"))
+			Expect(err).ToNot(HaveOccurred())
+			file, err := fs.ReadFile(filepath.Join(providers.ConfigPath, "userdata.yaml"))
+			Expect(err).ToNot(HaveOccurred())
+			// Data should match in the file
+			Expect(string(file)).To(Equal(cloudConfigData))
 		})
 	})
 })
