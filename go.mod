@@ -17,7 +17,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.9.2
 	github.com/onsi/gomega v1.27.6
 	github.com/pkg/errors v0.9.1
-	github.com/rancher-sandbox/linuxkit v1.0.0
+	github.com/rancher-sandbox/linuxkit v1.0.1-0.20230517173613-432a87ba3e09
 	github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b
 	github.com/sirupsen/logrus v1.9.0
 	github.com/spectrocloud-labs/herd v0.4.2
@@ -64,6 +64,7 @@ require (
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
 	github.com/pkg/xattr v0.4.9 // indirect
 	github.com/samber/lo v1.37.0 // indirect
+	github.com/sanity-io/litter v1.5.5 // indirect
 	github.com/sergi/go-diff v1.2.0 // indirect
 	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/spf13/cast v1.5.0 // indirect
