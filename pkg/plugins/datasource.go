@@ -34,6 +34,7 @@ func unique(stringSlice []string) []string {
 
 func DataSources(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 	var AvailableProviders = []prv.Provider{}
+	var CdromProviders = []prv.Provider{}
 
 	if s.DataSources.Providers == nil || len(s.DataSources.Providers) == 0 {
 		return nil
@@ -66,7 +67,7 @@ func DataSources(l logger.Interface, s schema.Stage, fs vfs.FS, console Console)
 		case dSProviders == "vmware":
 			AvailableProviders = append(AvailableProviders, prv.NewVMware())
 		case dSProviders == "cdrom":
-			AvailableProviders = append(AvailableProviders, prv.ListCDROMs()...)
+			CdromProviders = append(CdromProviders, prv.ListCDROMs()...)
 		case dSProviders == "file" && s.DataSources.Path != "":
 			AvailableProviders = append(AvailableProviders, prv.FileProvider(s.DataSources.Path))
 		}
@@ -87,44 +88,62 @@ func DataSources(l logger.Interface, s schema.Stage, fs vfs.FS, console Console)
 
 	var p prv.Provider
 	var userdata []byte
+	var err error
 
-	userdataDone := make(chan []byte, len(uniqueProviders))
-	var wg sync.WaitGroup
 	if len(AvailableProviders) > 0 {
 		l.Debugf("Full provider list: %s", AvailableProviders)
 	}
 
-	for _, p = range AvailableProviders {
+	// Run first cdrom providers
+	for _, p = range CdromProviders {
 		l.Debugf("Starting provider %s", p.String())
-		prov := p
-		wg.Add(1)
-		go func(l logger.Interface, p prv.Provider) {
-			defer wg.Done()
-			if p.Probe() {
-				userdata, err := p.Extract()
-				if err != nil {
-					l.Warnf("Failed extracting data from %s provider: %s", p.String(), err.Error())
-					return
-				}
-				userdataDone <- userdata
-				l.Debugf("Found userdata from %s", p.String())
-				return
+		if p.Probe() {
+			userdata, err = p.Extract()
+			if err != nil {
+				l.Warnf("Failed extracting data from %s provider: %s", p.String(), err.Error())
 			}
-			l.Debugf("Didnt found userdata from %s", p.String())
-			return
-		}(l, prov)
+			l.Debugf("Found userdata from %s", p.String())
+			break
+		}
+		l.Debugf("Didnt found userdata from %s", p.String())
 	}
 
-	// wait until all have finished
-	wg.Wait()
-
-	// Try to get the userdata from the channel
-	select {
-	case v, ok := <-userdataDone:
-		if ok { // check if it was ok, otherwise the channel can be closed and dragons happen
-			userdata = v
+	// If we haven't found the userdata on cdroms, continue with the other datasources
+	if userdata == nil {
+		userdataDone := make(chan []byte, len(uniqueProviders))
+		var wg sync.WaitGroup
+		for _, p = range AvailableProviders {
+			l.Debugf("Starting provider %s", p.String())
+			prov := p
+			wg.Add(1)
+			go func(l logger.Interface, p prv.Provider) {
+				defer wg.Done()
+				if p.Probe() {
+					userdata, err := p.Extract()
+					if err != nil {
+						l.Warnf("Failed extracting data from %s provider: %s", p.String(), err.Error())
+						return
+					}
+					userdataDone <- userdata
+					l.Debugf("Found userdata from %s", p.String())
+					return
+				}
+				l.Debugf("Didnt found userdata from %s", p.String())
+				return
+			}(l, prov)
 		}
-	default: // no userdata :(
+
+		// wait until all have finished
+		wg.Wait()
+
+		// Try to get the userdata from the channel
+		select {
+		case v, ok := <-userdataDone:
+			if ok { // check if it was ok, otherwise the channel can be closed and dragons happen
+				userdata = v
+			}
+		default: // no userdata :(
+		}
 	}
 
 	if userdata == nil {
