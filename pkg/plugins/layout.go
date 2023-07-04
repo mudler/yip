@@ -54,6 +54,7 @@ const (
 
 func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 	if s.Layout.Device == nil {
+		l.Debug("did not find any device in layout")
 		return nil
 	}
 
@@ -65,15 +66,17 @@ func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) erro
 		}
 	}
 	if len(strings.TrimSpace(s.Layout.Device.Label)) > 0 {
+		l.Debugf("Using label %s for layout expansion", s.Layout.Device.Label)
 		dev, err = FindDiskFromPartitionLabel(l, s.Layout.Device.Label, console)
 		if err != nil {
-			l.Warnf("Exiting, disk not found:\n %s", err.Error())
+			l.Warnf("Exiting, disk with label %s not found: %s", s.Layout.Device.Label, err.Error())
 			return nil
 		}
 	} else if len(strings.TrimSpace(s.Layout.Device.Path)) > 0 {
+		l.Debugf("Using path %s for layout expansion", s.Layout.Device.Path)
 		dev, err = FindDiskFromPath(s.Layout.Device.Path, console)
 		if err != nil {
-			l.Warnf("Exiting, disk not found:\n %s", err.Error())
+			l.Warnf("Exiting, disk with path %s not found: %s", s.Layout.Device.Path, err.Error())
 			return nil
 		}
 	} else {
@@ -133,7 +136,10 @@ func MatchPartitionFSLabel(l logger.Interface, label string, console Console) st
 		out, err := console.Run(fmt.Sprintf("blkid -l --match-token LABEL=%s -o device", label))
 		if err == nil {
 			return out
+		} else {
+			l.Debugf("failed to get device for label %s: %s", label, err.Error())
 		}
+
 	}
 	return ""
 }
@@ -145,6 +151,8 @@ func MatchPartitionPLabel(l logger.Interface, label string, console Console) str
 		out, err := console.Run(fmt.Sprintf("blkid -l --match-token PARTLABEL=%s -o device", label))
 		if err == nil {
 			return out
+		} else {
+			l.Debugf("failed to get device for partition label %s: %s", label, err.Error())
 		}
 	}
 	return ""
@@ -173,7 +181,10 @@ func FindDiskFromPartitionLabel(l logger.Interface, label string, console Consol
 	if partnode := MatchPartitionFSLabel(l, label, console); partnode != "" {
 		device, err := console.Run(fmt.Sprintf("lsblk -npo pkname %s", partnode))
 		if err == nil {
+			l.Debugf("Got device %s for label %s", device, label)
 			return Disk{Device: device}, nil
+		} else {
+			l.Debugf("Error getting partition fs label: %s", err.Error())
 		}
 	} else if partnode := MatchPartitionPLabel(l, label, console); partnode != "" {
 		device, err := console.Run(fmt.Sprintf("lsblk -npo pkname %s", partnode))
