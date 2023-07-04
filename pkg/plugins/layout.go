@@ -114,7 +114,11 @@ func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) erro
 	}
 
 	if s.Layout.Expand != nil {
-		l.Infof("Extending last partition up to %d MiB", s.Layout.Expand.Size)
+		if s.Layout.Expand.Size == 0 {
+			l.Info("Extending last partition to max space")
+		} else {
+			l.Infof("Extending last partition up to %d MiB", s.Layout.Expand.Size)
+		}
 		out, err := dev.ExpandLastPartition(l, s.Layout.Expand.Size, console)
 		if err != nil {
 			l.Error(out)
