@@ -150,11 +150,10 @@ func MatchPartitionFSLabel(l logger.Interface, label string, console Console) st
 
 func MatchPartitionPLabel(l logger.Interface, label string, console Console) string {
 	if label != "" {
-		out, _ := console.Run("udevadm settle")
-		l.Debugf("Output of udevadm settle: %s", out)
+		_, _ = console.Run("udevadm settle")
 		out, err := console.Run(fmt.Sprintf("blkid -l --match-token PARTLABEL=%s -o device", label))
 		if err == nil {
-			return out
+			return strings.TrimSpace(out)
 		} else {
 			l.Debugf("failed to get device for partition label %s: %s", label, err.Error())
 		}
@@ -165,14 +164,15 @@ func MatchPartitionPLabel(l logger.Interface, label string, console Console) str
 func FindDiskFromPath(path string, console Console) (Disk, error) {
 	out, err := console.Run(fmt.Sprintf("lsblk -npo type %s", path))
 	if err != nil {
-		return Disk{}, errors.New(fmt.Sprintf("Error: %s", out))
+		return Disk{}, errors.New(fmt.Sprintf("Output: %s Error: %s", out, err.Error()))
 	}
-	if strings.HasPrefix(out, "disk") {
+	if strings.HasPrefix(strings.TrimSpace(out), "disk") {
 		return Disk{Device: path}, nil
-	} else if strings.HasPrefix(out, "loop") {
+	} else if strings.HasPrefix(strings.TrimSpace(out), "loop") {
 		return Disk{Device: path}, nil
-	} else if strings.HasPrefix(out, "part") {
+	} else if strings.HasPrefix(strings.TrimSpace(out), "part") {
 		device, err := console.Run(fmt.Sprintf("lsblk -npo pkname %s", path))
+		device = strings.TrimSpace(device)
 		if err == nil {
 			return Disk{Device: device}, nil
 		}
@@ -185,6 +185,7 @@ func FindDiskFromPartitionLabel(l logger.Interface, label string, console Consol
 	if partnode := MatchPartitionFSLabel(l, label, console); partnode != "" {
 		device, err := console.Run(fmt.Sprintf("lsblk -npo pkname %s", partnode))
 		if err == nil {
+			device = strings.TrimSpace(device)
 			l.Debugf("Got device %s for label %s", device, label)
 			return Disk{Device: device}, nil
 		} else {
@@ -192,6 +193,7 @@ func FindDiskFromPartitionLabel(l logger.Interface, label string, console Consol
 		}
 	} else if partnode := MatchPartitionPLabel(l, label, console); partnode != "" {
 		device, err := console.Run(fmt.Sprintf("lsblk -npo pkname %s", partnode))
+		device = strings.TrimSpace(device)
 		if err == nil {
 			return Disk{Device: device}, nil
 		}
@@ -359,8 +361,7 @@ func (dev *Disk) AddPartition(l logger.Interface, label string, size uint, fileS
 func (dev Disk) ReloadPartitionTable(l logger.Interface, console Console) error {
 	for tries := 0; tries <= partitionTries; tries++ {
 		l.Debugf("Trying to reread the partition table of %s (try number %d)", dev, tries+1)
-		out, _ := console.Run("udevadm settle")
-		l.Debugf("Output of udevadm settle: %s", out)
+		_, _ = console.Run("udevadm settle")
 
 		out, err1 := console.Run(fmt.Sprintf("partprobe %s", dev))
 		l.Debugf("output of partprobe: %s", out)
@@ -394,7 +395,7 @@ func (dev Disk) FindPartitionDevice(l logger.Interface, partNum int, console Con
 			return "", err
 		}
 		l.Debugf("Trying to find the partition device %d of device %s (try number %d)", partNum, dev, tries+1)
-		out, err := console.Run("udevadm settle")
+		out, _ := console.Run("udevadm settle")
 		l.Debugf("Output of udevadm settle: %s", out)
 		if err != nil && tries == (partitionTries-1) {
 			l.Debugf("Error of udevadm settle: %s", err)
