@@ -34,6 +34,7 @@ type Partition struct {
 }
 
 type GdiskCall struct {
+	disk      *Disk
 	dev       string
 	wipe      bool
 	parts     []*Partition
@@ -217,7 +218,7 @@ func (dev *Disk) IsGPT(console Console) (bool, error) {
 }
 
 func (dev *Disk) Reload(console Console) error {
-	gd := NewGdiskCall(dev.String())
+	gd := NewGdiskCall(dev)
 	prnt, err := gd.Print(console)
 	if err != nil {
 		return err
@@ -253,15 +254,10 @@ func (dev *Disk) HasEnoughDiskSpace(l logger.Interface, minSpace uint, console C
 }
 
 func (dev *Disk) GetFreeSpace(l logger.Interface, console Console) (uint, error) {
-	gd := NewGdiskCall(dev.String())
+	gd := NewGdiskCall(dev)
 	if gd.HasUnallocatedSpace(console) {
-		isGPT, err := dev.IsGPT(console)
-		if err != nil {
-			l.Errorf("Failed to determine partition table type: \n%s", err)
-			return 0, err
-		}
 		gd.ExpandPTable()
-		out, err := gd.WriteChanges(console, !isGPT)
+		out, err := gd.WriteChanges(console)
 		if err != nil {
 			l.Errorf("Failed resizing the partition table: \n%s", out)
 			return 0, err
@@ -306,7 +302,7 @@ func (dev Disk) computeFreeSpaceWithoutLast() uint {
 
 // Size is expressed in MiB here
 func (dev *Disk) AddPartition(l logger.Interface, label string, size uint, fileSystem string, pLabel string, console Console) (string, error) {
-	gd := NewGdiskCall(dev.String())
+	gd := NewGdiskCall(dev)
 	pType := "8300"
 	if fatFS, _ := regexp.MatchString("fat|vfat", fileSystem); fatFS {
 		// We are assuming Fat is only used for EFI partitions
@@ -351,12 +347,7 @@ func (dev *Disk) AddPartition(l logger.Interface, label string, size uint, fileS
 
 	gd.CreatePartition(&part)
 
-	isGPT, err := dev.IsGPT(console)
-	if err != nil {
-		l.Errorf("Failed to determine partition table type: \n%s", err)
-		return "", err
-	}
-	out, err := gd.WriteChanges(console, !isGPT)
+	out, err := gd.WriteChanges(console)
 	if err != nil {
 		return out, err
 	}
@@ -451,7 +442,7 @@ func (dev *Disk) ExpandLastPartition(l logger.Interface, size uint, console Cons
 	if len(dev.Parts) == 0 {
 		return "", errors.New("There is no partition to expand")
 	}
-	gd := NewGdiskCall(dev.String())
+	gd := NewGdiskCall(dev)
 
 	//Check we have loaded partition table data
 	if dev.SectorS == 0 {
@@ -478,12 +469,7 @@ func (dev *Disk) ExpandLastPartition(l logger.Interface, size uint, console Cons
 
 	gd.DeletePartition(part.Number)
 	gd.CreatePartition(&part)
-	isGPT, err := dev.IsGPT(console)
-	if err != nil {
-		l.Errorf("Failed to determine partition table type: \n%s", err)
-		return "", err
-	}
-	out, err := gd.WriteChanges(console, !isGPT)
+	out, err := gd.WriteChanges(console)
 	if err != nil {
 		return "", err
 	}
@@ -550,8 +536,8 @@ func (dev Disk) expandFilesystem(device string, console Console) (string, error)
 	return "", nil
 }
 
-func NewGdiskCall(dev string) *GdiskCall {
-	return &GdiskCall{dev: dev, wipe: false, parts: []*Partition{}, deletions: []int{}, expand: false, pretend: false, forceGPT: false}
+func NewGdiskCall(disk *Disk) *GdiskCall {
+	return &GdiskCall{disk: disk, dev: disk.String(), wipe: false, parts: []*Partition{}, deletions: []int{}, expand: false, pretend: false, forceGPT: false}
 }
 
 func (gd GdiskCall) buildOptions() []string {
@@ -742,9 +728,13 @@ func (gd GdiskCall) GetPartitionData(partNum int, console Console) (*Partition, 
 	return &part, nil
 }
 
-func (gd *GdiskCall) WriteChanges(console Console, forceGPT bool) (string, error) {
+func (gd *GdiskCall) WriteChanges(console Console) (string, error) {
 	gd.SetPretend(true)
-	gd.SetForceGPT(forceGPT)
+	isGPT, err := gd.disk.IsGPT(console)
+	if err != nil {
+		return "Failed to determine partition table type", err
+	}
+	gd.SetForceGPT(!isGPT)
 	opts := gd.buildOptions()
 
 	// Run sgdisk with --pretend flag first to as a sanity check
