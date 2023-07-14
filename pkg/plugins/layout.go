@@ -35,7 +35,6 @@ type Partition struct {
 
 type GdiskCall struct {
 	disk      *Disk
-	dev       string
 	wipe      bool
 	parts     []*Partition
 	deletions []int
@@ -537,7 +536,7 @@ func (dev Disk) expandFilesystem(device string, console Console) (string, error)
 }
 
 func NewGdiskCall(disk *Disk) *GdiskCall {
-	return &GdiskCall{disk: disk, dev: disk.String(), wipe: false, parts: []*Partition{}, deletions: []int{}, expand: false, pretend: false, forceGPT: false}
+	return &GdiskCall{disk: disk, wipe: false, parts: []*Partition{}, deletions: []int{}, expand: false, pretend: false, forceGPT: false}
 }
 
 func (gd GdiskCall) buildOptions() []string {
@@ -579,12 +578,17 @@ func (gd GdiskCall) buildOptions() []string {
 		return nil
 	}
 
-	opts = append(opts, gd.dev)
+	opts = append(opts, gd.Device())
 	return opts
 }
 
+// Device returns the associated path of the disk in a GdiskCall.
+func (gd GdiskCall) Device() string {
+	return gd.disk.String()
+}
+
 func (gd GdiskCall) Verify(console Console) (string, error) {
-	return console.Run(fmt.Sprintf("sgdisk --verify %s", gd.dev))
+	return console.Run(fmt.Sprintf("sgdisk --verify %s", gd.Device()))
 }
 
 func (gd GdiskCall) HasUnallocatedSpace(console Console) bool {
@@ -596,11 +600,11 @@ func (gd GdiskCall) HasUnallocatedSpace(console Console) bool {
 }
 
 func (gd GdiskCall) Print(console Console) (string, error) {
-	return console.Run(fmt.Sprintf("sgdisk -p %s", gd.dev))
+	return console.Run(fmt.Sprintf("sgdisk -p %s", gd.Device()))
 }
 
 func (gd GdiskCall) Info(partNum int, console Console) (string, error) {
-	return console.Run(fmt.Sprintf("sgdisk -i %d %s", partNum, gd.dev))
+	return console.Run(fmt.Sprintf("sgdisk -i %d %s", partNum, gd.Device()))
 }
 
 // Parses the output of a GdiskCall.Print call
