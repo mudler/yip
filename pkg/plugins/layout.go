@@ -208,12 +208,12 @@ func (dev Disk) String() string {
 
 // IsGPT returns true if the disk is GPT partitioned
 func (dev *Disk) IsGPT(console Console) (bool, error) {
-	out, err := console.Run(fmt.Sprintf("fdisk -l %s", dev.Device))
+	out, err := console.Run(fmt.Sprintf("blkid %s -s PTTYPE -o value", dev.Device))
 	if err != nil {
 		return false, err
 	}
 
-	return strings.Contains(out, "Disklabel type: gpt"), nil
+	return strings.Contains(out, "gpt"), nil
 }
 
 func (dev *Disk) Reload(console Console) error {
