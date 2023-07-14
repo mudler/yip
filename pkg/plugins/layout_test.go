@@ -97,10 +97,12 @@ var sync console.CmdMock = console.CmdMock{
 var CmdsAddPartByDevPath []console.CmdMock = []console.CmdMock{
 	{Cmd: "lsblk -npo type /some/device", Output: "loop"},
 	{Cmd: "sgdisk --verify /some/device", Output: "the end of the disk"},
+	fdiskListGPT,
 	{Cmd: "sgdisk -P -e /some/device"},
 	{Cmd: "sgdisk -e /some/device"}, pTable,
 	{Cmd: "udevadm settle"},
 	{Cmd: "blkid -l --match-token LABEL=MYLABEL -o device"},
+	fdiskListGPT,
 	{Cmd: "sgdisk -P -n=5:0:+2097152 -t=5:8300 /some/device"},
 	{Cmd: "sgdisk -n=5:0:+2097152 -t=5:8300 /some/device"}, pTable,
 	{Cmd: "udevadm settle"},
@@ -120,10 +122,31 @@ var CmdsAddAlreadyExistingPart []console.CmdMock = []console.CmdMock{
 	{Cmd: "blkid -l --match-token LABEL=reflabel -o device", Output: "/some/part"},
 	{Cmd: "lsblk -npo pkname /some/part", Output: "/some/device"},
 	{Cmd: "sgdisk --verify /some/device", Output: "the end of the disk"},
+	fdiskListGPT,
 	{Cmd: "sgdisk -P -e /some/device"},
 	{Cmd: "sgdisk -e /some/device"}, pTable,
 	{Cmd: "udevadm settle"},
 	{Cmd: "blkid -l --match-token LABEL=MYLABEL -o device", Output: "/some/part"},
+}
+
+var fdiskListGPT console.CmdMock = console.CmdMock{
+	Cmd: "fdisk -l /some/device",
+	Output: `Disk /dev/mmcblk0: 29.19 GiB, 31347703808 bytes, 61225984 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disklabel type: gpt
+Disk identifier: 0D58887C-F502-472A-8B86-9FD1B501A5A1`,
+}
+
+var fdiskListMBR console.CmdMock = console.CmdMock{
+	Cmd: "fdisk -l /some/device",
+	Output: `Disk /dev/mmcblk0: 29.19 GiB, 31347703808 bytes, 61225984 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disklabel type: dos
+Disk identifier: 0D58887C-F502-472A-8B86-9FD1B501A5A1`,
 }
 
 var CmdsExpandPart []console.CmdMock = []console.CmdMock{
@@ -131,10 +154,31 @@ var CmdsExpandPart []console.CmdMock = []console.CmdMock{
 	{Cmd: "blkid -l --match-token LABEL=reflabel -o device", Output: "/some/part"},
 	{Cmd: "lsblk -npo pkname /some/part", Output: "/some/device"},
 	{Cmd: "sgdisk --verify /some/device", Output: "the end of the disk"},
+	fdiskListGPT,
 	{Cmd: "sgdisk -P -e /some/device"},
 	{Cmd: "sgdisk -e /some/device"}, pTable,
+	fdiskListGPT,
 	{Cmd: "sgdisk -P -d=4 -n=4:178176:+6291456 -c=4:root -t=4:8300 /some/device"},
 	{Cmd: "sgdisk -d=4 -n=4:178176:+6291456 -c=4:root -t=4:8300 /some/device"},
+	{Cmd: "blkid /some/device4 -s TYPE -o value", Output: "ext4"},
+	{Cmd: "e2fsck -fy /some/device4"},
+	{Cmd: "resize2fs /some/device4"}, pTable,
+	{Cmd: "udevadm settle"},
+	{Cmd: "partprobe /some/device"},
+	sync,
+}
+
+var CmdsExpandPartMBR []console.CmdMock = []console.CmdMock{
+	{Cmd: "udevadm settle"},
+	{Cmd: "blkid -l --match-token LABEL=reflabel -o device", Output: "/some/part"},
+	{Cmd: "lsblk -npo pkname /some/part", Output: "/some/device"},
+	{Cmd: "sgdisk --verify /some/device", Output: "the end of the disk"},
+	fdiskListMBR,
+	{Cmd: "sgdisk -P -g -e /some/device"},
+	{Cmd: "sgdisk -g -e /some/device"}, pTable,
+	fdiskListMBR,
+	{Cmd: "sgdisk -P -g -d=4 -n=4:178176:+6291456 -c=4:root -t=4:8300 /some/device"},
+	{Cmd: "sgdisk -g -d=4 -n=4:178176:+6291456 -c=4:root -t=4:8300 /some/device"},
 	{Cmd: "blkid /some/device4 -s TYPE -o value", Output: "ext4"},
 	{Cmd: "e2fsck -fy /some/device4"},
 	{Cmd: "resize2fs /some/device4"}, pTable,
@@ -146,11 +190,13 @@ var CmdsExpandPart []console.CmdMock = []console.CmdMock{
 var CmdsAddAndExpandPart []console.CmdMock = []console.CmdMock{
 	{Cmd: "lsblk -npo type /some/device", Output: "disk"},
 	{Cmd: "sgdisk --verify /some/device", Output: "the end of the disk"},
+	fdiskListGPT,
 	{Cmd: "sgdisk -P -e /some/device"},
 	{Cmd: "sgdisk -e /some/device"},
 	pTableEmpty,
 	{Cmd: "udevadm settle"},
 	{Cmd: "blkid -l --match-token LABEL=MYLABEL -o device"},
+	fdiskListGPT,
 	{Cmd: "sgdisk -P -n=1:2048:+2097152 -t=1:8300 /some/device"},
 	{Cmd: "sgdisk -n=1:2048:+2097152 -t=1:8300 /some/device"},
 	pTablePostCreation,
@@ -161,6 +207,7 @@ var CmdsAddAndExpandPart []console.CmdMock = []console.CmdMock{
 	{Cmd: "lsblk -ltnpo name,type /some/device", Output: `/some/device disk
 /some/device1 part`},
 	{Cmd: "mkfs.ext2 -L MYLABEL /some/device1"},
+	fdiskListGPT,
 	{Cmd: "sgdisk -P -d=1 -n=1:2048:+6291456 -t=1:8300 /some/device"},
 	{Cmd: "sgdisk -d=1 -n=1:2048:+6291456 -t=1:8300 /some/device"},
 	{Cmd: "blkid /some/device1 -s TYPE -o value", Output: "ext2"},
@@ -177,8 +224,10 @@ var CmdsExpandPartXfs []console.CmdMock = []console.CmdMock{
 	{Cmd: "blkid -l --match-token LABEL=reflabel -o device", Output: "/some/part"},
 	{Cmd: "lsblk -npo pkname /some/part", Output: "/some/device"},
 	{Cmd: "sgdisk --verify /some/device", Output: "the end of the disk"},
+	fdiskListGPT,
 	{Cmd: "sgdisk -P -e /some/device"},
 	{Cmd: "sgdisk -e /some/device"}, pTable,
+	fdiskListGPT,
 	{Cmd: "sgdisk -P -d=4 -n=4:178176:+6291456 -c=4:root -t=4:8300 /some/device"},
 	{Cmd: "sgdisk -d=4 -n=4:178176:+6291456 -c=4:root -t=4:8300 /some/device"},
 	{Cmd: "blkid /some/device4 -s TYPE -o value", Output: "xfs"},
@@ -197,10 +246,12 @@ func CmdsAddPartByLabel(fs string) []console.CmdMock {
 		{Cmd: fmt.Sprintf("blkid -l --match-token LABEL=%s -o device", deviceLabel), Output: "/some/part"},
 		{Cmd: "lsblk -npo pkname /some/part", Output: "/some/device"},
 		{Cmd: "sgdisk --verify /some/device", Output: "the end of the disk"},
+		fdiskListGPT,
 		{Cmd: "sgdisk -P -e /some/device"},
 		{Cmd: "sgdisk -e /some/device"}, pTable,
 		{Cmd: "udevadm settle"},
 		{Cmd: fmt.Sprintf("blkid -l --match-token LABEL=%s -o device", label)},
+		fdiskListGPT,
 		{Cmd: "sgdisk -P -n=5:0:+2097152 -t=5:8300 /some/device"},
 		{Cmd: "sgdisk -n=5:0:+2097152 -t=5:8300 /some/device"}, pTable,
 		{Cmd: "udevadm settle"},
@@ -356,6 +407,18 @@ var _ = Describe("Layout", func() {
 				}, fs, testConsole)
 				Expect(err).ToNot(HaveOccurred())
 			}
+		})
+
+		It("Expands last partition with MBR", func() {
+			testConsole := console.New()
+			testConsole.AddCmds(CmdsExpandPartMBR)
+			err := Layout(l, schema.Stage{
+				Layout: schema.Layout{
+					Device: &schema.Device{Label: deviceLabel},
+					Expand: &schema.Expand{Size: 3072},
+				},
+			}, fs, testConsole)
+			Expect(err).Should(BeNil())
 		})
 	})
 })
