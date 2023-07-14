@@ -351,11 +351,11 @@ func (dev *Disk) AddPartition(l logger.Interface, label string, size uint, fileS
 
 	gd.CreatePartition(&part)
 
-	isGPT, _ := dev.IsGPT(console)
-	// if err != nil {
-	// 	l.Errorf("Failed to determine partition table type: \n%s", err)
-	// 	return 0, err
-	// }
+	isGPT, err := dev.IsGPT(console)
+	if err != nil {
+		l.Errorf("Failed to determine partition table type: \n%s", err)
+		return "", err
+	}
 	out, err := gd.WriteChanges(console, !isGPT)
 	if err != nil {
 		return out, err
@@ -478,11 +478,11 @@ func (dev *Disk) ExpandLastPartition(l logger.Interface, size uint, console Cons
 
 	gd.DeletePartition(part.Number)
 	gd.CreatePartition(&part)
-	isGPT, _ := dev.IsGPT(console)
-	// if err != nil {
-	// 	l.Errorf("Failed to determine partition table type: \n%s", err)
-	// 	return 0, err
-	// }
+	isGPT, err := dev.IsGPT(console)
+	if err != nil {
+		l.Errorf("Failed to determine partition table type: \n%s", err)
+		return "", err
+	}
 	out, err := gd.WriteChanges(console, !isGPT)
 	if err != nil {
 		return "", err
