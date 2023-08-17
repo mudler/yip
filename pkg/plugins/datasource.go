@@ -2,7 +2,10 @@ package plugins
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
+	"io"
+	"mime/multipart"
 	"os"
 	"os/user"
 	"path"
@@ -208,8 +211,33 @@ func processSSHFile(l logger.Interface, fs vfs.FS, console Console) error {
 	return SSH(l, schema.Stage{SSHKeys: map[string][]string{usr.Username: keys}}, fs, console)
 }
 
+// DecodeMultipartVmware will try to decode the user-data from VMWARE provider as it returns a
+// multipart/mixed data instead of the simple cloud-config
+func DecodeMultipartVmware(data []byte) []byte {
+	reader := bytes.NewReader(data)
+	r := multipart.NewReader(reader, "MIMEBOUNDARY")
+	for {
+		part, err := r.NextPart()
+		if err != nil {
+			break
+		}
+		// Only parse cloud-config and the first instance
+		if part.Header.Get("Content-Type") == "text/cloud-config" {
+			d, err := io.ReadAll(part)
+			if err != nil {
+				break
+			}
+			return d
+		}
+	}
+	return data
+}
+
 // If userdata can be parsed as a yipConfig file will create a <basePath>/userdata.yaml file
 func processUserData(l logger.Interface, basePath string, data []byte, fs vfs.FS, console Console) error {
+	// VMWARE provider returns a multipart/mixed data, so try first to parse that
+	// If we fail to parse it it will return the original data unchanged
+	data = DecodeMultipartVmware(data)
 	dataS := string(data)
 
 	// always save unprocessed data to "userdata"
