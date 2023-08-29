@@ -45,6 +45,10 @@ func DataSources(l logger.Interface, s schema.Stage, fs vfs.FS, console Console)
 
 	// Avoid duplication
 	uniqueProviders := unique(allowedProviders)
+	// TODO: Remove this
+	if len(uniqueProviders) != 0 {
+		fmt.Printf("uniqueProviders = %+v\n", uniqueProviders)
+	}
 
 	for _, dSProviders := range uniqueProviders {
 		switch {
