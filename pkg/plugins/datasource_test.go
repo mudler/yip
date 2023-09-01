@@ -106,5 +106,35 @@ var _ = Describe("Datasources", func() {
 			// Data should match in the file
 			Expect(string(file)).To(Equal(cloudConfigData))
 		})
+		It("Properly decodes VMWARE datasource", func() {
+			vmwareData := []byte(`Content-Type: multipart/mixed; boundary="MIMEBOUNDARY"
+MIME-Version: 1.0
+
+--MIMEBOUNDARY
+Content-Transfer-Encoding: 7bit
+Content-Type: text/cloud-config
+Mime-Version: 1.0
+
+#cloud-config
+hostname: test
+
+--MIMEBOUNDARY
+Content-Transfer-Encoding: 7bit
+Content-Type: text/x-shellscript
+Mime-Version: 1.0
+
+#!/usr/bin/env bash
+
+echo "hi"
+
+--MIMEBOUNDARY--
+`)
+			ccData := []byte("#cloud-config\nhostname: test\n")
+			vmwareCC := DecodeMultipartVmware(vmwareData)
+			normalCC := DecodeMultipartVmware(ccData)
+			// In both cases the end results should be the same cloud config
+			Expect(vmwareCC).To(Equal(ccData))
+			Expect(normalCC).To(Equal(ccData))
+		})
 	})
 })
