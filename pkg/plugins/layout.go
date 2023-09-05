@@ -425,12 +425,11 @@ func (dev Disk) FindPartitionDevice(l logger.Interface, partNum int, console Con
 	return match, nil
 }
 
-// Size is expressed in MiB here
+// ExpandLastPartition will call growpart + resize tool in a given partition to grow it up to max space available
 func (dev *Disk) ExpandLastPartition(l logger.Interface, size uint, console Console) (string, error) {
 	if len(dev.Parts) == 0 {
 		return "", errors.New("There is no partition to expand")
 	}
-	gd := NewGdiskCall(dev.String())
 
 	//Check we have loaded partition table data
 	if dev.SectorS == 0 {
@@ -441,7 +440,6 @@ func (dev *Disk) ExpandLastPartition(l logger.Interface, size uint, console Cons
 		}
 	}
 
-	part := dev.Parts[len(dev.Parts)-1]
 	if size > 0 {
 		size = MiBToSectors(size, dev.SectorS)
 		part := dev.Parts[len(dev.Parts)-1]
@@ -453,15 +451,16 @@ func (dev *Disk) ExpandLastPartition(l logger.Interface, size uint, console Cons
 			return "", errors.New(fmt.Sprintf("Not enough free space for to expand last partition up to %d sectors", size))
 		}
 	}
-	part.SizeS = size
 
-	gd.DeletePartition(part.Number)
-	gd.CreatePartition(&part)
-	out, err := gd.WriteChanges(console)
+	part := dev.Parts[len(dev.Parts)-1]
+
+	// Grow partition
+	out, err := console.Run(fmt.Sprintf("growpart %s %d", dev.Device, part.Number))
 	if err != nil {
-		return "", err
+		return out, err
 	}
 
+	// Expand FS
 	fullDevice := fmt.Sprintf("%s%d", dev.Device, part.Number)
 	out, err = dev.expandFilesystem(fullDevice, console)
 	if err != nil {
@@ -472,6 +471,7 @@ func (dev *Disk) ExpandLastPartition(l logger.Interface, size uint, console Cons
 	if err != nil {
 		return "", err
 	}
+
 	return out, nil
 }
 
