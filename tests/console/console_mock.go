@@ -50,6 +50,9 @@ func (s TestConsoleMock) PopCmd() *CmdMock {
 func (s TestConsoleMock) Run(cmd string, opts ...func(*exec.Cmd)) (string, error) {
 	cmdMock := s.PopCmd()
 	Expect(cmdMock).NotTo(BeNil())
+	Expect(cmdMock.Cmd).NotTo(BeNil())
+	Expect(cmdMock.Cmd).ToNot(Equal(""))
+	Expect(cmd).ToNot(Equal(""))
 	if cmdMock.UseRegexp {
 		if matched, _ := regexp.MatchString(cmdMock.Cmd, cmd); matched {
 			return cmdMock.Output, nil
