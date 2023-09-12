@@ -15,11 +15,15 @@
 package executor_test
 
 import (
+	"bytes"
 	"fmt"
+	"github.com/sanity-io/litter"
+	"github.com/twpayne/go-vfs"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 
 	"github.com/mudler/yip/pkg/console"
 	"github.com/sirupsen/logrus"
@@ -626,6 +630,34 @@ stages:
 			}
 
 			Expect(string(b)).Should(Equal("rootfs.before\nsecond.rootfs.before\nrootfs\n2\nsecond.rootfs\nsecond.2\ninitramfs\nsecond.initramfs\n"), string(b))
+		})
+		It("same instructions in different cloud-config files", func() {
+			buf := bytes.Buffer{}
+			l := logrus.New()
+			l.SetOutput(&buf)
+			l.SetLevel(logrus.DebugLevel)
+			def := NewExecutor(WithLogger(l))
+			testConsole := console.NewStandardConsole()
+
+			temp, err := os.MkdirTemp("", "")
+			Expect(err).ToNot(HaveOccurred())
+			defer os.RemoveAll(temp)
+			err = os.WriteFile(filepath.Join(temp, "01_test.yaml"), []byte("#cloud-config\nstages:\n  default:\n    - commands:\n      - echo \"01\"\n"), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+			err = os.WriteFile(filepath.Join(temp, "02_test.yaml"), []byte("#cloud-config\nstages:\n  default:\n    - commands:\n      - echo \"02\"\n"), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+			err = os.WriteFile(filepath.Join(temp, "03_test.yaml"), []byte("#cloud-config\nstages:\n  default:\n    - commands:\n      - echo \"03\"\n"), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = def.Run("default", vfs.OSFS, testConsole, temp)
+			Expect(err).Should(BeNil())
+			Expect(buf.String()).To(ContainSubstring(fmt.Sprintf("Reading '%s'", filepath.Join(temp, "01_test.yaml"))), buf.String())
+			Expect(buf.String()).To(ContainSubstring(fmt.Sprintf("Reading '%s'", filepath.Join(temp, "02_test.yaml"))), buf.String())
+			Expect(buf.String()).To(ContainSubstring(fmt.Sprintf("Reading '%s'", filepath.Join(temp, "03_test.yaml"))), buf.String())
+			// 3 commands + init in the graph
+			g, _ := def.Graph("default", vfs.OSFS, testConsole, temp)
+			Expect(len(g)).To(Equal(4), litter.Sdump(g))
+
 		})
 	})
 })
