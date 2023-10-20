@@ -173,7 +173,7 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 
 		})
 
-		It("Recreates users with the same UID and in order", Focus, func() {
+		It("Recreates users with the same UID and in order", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/etc/passwd": "",
 				"/etc/shadow": "",
 				"/etc/group":  "",
