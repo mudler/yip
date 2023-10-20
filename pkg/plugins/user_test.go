@@ -17,6 +17,7 @@ package plugins_test
 import (
 	"io"
 	"io/ioutil"
+	"strings"
 
 	. "github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
@@ -170,6 +171,59 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 
 			Expect(string(group)).Should(Equal("admin:x:1000:admin,bar,baz\nbar:x:1001:bar\nbaz:x:1002:baz\n"))
 
+		})
+
+		It("Recreates users with the same UID and in order", Focus, func() {
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/etc/passwd": "",
+				"/etc/shadow": "",
+				"/etc/group":  "",
+			})
+			Expect(err).Should(BeNil())
+			defer cleanup()
+
+			users := map[string]schema.User{
+				"foo": {PasswordHash: `$fkekofe`},
+				"bar": {PasswordHash: `$fkekofe`},
+				"x":   {PasswordHash: `$fkekofe`},
+				"a":   {PasswordHash: `$fkekofe`},
+			}
+
+			err = User(l, schema.Stage{
+				Users: users,
+			}, fs, testConsole)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			passwd, err := fs.ReadFile("/etc/passwd")
+			Expect(err).ShouldNot(HaveOccurred())
+
+			passwdLines := strings.Split(string(passwd), "\n")
+			Expect(passwdLines[0]).Should(Equal("a:x:1000:1000:Created by entities:/home/a:/bin/sh"))
+			Expect(passwdLines[1]).Should(Equal("bar:x:1001:1001:Created by entities:/home/bar:/bin/sh"))
+			Expect(passwdLines[2]).Should(Equal("foo:x:1002:1002:Created by entities:/home/foo:/bin/sh"))
+			Expect(passwdLines[3]).Should(Equal("x:x:1003:1003:Created by entities:/home/x:/bin/sh"))
+			// Manual calling cleanup so we start from scratch
+			cleanup()
+
+			fs, cleanup, err = vfst.NewTestFS(map[string]interface{}{"/etc/passwd": "",
+				"/etc/shadow": "",
+				"/etc/group":  "",
+			})
+			Expect(err).Should(BeNil())
+			defer cleanup()
+
+			err = User(l, schema.Stage{
+				Users: users,
+			}, fs, testConsole)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			passwd, err = fs.ReadFile("/etc/passwd")
+			Expect(err).ShouldNot(HaveOccurred())
+
+			passwdLines = strings.Split(string(passwd), "\n")
+			Expect(passwdLines[0]).Should(Equal("a:x:1000:1000:Created by entities:/home/a:/bin/sh"))
+			Expect(passwdLines[1]).Should(Equal("bar:x:1001:1001:Created by entities:/home/bar:/bin/sh"))
+			Expect(passwdLines[2]).Should(Equal("foo:x:1002:1002:Created by entities:/home/foo:/bin/sh"))
+			Expect(passwdLines[3]).Should(Equal("x:x:1003:1003:Created by entities:/home/x:/bin/sh"))
 		})
 	})
 })
