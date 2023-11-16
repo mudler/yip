@@ -24,6 +24,7 @@ require (
 	github.com/spectrocloud-labs/herd v0.4.2
 	github.com/spf13/cobra v1.7.0
 	github.com/twpayne/go-vfs v1.7.2
+	github.com/twpayne/go-vfs/v4 v4.3.0
 	github.com/willdonnelly/passwd v0.0.0-20141013001024-7935dab3074c
 	github.com/zcalusic/sysinfo v0.9.5
 	golang.org/x/crypto v0.12.0
