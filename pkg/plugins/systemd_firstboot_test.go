@@ -40,15 +40,15 @@ var _ = Describe("SystemdFirstboot", func() {
 				SystemdFirstBoot: map[string]string{
 					"keymap": "us",
 					"LOCALE": "en_US.UTF-8",
+					"force":  "true",
 				},
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Expect(consoletests.Commands).Should(ContainElements(
-				"systemd-firstboot --locale=en_US.UTF-8",
-				"systemd-firstboot --keymap=us",
+				"systemd-firstboot --force --keymap=us --locale=en_US.UTF-8",
 			))
-			Expect(len(consoletests.Commands)).To(Equal(2))
+			Expect(len(consoletests.Commands)).To(Equal(1))
 		})
 	})
 })
