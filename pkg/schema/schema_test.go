@@ -18,7 +18,7 @@ import (
 	. "github.com/mudler/yip/pkg/schema"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/twpayne/go-vfs/vfst"
+	"github.com/twpayne/go-vfs/v4/vfst"
 )
 
 func loadstdYip(s string) *YipConfig {

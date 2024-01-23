@@ -22,7 +22,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/rancher-sandbox/linuxkit/providers"
 	"github.com/sirupsen/logrus"
-	"github.com/twpayne/go-vfs/vfst"
+	"github.com/twpayne/go-vfs/v4/vfst"
 	"io"
 	"os"
 	"path/filepath"

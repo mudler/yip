@@ -22,7 +22,7 @@ import (
 	"github.com/mudler/yip/pkg/schema"
 	consoletests "github.com/mudler/yip/tests/console"
 	"github.com/sirupsen/logrus"
-	"github.com/twpayne/go-vfs/vfst"
+	"github.com/twpayne/go-vfs/v4/vfst"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

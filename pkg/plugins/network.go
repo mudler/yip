@@ -7,7 +7,7 @@ import (
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/pkg/errors"
-	"github.com/twpayne/go-vfs"
+	"github.com/twpayne/go-vfs/v4"
 )
 
 func NodeConditional(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {

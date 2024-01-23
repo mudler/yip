@@ -12,7 +12,7 @@ import (
 	"github.com/mudler/yip/pkg/utils"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"github.com/twpayne/go-vfs"
+	"github.com/twpayne/go-vfs/v4"
 )
 
 func grabClient(timeout int) *grab.Client {

@@ -26,7 +26,7 @@ import (
 	"github.com/mudler/yip/pkg/schema"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/twpayne/go-vfs"
+	"github.com/twpayne/go-vfs/v4"
 )
 
 // Build time and commit information.
