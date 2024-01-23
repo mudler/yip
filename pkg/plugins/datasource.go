@@ -42,8 +42,16 @@ func DataSources(l logger.Interface, s schema.Stage, fs vfs.FS, console Console)
 	if s.DataSources.Providers == nil || len(s.DataSources.Providers) == 0 {
 		return nil
 	}
+
+	excludedProviders := strings.Split(os.Getenv("EXCLUDE_CLOUD_INIT_PROVIDERS"), ",")
+	allowedProviders := sliceDifference(s.DataSources.Providers, excludedProviders)
+
 	// Avoid duplication
-	uniqueProviders := unique(s.DataSources.Providers)
+	uniqueProviders := unique(allowedProviders)
+	// TODO: Remove this
+	if len(uniqueProviders) != 0 {
+		fmt.Printf("uniqueProviders = %+v\n", uniqueProviders)
+	}
 
 	for _, dSProviders := range uniqueProviders {
 		switch {
@@ -289,4 +297,19 @@ func writeToFile(l logger.Interface, filename string, content string, perm uint3
 		return errors.Wrap(err, "could not write file")
 	}
 	return nil
+}
+
+// difference returns the elements in `a` that aren't in `b`.
+func sliceDifference(a, b []string) []string {
+	mb := make(map[string]struct{}, len(b))
+	for _, x := range b {
+		mb[x] = struct{}{}
+	}
+	var diff []string
+	for _, x := range a {
+		if _, found := mb[x]; !found {
+			diff = append(diff, x)
+		}
+	}
+	return diff
 }

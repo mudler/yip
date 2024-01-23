@@ -15,6 +15,12 @@
 package plugins_test
 
 import (
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
 	. "github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
 	consoletests "github.com/mudler/yip/tests/console"
@@ -23,11 +29,6 @@ import (
 	"github.com/rancher-sandbox/linuxkit/providers"
 	"github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs/vfst"
-	"io"
-	"os"
-	"path/filepath"
-	"strings"
-	"time"
 )
 
 var _ = Describe("Datasources", func() {
@@ -36,6 +37,9 @@ var _ = Describe("Datasources", func() {
 		l := logrus.New()
 		l.SetLevel(logrus.DebugLevel)
 		l.SetOutput(io.Discard)
+
+		// TODO: Write a test for EXCLUDE_CLOUD_INIT_PROVIDERS
+
 		It("Runs datasources and fails to adquire any metadata", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{})
 			Expect(err).Should(BeNil())
