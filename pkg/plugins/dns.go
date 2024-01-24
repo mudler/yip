@@ -2,7 +2,7 @@ package plugins
 
 import (
 	"github.com/moby/moby/libnetwork/resolvconf"
-	"github.com/twpayne/go-vfs"
+	"github.com/twpayne/go-vfs/v4"
 
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"

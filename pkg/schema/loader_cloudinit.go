@@ -19,7 +19,7 @@ import (
 	"strconv"
 
 	cloudconfig "github.com/mudler/yip/pkg/schema/cloudinit"
-	"github.com/twpayne/go-vfs"
+	"github.com/twpayne/go-vfs/v4"
 )
 
 type cloudInit struct{}

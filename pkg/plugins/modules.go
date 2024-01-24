@@ -7,8 +7,8 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
+	"github.com/twpayne/go-vfs/v4"
 	"pault.ag/go/modprobe"
-	"github.com/twpayne/go-vfs"
 )
 
 const (

@@ -14,7 +14,7 @@ import (
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/mudler/yip/pkg/utils"
 	uuid "github.com/satori/go.uuid"
-	"github.com/twpayne/go-vfs"
+	"github.com/twpayne/go-vfs/v4"
 )
 
 const localHost = "127.0.0.1"

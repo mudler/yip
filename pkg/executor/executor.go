@@ -19,7 +19,7 @@ import (
 	"github.com/mudler/yip/pkg/plugins"
 	"github.com/sirupsen/logrus"
 	"github.com/spectrocloud-labs/herd"
-	"github.com/twpayne/go-vfs"
+	"github.com/twpayne/go-vfs/v4"
 
 	"github.com/mudler/yip/pkg/schema"
 )

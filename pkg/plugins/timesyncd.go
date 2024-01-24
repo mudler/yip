@@ -5,7 +5,7 @@ import (
 
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
-	"github.com/twpayne/go-vfs"
+	"github.com/twpayne/go-vfs/v4"
 	"gopkg.in/ini.v1"
 )
 

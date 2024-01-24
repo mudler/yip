@@ -14,7 +14,7 @@ import (
 	entities "github.com/mudler/entities/pkg/entities"
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
-	"github.com/twpayne/go-vfs"
+	"github.com/twpayne/go-vfs/v4"
 	passwd "github.com/willdonnelly/passwd"
 )
 

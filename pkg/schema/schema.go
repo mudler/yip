@@ -29,7 +29,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/itchyny/gojq"
-	"github.com/twpayne/go-vfs"
+	"github.com/twpayne/go-vfs/v4"
 	"gopkg.in/yaml.v2"
 )
 

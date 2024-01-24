@@ -18,7 +18,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/sanity-io/litter"
-	"github.com/twpayne/go-vfs"
+	"github.com/twpayne/go-vfs/v4"
 	"io"
 	"io/ioutil"
 	"log"
@@ -31,7 +31,7 @@ import (
 	. "github.com/mudler/yip/pkg/executor"
 	"github.com/mudler/yip/pkg/schema"
 	consoletests "github.com/mudler/yip/tests/console"
-	"github.com/twpayne/go-vfs/vfst"
+	"github.com/twpayne/go-vfs/v4/vfst"
 	"github.com/zcalusic/sysinfo"
 
 	. "github.com/onsi/ginkgo/v2"

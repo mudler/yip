@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
-	"github.com/twpayne/go-vfs"
+	"github.com/twpayne/go-vfs/v4"
 )
 
 func EnsureDirectories(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
