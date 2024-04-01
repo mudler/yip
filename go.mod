@@ -10,7 +10,7 @@ require (
 	github.com/go-git/go-git/v5 v5.11.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/itchyny/gojq v0.12.12
+	github.com/itchyny/gojq v0.12.15
 	github.com/joho/godotenv v1.5.1
 	github.com/moby/moby v24.0.9+incompatible
 	github.com/mudler/entities v0.0.0-20220905203055-68348bae0f49
@@ -84,7 +84,7 @@ require (
 	golang.org/x/exp v0.0.0-20220303212507-bbda1eaf7a17 // indirect
 	golang.org/x/mod v0.12.0 // indirect
 	golang.org/x/net v0.19.0 // indirect
-	golang.org/x/sys v0.15.0 // indirect
+	golang.org/x/sys v0.18.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/tools v0.13.0 // indirect
 	gopkg.in/djherbis/times.v1 v1.3.0 // indirect
