@@ -26,7 +26,7 @@ require (
 	github.com/twpayne/go-vfs/v4 v4.3.0
 	github.com/willdonnelly/passwd v0.0.0-20141013001024-7935dab3074c
 	github.com/zcalusic/sysinfo v0.9.5
-	golang.org/x/crypto v0.16.0
+	golang.org/x/crypto v0.17.0
 	gopkg.in/ini.v1 v1.67.0
 	gopkg.in/yaml.v1 v1.0.0-20140924161607-9f9df34309c0
 	gopkg.in/yaml.v2 v2.4.0
