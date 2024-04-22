@@ -93,7 +93,6 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 			gid = usedGids[len(usedGids)-1]
 			gid++
 		}
-
 	}
 
 	updateGroup := entities.Group{
@@ -112,20 +111,34 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 			return errors.Wrap(err, "invalid uid defined")
 		}
 	} else {
-		// find an available uid if there are others already
 		all, _ := passwd.ParseFile(etcpasswd)
 		if len(all) != 0 {
-			usedUids := []int{}
-			for _, entry := range all {
-				uid, _ := strconv.Atoi(entry.Uid)
-				usedUids = append(usedUids, uid)
+			// Check if user is already in there to reuse the same UID as to not break existing permissions
+			existing := false
+			for name, values := range all {
+				if name == u.Name {
+					uid, err = strconv.Atoi(values.Uid)
+					if err != nil {
+						return errors.Wrap(err, "could not parse existing user id")
+					}
+					existing = true
+					break
+				}
 			}
-			sort.Ints(usedUids)
-			if len(usedUids) == 0 {
-				return errors.New("no new UID found")
+			// If it's not there, get a new UID
+			if !existing {
+				usedUids := []int{}
+				for _, entry := range all {
+					uid, _ := strconv.Atoi(entry.Uid)
+					usedUids = append(usedUids, uid)
+				}
+				sort.Ints(usedUids)
+				if len(usedUids) == 0 {
+					return errors.New("no new UID found")
+				}
+				uid = usedUids[len(usedUids)-1]
+				uid++
 			}
-			uid = usedUids[len(usedUids)-1]
-			uid++
 		}
 	}
 
