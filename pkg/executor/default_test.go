@@ -17,13 +17,14 @@ package executor_test
 import (
 	"bytes"
 	"fmt"
-	"github.com/sanity-io/litter"
-	"github.com/twpayne/go-vfs/v4"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
+
+	"github.com/sanity-io/litter"
+	"github.com/twpayne/go-vfs/v4"
 
 	"github.com/mudler/yip/pkg/console"
 	"github.com/sirupsen/logrus"
@@ -474,6 +475,98 @@ stages:
 
 			_, err = os.Open(temp + "/tmp/test/nope")
 			Expect(err).Should(HaveOccurred())
+		})
+
+		It("Unnamed steps are run in sequence", func() {
+			testConsole := console.NewStandardConsole()
+
+			fs2, cleanup2, err := vfst.NewTestFS(map[string]interface{}{})
+			Expect(err).Should(BeNil())
+
+			defer cleanup2()
+
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{
+				"/some/yip/01_first.yaml": `
+stages:
+  initramfs:
+    - users:
+        kairos:
+          groups:
+            - sudo
+          passwd: kairos
+    - users:
+        kairos:
+          groups:
+            - sudo
+          passwd: kairos
+    - users:
+        kairos:
+          groups:
+            - sudo
+          passwd: kairos
+    - users:
+        kairos:
+          groups:
+            - sudo
+          passwd: kairos
+`,
+			})
+			Expect(err).Should(BeNil())
+			defer cleanup()
+
+			err = fs2.Mkdir("/etc", os.ModePerm)
+			Expect(err).Should(BeNil())
+
+			g, err := def.Graph("initramfs", fs, testConsole, "/some/yip")
+			Expect(err).Should(BeNil())
+			Expect(len(g)).To(Equal(5), fmt.Sprintf("%#v\n", g))
+		})
+
+		It("Does not try to merge steps as dependencies based on their name", func() {
+			testConsole := console.NewStandardConsole()
+
+			fs2, cleanup2, err := vfst.NewTestFS(map[string]interface{}{})
+			Expect(err).Should(BeNil())
+
+			defer cleanup2()
+
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{
+				"/some/yip/01_first.yaml": `
+stages:
+  initramfs:
+    - name: Create Kairos User
+      users:
+        kairos:
+          groups:
+            - sudo
+          passwd: kairos
+    - users:
+        kairos:
+          groups:
+            - sudo
+          passwd: kairos
+    - name: Create Kairos User
+      users:
+        kairos:
+          groups:
+            - sudo
+          passwd: kairos
+    - users:
+        kairos:
+          groups:
+            - sudo
+          passwd: kairos
+`,
+			})
+			Expect(err).Should(BeNil())
+			defer cleanup()
+
+			err = fs2.Mkdir("/etc", os.ModePerm)
+			Expect(err).Should(BeNil())
+
+			g, err := def.Graph("initramfs", fs, testConsole, "/some/yip")
+			Expect(err).Should(BeNil())
+			Expect(len(g)).To(Equal(5), fmt.Sprintf("%#v\n", g))
 		})
 
 		It("has multiple instructions", func() {
