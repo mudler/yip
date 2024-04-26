@@ -102,14 +102,30 @@ func (e *DefaultExecutor) applyStage(stage schema.Stage, fs vfs.FS, console plug
 	return errs
 }
 
+func checkDuplicates(stages []schema.Stage) bool {
+	stageNames := map[string]bool{}
+	for _, st := range stages {
+		if _, ok := stageNames[st.Name]; ok {
+			return true
+		}
+		stageNames[st.Name] = true
+	}
+	return false
+}
+
 func (e *DefaultExecutor) genOpFromSchema(file, stage string, config schema.YipConfig, fs vfs.FS, console plugins.Console) []*op {
 	results := []*op{}
-
 	currentStages := config.Stages[stage]
+
+	duplicatedNames := checkDuplicates(currentStages)
 
 	prev := ""
 	for i, st := range currentStages {
 		name := st.Name
+		if duplicatedNames {
+			name = fmt.Sprintf("%s.%d", st.Name, i)
+		}
+
 		if name == "" {
 			name = fmt.Sprint(i)
 		}
