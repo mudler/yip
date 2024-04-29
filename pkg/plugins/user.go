@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/mauromorales/xpasswd/pkg/users"
 	"github.com/pkg/errors"
 
 	"github.com/hashicorp/go-multierror"
@@ -15,7 +16,6 @@ import (
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/twpayne/go-vfs/v4"
-	passwd "github.com/willdonnelly/passwd"
 )
 
 func createUser(fs vfs.FS, u schema.User, console Console) error {
@@ -111,34 +111,19 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 			return errors.Wrap(err, "invalid uid defined")
 		}
 	} else {
-		all, _ := passwd.ParseFile(etcpasswd)
-		if len(all) != 0 {
-			// Check if user is already in there to reuse the same UID as to not break existing permissions
-			existing := false
-			for name, values := range all {
-				if name == u.Name {
-					uid, err = strconv.Atoi(values.Uid)
-					if err != nil {
-						return errors.Wrap(err, "could not parse existing user id")
-					}
-					existing = true
-					break
-				}
+		list := users.NewUserList()
+		list.SetPath(etcpasswd)
+		list.Load()
+
+		user := list.Get(u.Name)
+
+		if user != nil {
+			uid, err = user.UID()
+			if err != nil {
+				return errors.Wrap(err, "could not get user id")
 			}
-			// If it's not there, get a new UID
-			if !existing {
-				usedUids := []int{}
-				for _, entry := range all {
-					uid, _ := strconv.Atoi(entry.Uid)
-					usedUids = append(usedUids, uid)
-				}
-				sort.Ints(usedUids)
-				if len(usedUids) == 0 {
-					return errors.New("no new UID found")
-				}
-				uid = usedUids[len(usedUids)-1]
-				uid++
-			}
+		} else {
+			uid = list.GenerateUID()
 		}
 	}
 
