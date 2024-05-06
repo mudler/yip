@@ -224,7 +224,7 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			defer cleanup()
 
 			err = User(l, schema.Stage{
-				Users: map[string]schema.User{"foo": {PasswordHash: `$fkekofe`, Homedir: "/HomeDir()/foo", SSHAuthorizedKeys: []string{"github:mudler", "efafeeafea,t,t,pgl3,pbar"}}},
+				Users: map[string]schema.User{"foo": {PasswordHash: `$fkekofe`, Homedir: "/home/foo", SSHAuthorizedKeys: []string{"github:mudler", "efafeeafea,t,t,pgl3,pbar"}}},
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
@@ -247,12 +247,12 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			Expect(foo).ToNot(BeNil())
 
 			Expect(foo.RealName()).To(Equal("Created by entities"))
-			Expect(foo.HomeDir()).To(Equal("/HomeDir()/foo"))
+			Expect(foo.HomeDir()).To(Equal("/home/foo"))
 			Expect(foo.Shell()).To(Equal("/bin/sh"))
 			// first free UID() is 1000
 			Expect(foo.UID()).To(Equal(1000))
 
-			file, err := fs.Open("/HomeDir()/foo/.ssh/authorized_keys")
+			file, err := fs.Open("/home/foo/.ssh/authorized_keys")
 			Expect(err).ShouldNot(HaveOccurred())
 
 			b, err := io.ReadAll(file)
@@ -270,12 +270,12 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			defer cleanup()
 
 			err = User(l, schema.Stage{
-				Users: map[string]schema.User{"admin": {PasswordHash: `$fkekofe`, Homedir: "/HomeDir()/foo", SSHAuthorizedKeys: []string{"github:mudler", "efafeeafea,t,t,pgl3,pbar"}}},
+				Users: map[string]schema.User{"admin": {PasswordHash: `$fkekofe`, Homedir: "/home/foo", SSHAuthorizedKeys: []string{"github:mudler", "efafeeafea,t,t,pgl3,pbar"}}},
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			err = User(l, schema.Stage{
-				Users: map[string]schema.User{"bar": {Groups: []string{"admin"}, PasswordHash: `$fkekofe`, Homedir: "/HomeDir()/foo", SSHAuthorizedKeys: []string{"github:mudler", "efafeeafea,t,t,pgl3,pbar"}}},
+				Users: map[string]schema.User{"bar": {Groups: []string{"admin"}, PasswordHash: `$fkekofe`, Homedir: "/home/foo", SSHAuthorizedKeys: []string{"github:mudler", "efafeeafea,t,t,pgl3,pbar"}}},
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
@@ -285,7 +285,7 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			Expect(string(group)).Should(Equal("admin:x:1000:admin,bar\nbar:x:1001:bar\n"))
 
 			err = User(l, schema.Stage{
-				Users: map[string]schema.User{"baz": {Homedir: "/HomeDir()/foo", Groups: []string{"admin"}}},
+				Users: map[string]schema.User{"baz": {Homedir: "/home/foo", Groups: []string{"admin"}}},
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
