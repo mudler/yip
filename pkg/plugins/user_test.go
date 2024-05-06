@@ -146,7 +146,8 @@ last:x:999:999:Test user for uid:/:/usr/bin/nologin
 
 			list := xpasswd.NewUserList()
 			list.SetPath(passdRaw)
-			list.Load()
+			err = list.Load()
+			Expect(err).ShouldNot(HaveOccurred())
 			Expect(list).To(HaveAllDefaultUsers())
 
 			Expect(string(group)).Should(Equal("foo:x:1000:foo\n"))
@@ -197,7 +198,8 @@ last:x:999:999:Test user for uid:/:/usr/bin/nologin
 
 			list := xpasswd.NewUserList()
 			list.SetPath(passdRaw)
-			list.Load()
+			err = list.Load()
+			Expect(err).ShouldNot(HaveOccurred())
 			Expect(list).To(HaveAllDefaultUsers())
 
 			Expect(string(group)).Should(Equal("foo:x:1000:foo\n"))
@@ -237,7 +239,8 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 
 			list := xpasswd.NewUserList()
 			list.SetPath(passdRaw)
-			list.Load()
+			err = list.Load()
+			Expect(err).ShouldNot(HaveOccurred())
 			Expect(list).To(HaveAllDefaultUsers())
 
 			Expect(string(group)).Should(Equal("foo:x:1000:foo\n"))
@@ -319,7 +322,8 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			passdRaw, _ := fs.RawPath("/etc/passwd")
 			list := xpasswd.NewUserList()
 			list.SetPath(passdRaw)
-			list.Load()
+			err = list.Load()
+			Expect(err).ShouldNot(HaveOccurred())
 			Expect(list).To(HaveAllDefaultUsers())
 
 			a := list.Get("a")
@@ -376,7 +380,8 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			passdRaw, _ = fs.RawPath("/etc/passwd")
 			list = xpasswd.NewUserList()
 			list.SetPath(passdRaw)
-			list.Load()
+			err = list.Load()
+			Expect(err).ShouldNot(HaveOccurred())
 			Expect(list).To(HaveAllDefaultUsers())
 
 			a = list.Get("a")
@@ -452,7 +457,8 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			passdRaw, _ := fs.RawPath("/etc/passwd")
 			list := xpasswd.NewUserList()
 			list.SetPath(passdRaw)
-			list.Load()
+			err = list.Load()
+			Expect(err).ShouldNot(HaveOccurred())
 			Expect(list).To(HaveAllDefaultUsers())
 
 			foo := list.Get("foo")
@@ -497,7 +503,8 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			passdRaw, _ := fs.RawPath("/etc/passwd")
 			list := xpasswd.NewUserList()
 			list.SetPath(passdRaw)
-			list.Load()
+			err = list.Load()
+			Expect(err).ShouldNot(HaveOccurred())
 			Expect(list).To(HaveAllDefaultUsers())
 
 			foo := list.Get("foo")
