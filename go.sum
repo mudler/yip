@@ -182,6 +182,8 @@ github.com/mattn/go-runewidth v0.0.9/go.mod h1:H031xJmbD/WCDINGzjvQ9THkh0rPKHF+m
 github.com/matttproud/golang_protobuf_extensions v1.0.1/go.mod h1:D8He9yQNgCq6Z5Ld7szi9bcBfOoFv/3dc6xSMkL2PC0=
 github.com/mauromorales/xpasswd v0.2.0 h1:bLnZ+wJBHDywIRCAVCCAoUcmX8XclOU9TW5Tect4T74=
 github.com/mauromorales/xpasswd v0.2.0/go.mod h1:Z3+aY19mhNfcGi3st0+RAVSz2vC+pyoju2S/FPN8kEg=
+github.com/mauromorales/xpasswd v0.3.0 h1:yVfSoAgKp3uEzkbqzp0mWAdbVFdBzSsBknTqn1Wy/Jo=
+github.com/mauromorales/xpasswd v0.3.0/go.mod h1:Z3+aY19mhNfcGi3st0+RAVSz2vC+pyoju2S/FPN8kEg=
 github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b/go.mod h1:01TrycV0kFyexm33Z7vhZRXopbI8J3TDReVlkTgMUxE=
 github.com/mitchellh/copystructure v1.0.0/go.mod h1:SNtv71yrdKgLRyLFxmLdkAbkKEFWgYaq1OVrnRcwhnw=
 github.com/mitchellh/copystructure v1.2.0 h1:vpKXTN4ewci03Vljg/q9QvCGUDttBOGBIa15WveJJGw=

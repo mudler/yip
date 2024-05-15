@@ -12,7 +12,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/itchyny/gojq v0.12.15
 	github.com/joho/godotenv v1.5.1
-	github.com/mauromorales/xpasswd v0.2.0
+	github.com/mauromorales/xpasswd v0.3.0
 	github.com/moby/moby v24.0.9+incompatible
 	github.com/mudler/entities v0.0.0-20220905203055-68348bae0f49
 	github.com/onsi/ginkgo/v2 v2.17.1

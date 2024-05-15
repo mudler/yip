@@ -158,6 +158,7 @@ last:x:999:999:Test user for uid:/:/usr/bin/nologin
 			Expect(foo.RealName()).To(Equal("Created by entities"))
 			Expect(foo.HomeDir()).To(Equal("/home/foo"))
 			Expect(foo.Shell()).To(Equal("/bin/sh"))
+			Expect(foo.Password()).To(Equal("x"))
 			// Last user in the default passwd test data is 999 so this should be 100
 			Expect(foo.UID()).To(Equal(1000))
 
@@ -211,6 +212,7 @@ last:x:999:999:Test user for uid:/:/usr/bin/nologin
 			Expect(foo.RealName()).To(Equal("Created by entities"))
 			Expect(foo.HomeDir()).To(Equal("/run/foo"))
 			Expect(foo.Shell()).To(Equal("/bin/bash"))
+			Expect(foo.Password()).To(Equal("x"))
 			// we specifically set this UID()
 			Expect(foo.UID()).To(Equal(5000))
 
@@ -252,6 +254,7 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			Expect(foo.RealName()).To(Equal("Created by entities"))
 			Expect(foo.HomeDir()).To(Equal("/home/foo"))
 			Expect(foo.Shell()).To(Equal("/bin/sh"))
+			Expect(foo.Password()).To(Equal("x"))
 			// first free UID() is 1000
 			Expect(foo.UID()).To(Equal(1000))
 
@@ -332,6 +335,7 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			Expect(a.RealName()).To(Equal("Created by entities"))
 			Expect(a.HomeDir()).To(Equal("/home/a"))
 			Expect(a.Shell()).To(Equal("/bin/sh"))
+			Expect(a.Password()).To(Equal("x"))
 			// first free UID() is 1000
 			Expect(a.UID()).To(Equal(1000))
 
@@ -341,6 +345,7 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			Expect(bar.RealName()).To(Equal("Created by entities"))
 			Expect(bar.HomeDir()).To(Equal("/home/bar"))
 			Expect(bar.Shell()).To(Equal("/bin/sh"))
+			Expect(bar.Password()).To(Equal("x"))
 			// Next UID()
 			Expect(bar.UID()).To(Equal(1001))
 
@@ -350,6 +355,7 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			Expect(foo.RealName()).To(Equal("Created by entities"))
 			Expect(foo.HomeDir()).To(Equal("/home/foo"))
 			Expect(foo.Shell()).To(Equal("/bin/sh"))
+			Expect(foo.Password()).To(Equal("x"))
 			// first free UID() is 1000
 			Expect(foo.UID()).To(Equal(1002))
 
@@ -359,6 +365,7 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			Expect(x.RealName()).To(Equal("Created by entities"))
 			Expect(x.HomeDir()).To(Equal("/home/x"))
 			Expect(x.Shell()).To(Equal("/bin/sh"))
+			Expect(x.Password()).To(Equal("x"))
 			// first free UID() is 1000
 			Expect(x.UID()).To(Equal(1003))
 
@@ -390,6 +397,7 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			Expect(a.RealName()).To(Equal("Created by entities"))
 			Expect(a.HomeDir()).To(Equal("/home/a"))
 			Expect(a.Shell()).To(Equal("/bin/sh"))
+			Expect(a.Password()).To(Equal("x"))
 			// first free UID() is 1000
 			Expect(a.UID()).To(Equal(1000))
 
@@ -399,6 +407,7 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			Expect(bar.RealName()).To(Equal("Created by entities"))
 			Expect(bar.HomeDir()).To(Equal("/home/bar"))
 			Expect(bar.Shell()).To(Equal("/bin/sh"))
+			Expect(bar.Password()).To(Equal("x"))
 			// Next UID()
 			Expect(bar.UID()).To(Equal(1001))
 
@@ -408,6 +417,7 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			Expect(foo.RealName()).To(Equal("Created by entities"))
 			Expect(foo.HomeDir()).To(Equal("/home/foo"))
 			Expect(foo.Shell()).To(Equal("/bin/sh"))
+			Expect(foo.Password()).To(Equal("x"))
 			// first free UID() is 1000
 			Expect(foo.UID()).To(Equal(1002))
 
@@ -417,6 +427,7 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			Expect(x.RealName()).To(Equal("Created by entities"))
 			Expect(x.HomeDir()).To(Equal("/home/x"))
 			Expect(x.Shell()).To(Equal("/bin/sh"))
+			Expect(x.Password()).To(Equal("x"))
 			// first free UID() is 1000
 			Expect(x.UID()).To(Equal(1003))
 		})
@@ -467,6 +478,7 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			Expect(foo.RealName()).To(Equal("Created by entities"))
 			Expect(foo.HomeDir()).To(Equal("/home/foo"))
 			Expect(foo.Shell()).To(Equal("/bin/sh"))
+			Expect(foo.Password()).To(Equal("x"))
 			// first free UID() is 1000, should have not changed
 			Expect(foo.UID()).To(Equal(1000))
 		})
@@ -512,6 +524,7 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			Expect(foo.RealName()).To(Equal("Created by entities"))
 			Expect(foo.HomeDir()).To(Equal("/home/foo"))
 			Expect(foo.Shell()).To(Equal("/bin/sh"))
+			Expect(foo.Password()).To(Equal("x"))
 			// first free UID() is 1000, should have not changed even with other new users getting new UID()s
 			Expect(foo.UID()).To(Equal(1000))
 
@@ -521,6 +534,7 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			Expect(a.RealName()).To(Equal("Created by entities"))
 			Expect(a.HomeDir()).To(Equal("/home/a"))
 			Expect(a.Shell()).To(Equal("/bin/sh"))
+			Expect(a.Password()).To(Equal("x"))
 			// Should have been created just after our foo user
 			Expect(a.UID()).To(Equal(1001))
 
@@ -530,6 +544,7 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			Expect(b.RealName()).To(Equal("Created by entities"))
 			Expect(b.HomeDir()).To(Equal("/home/b"))
 			Expect(b.Shell()).To(Equal("/bin/sh"))
+			Expect(b.Password()).To(Equal("x"))
 			// Should have been created just after our a user
 			Expect(b.UID()).To(Equal(1002))
 
