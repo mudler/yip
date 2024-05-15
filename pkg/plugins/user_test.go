@@ -15,17 +15,61 @@
 package plugins_test
 
 import (
+	"fmt"
+	"io"
+
+	xpasswd "github.com/mauromorales/xpasswd/pkg/users"
 	. "github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
 	consoletests "github.com/mudler/yip/tests/console"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/format"
+	"github.com/onsi/gomega/types"
 	"github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs/v4/vfst"
-	passwd2 "github.com/willdonnelly/passwd"
-	"io"
-	"io/ioutil"
 )
+
+func HaveAllDefaultUsers() types.GomegaMatcher {
+	return &HaveAllDefaultUsersMatcher{}
+}
+
+type HaveAllDefaultUsersMatcher struct {
+	Reason string
+}
+
+func (matcher *HaveAllDefaultUsersMatcher) Match(actual interface{}) (bool, error) {
+	for _, u := range []string{"root", "bin", "daemon", "mail", "ftp", "http", "systemd-coredump", "systemd-network",
+		"systemd-oom", "systemd-journal-remote", "systemd-resolve", "systemd-timesync", "tss", "_talkd", "uuidd",
+		"avahi", "named", "colord", "dnsmasq", "gdm", "geoclue", "git", "nm-openconnect", "nm-openvpn", "ntp",
+		"openvpn", "polkitd", "rpc", "rpcuser", "rtkit", "usbmux", "nvidia-persistenced", "flatpak", "brltty",
+		"gluster", "qemu", "libvirt-qemu", "fwupd", "passim", "cups", "saned", "last",
+	} {
+		actual := actual.(xpasswd.UserList)
+
+		user := actual.Get(u)
+		if user == nil {
+			return false, fmt.Errorf("User %s not found", u)
+		}
+	}
+	return true, nil
+}
+
+func (matcher *HaveAllDefaultUsersMatcher) FailureMessage(actual interface{}) string {
+	if matcher.Reason == "" {
+		return format.Message(actual, "to have all default users")
+	} else {
+		return matcher.Reason
+	}
+}
+
+func (matcher *HaveAllDefaultUsersMatcher) NegatedFailureMessage(interface{}) string {
+	if matcher.Reason == "" {
+		return "not to have all default users"
+	} else {
+		return matcher.Reason
+	}
+}
 
 var _ = Describe("User", func() {
 	Context("parsing yip file", func() {
@@ -94,33 +138,34 @@ last:x:999:999:Test user for uid:/:/usr/bin/nologin
 
 			shadow, err := fs.ReadFile("/etc/shadow")
 			Expect(err).ShouldNot(HaveOccurred())
-			//passwd, err := fs.ReadFile("/etc/passwd")
 			Expect(err).ShouldNot(HaveOccurred())
 			group, err := fs.ReadFile("/etc/group")
 			Expect(err).ShouldNot(HaveOccurred())
 
 			passdRaw, _ := fs.RawPath("/etc/passwd")
-			passwd, _ := passwd2.ParseFile(passdRaw)
 
-			checkDefaultUsers(passwd)
+			list := xpasswd.NewUserList()
+			list.SetPath(passdRaw)
+			err = list.Load()
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(list).To(HaveAllDefaultUsers())
 
 			Expect(string(group)).Should(Equal("foo:x:1000:foo\n"))
 
 			Expect(string(shadow)).Should(ContainSubstring("foo:$fkekofe:"))
-			Expect(passwd["foo"]).ToNot(BeNil())
-			foo := passwd["foo"]
+			foo := list.Get("foo")
 			Expect(foo).ToNot(BeNil())
-			Expect(foo.Gecos).To(Equal("Created by entities"))
-			Expect(foo.Pass).To(Equal("x"))
-			Expect(foo.Home).To(Equal("/home/foo"))
-			Expect(foo.Shell).To(Equal("/bin/sh"))
+			Expect(foo.RealName()).To(Equal("Created by entities"))
+			Expect(foo.HomeDir()).To(Equal("/home/foo"))
+			Expect(foo.Shell()).To(Equal("/bin/sh"))
+			Expect(foo.Password()).To(Equal("x"))
 			// Last user in the default passwd test data is 999 so this should be 100
-			Expect(foo.Uid).To(Equal("1000"))
+			Expect(foo.UID()).To(Equal(1000))
 
 			file, err := fs.Open("/home/foo/.ssh/authorized_keys")
 			Expect(err).ShouldNot(HaveOccurred())
 
-			b, err := ioutil.ReadAll(file)
+			b, err := io.ReadAll(file)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(string(b)).Should(ContainSubstring("ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDR9zjXvyzg1HFMC7RT4LgtR+YGstxWDPPRoAcNrAWjtQcJVrcVo4WLFnT0BMU5mtMxWSrulpC6yrwnt2TE3Ul86yMxO2hbSyGP/xOdYm/nQzufY49rd3tKeJl1+6DkczuPa+XYh1GBcW5E2laNM5ZK+RjABppMpDgmnrM3AsGNE6G8RSuUvc/6Rwt61ma+jak3F5YMj4kwr5PhY2MTPo2YshsL3ouRXP/uPsbaBM6AdQakjWGJR8tPbrnHenzF65813d9zuY4y78TG0AHfomx9btmha7Mc0YF+BpELnvSQLlYrlRY/ziGhP65aQc8lFMc+XBnHeaXF4NHnzq6dIH2D"))
 			Expect(string(b)).Should(ContainSubstring("efafeeafea,t,t,pgl3,pbar"))
@@ -151,23 +196,25 @@ last:x:999:999:Test user for uid:/:/usr/bin/nologin
 			Expect(err).ShouldNot(HaveOccurred())
 
 			passdRaw, _ := fs.RawPath("/etc/passwd")
-			passwd, _ := passwd2.ParseFile(passdRaw)
 
-			checkDefaultUsers(passwd)
+			list := xpasswd.NewUserList()
+			list.SetPath(passdRaw)
+			err = list.Load()
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(list).To(HaveAllDefaultUsers())
 
 			Expect(string(group)).Should(Equal("foo:x:1000:foo\n"))
 
 			Expect(string(shadow)).Should(ContainSubstring("foo:!:"))
-			Expect(passwd["foo"]).ToNot(BeNil())
-			foo := passwd["foo"]
+			foo := list.Get("foo")
 			Expect(foo).ToNot(BeNil())
 
-			Expect(foo.Gecos).To(Equal("Created by entities"))
-			Expect(foo.Pass).To(Equal("x"))
-			Expect(foo.Home).To(Equal("/run/foo"))
-			Expect(foo.Shell).To(Equal("/bin/bash"))
-			// we specifically set this uid
-			Expect(foo.Uid).To(Equal("5000"))
+			Expect(foo.RealName()).To(Equal("Created by entities"))
+			Expect(foo.HomeDir()).To(Equal("/run/foo"))
+			Expect(foo.Shell()).To(Equal("/bin/bash"))
+			Expect(foo.Password()).To(Equal("x"))
+			// we specifically set this UID()
+			Expect(foo.UID()).To(Equal(5000))
 
 		})
 
@@ -191,28 +238,30 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			Expect(err).ShouldNot(HaveOccurred())
 
 			passdRaw, _ := fs.RawPath("/etc/passwd")
-			passwd, _ := passwd2.ParseFile(passdRaw)
 
-			checkDefaultUsers(passwd)
+			list := xpasswd.NewUserList()
+			list.SetPath(passdRaw)
+			err = list.Load()
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(list).To(HaveAllDefaultUsers())
 
 			Expect(string(group)).Should(Equal("foo:x:1000:foo\n"))
 
 			Expect(string(shadow)).Should(ContainSubstring("foo:$fkekofe:"))
-			Expect(passwd["foo"]).ToNot(BeNil())
-			foo := passwd["foo"]
+			foo := list.Get("foo")
 			Expect(foo).ToNot(BeNil())
 
-			Expect(foo.Gecos).To(Equal("Created by entities"))
-			Expect(foo.Pass).To(Equal("x"))
-			Expect(foo.Home).To(Equal("/home/foo"))
-			Expect(foo.Shell).To(Equal("/bin/sh"))
-			// first free uid is 1000
-			Expect(foo.Uid).To(Equal("1000"))
+			Expect(foo.RealName()).To(Equal("Created by entities"))
+			Expect(foo.HomeDir()).To(Equal("/home/foo"))
+			Expect(foo.Shell()).To(Equal("/bin/sh"))
+			Expect(foo.Password()).To(Equal("x"))
+			// first free UID() is 1000
+			Expect(foo.UID()).To(Equal(1000))
 
 			file, err := fs.Open("/home/foo/.ssh/authorized_keys")
 			Expect(err).ShouldNot(HaveOccurred())
 
-			b, err := ioutil.ReadAll(file)
+			b, err := io.ReadAll(file)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(string(b)).Should(ContainSubstring("ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDR9zjXvyzg1HFMC7RT4LgtR+YGstxWDPPRoAcNrAWjtQcJVrcVo4WLFnT0BMU5mtMxWSrulpC6yrwnt2TE3Ul86yMxO2hbSyGP/xOdYm/nQzufY49rd3tKeJl1+6DkczuPa+XYh1GBcW5E2laNM5ZK+RjABppMpDgmnrM3AsGNE6G8RSuUvc/6Rwt61ma+jak3F5YMj4kwr5PhY2MTPo2YshsL3ouRXP/uPsbaBM6AdQakjWGJR8tPbrnHenzF65813d9zuY4y78TG0AHfomx9btmha7Mc0YF+BpELnvSQLlYrlRY/ziGhP65aQc8lFMc+XBnHeaXF4NHnzq6dIH2D"))
 			Expect(string(b)).Should(ContainSubstring("efafeeafea,t,t,pgl3,pbar"))
@@ -253,7 +302,7 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 
 		})
 
-		It("Recreates users with the same UID and in order", func() {
+		It("Recreates users with the same UID() and in order", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/etc/passwd": existingPasswd,
 				"/etc/shadow": "",
 				"/etc/group":  "",
@@ -274,52 +323,51 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			Expect(err).ShouldNot(HaveOccurred())
 
 			passdRaw, _ := fs.RawPath("/etc/passwd")
-			passwd, _ := passwd2.ParseFile(passdRaw)
-			checkDefaultUsers(passwd)
+			list := xpasswd.NewUserList()
+			list.SetPath(passdRaw)
+			err = list.Load()
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(list).To(HaveAllDefaultUsers())
 
-			Expect(passwd["a"]).ToNot(BeNil())
-			a := passwd["a"]
+			a := list.Get("a")
 			Expect(a).ToNot(BeNil())
 
-			Expect(a.Gecos).To(Equal("Created by entities"))
-			Expect(a.Pass).To(Equal("x"))
-			Expect(a.Home).To(Equal("/home/a"))
-			Expect(a.Shell).To(Equal("/bin/sh"))
-			// first free uid is 1000
-			Expect(a.Uid).To(Equal("1000"))
+			Expect(a.RealName()).To(Equal("Created by entities"))
+			Expect(a.HomeDir()).To(Equal("/home/a"))
+			Expect(a.Shell()).To(Equal("/bin/sh"))
+			Expect(a.Password()).To(Equal("x"))
+			// first free UID() is 1000
+			Expect(a.UID()).To(Equal(1000))
 
-			Expect(passwd["bar"]).ToNot(BeNil())
-			bar := passwd["bar"]
+			bar := list.Get("bar")
 			Expect(bar).ToNot(BeNil())
 
-			Expect(bar.Gecos).To(Equal("Created by entities"))
-			Expect(bar.Pass).To(Equal("x"))
-			Expect(bar.Home).To(Equal("/home/bar"))
-			Expect(bar.Shell).To(Equal("/bin/sh"))
-			// Next uid
-			Expect(bar.Uid).To(Equal("1001"))
+			Expect(bar.RealName()).To(Equal("Created by entities"))
+			Expect(bar.HomeDir()).To(Equal("/home/bar"))
+			Expect(bar.Shell()).To(Equal("/bin/sh"))
+			Expect(bar.Password()).To(Equal("x"))
+			// Next UID()
+			Expect(bar.UID()).To(Equal(1001))
 
-			Expect(passwd["foo"]).ToNot(BeNil())
-			foo := passwd["foo"]
+			foo := list.Get("foo")
 			Expect(foo).ToNot(BeNil())
 
-			Expect(foo.Gecos).To(Equal("Created by entities"))
-			Expect(foo.Pass).To(Equal("x"))
-			Expect(foo.Home).To(Equal("/home/foo"))
-			Expect(foo.Shell).To(Equal("/bin/sh"))
-			// first free uid is 1000
-			Expect(foo.Uid).To(Equal("1002"))
+			Expect(foo.RealName()).To(Equal("Created by entities"))
+			Expect(foo.HomeDir()).To(Equal("/home/foo"))
+			Expect(foo.Shell()).To(Equal("/bin/sh"))
+			Expect(foo.Password()).To(Equal("x"))
+			// first free UID() is 1000
+			Expect(foo.UID()).To(Equal(1002))
 
-			Expect(passwd["x"]).ToNot(BeNil())
-			x := passwd["x"]
+			x := list.Get("x")
 			Expect(x).ToNot(BeNil())
 
-			Expect(x.Gecos).To(Equal("Created by entities"))
-			Expect(x.Pass).To(Equal("x"))
-			Expect(x.Home).To(Equal("/home/x"))
-			Expect(x.Shell).To(Equal("/bin/sh"))
-			// first free uid is 1000
-			Expect(x.Uid).To(Equal("1003"))
+			Expect(x.RealName()).To(Equal("Created by entities"))
+			Expect(x.HomeDir()).To(Equal("/home/x"))
+			Expect(x.Shell()).To(Equal("/bin/sh"))
+			Expect(x.Password()).To(Equal("x"))
+			// first free UID() is 1000
+			Expect(x.UID()).To(Equal(1003))
 
 			// Manual calling cleanup so we start from scratch
 			cleanup()
@@ -337,55 +385,54 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			Expect(err).ShouldNot(HaveOccurred())
 
 			passdRaw, _ = fs.RawPath("/etc/passwd")
-			passwd, _ = passwd2.ParseFile(passdRaw)
-			checkDefaultUsers(passwd)
+			list = xpasswd.NewUserList()
+			list.SetPath(passdRaw)
+			err = list.Load()
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(list).To(HaveAllDefaultUsers())
 
-			Expect(passwd["a"]).ToNot(BeNil())
-			a = passwd["a"]
+			a = list.Get("a")
 			Expect(a).ToNot(BeNil())
 
-			Expect(a.Gecos).To(Equal("Created by entities"))
-			Expect(a.Pass).To(Equal("x"))
-			Expect(a.Home).To(Equal("/home/a"))
-			Expect(a.Shell).To(Equal("/bin/sh"))
-			// first free uid is 1000
-			Expect(a.Uid).To(Equal("1000"))
+			Expect(a.RealName()).To(Equal("Created by entities"))
+			Expect(a.HomeDir()).To(Equal("/home/a"))
+			Expect(a.Shell()).To(Equal("/bin/sh"))
+			Expect(a.Password()).To(Equal("x"))
+			// first free UID() is 1000
+			Expect(a.UID()).To(Equal(1000))
 
-			Expect(passwd["bar"]).ToNot(BeNil())
-			bar = passwd["bar"]
+			bar = list.Get("bar")
 			Expect(bar).ToNot(BeNil())
 
-			Expect(bar.Gecos).To(Equal("Created by entities"))
-			Expect(bar.Pass).To(Equal("x"))
-			Expect(bar.Home).To(Equal("/home/bar"))
-			Expect(bar.Shell).To(Equal("/bin/sh"))
-			// Next uid
-			Expect(bar.Uid).To(Equal("1001"))
+			Expect(bar.RealName()).To(Equal("Created by entities"))
+			Expect(bar.HomeDir()).To(Equal("/home/bar"))
+			Expect(bar.Shell()).To(Equal("/bin/sh"))
+			Expect(bar.Password()).To(Equal("x"))
+			// Next UID()
+			Expect(bar.UID()).To(Equal(1001))
 
-			Expect(passwd["foo"]).ToNot(BeNil())
-			foo = passwd["foo"]
+			foo = list.Get("foo")
 			Expect(foo).ToNot(BeNil())
 
-			Expect(foo.Gecos).To(Equal("Created by entities"))
-			Expect(foo.Pass).To(Equal("x"))
-			Expect(foo.Home).To(Equal("/home/foo"))
-			Expect(foo.Shell).To(Equal("/bin/sh"))
-			// first free uid is 1000
-			Expect(foo.Uid).To(Equal("1002"))
+			Expect(foo.RealName()).To(Equal("Created by entities"))
+			Expect(foo.HomeDir()).To(Equal("/home/foo"))
+			Expect(foo.Shell()).To(Equal("/bin/sh"))
+			Expect(foo.Password()).To(Equal("x"))
+			// first free UID() is 1000
+			Expect(foo.UID()).To(Equal(1002))
 
-			Expect(passwd["x"]).ToNot(BeNil())
-			x = passwd["x"]
+			x = list.Get("x")
 			Expect(x).ToNot(BeNil())
 
-			Expect(x.Gecos).To(Equal("Created by entities"))
-			Expect(x.Pass).To(Equal("x"))
-			Expect(x.Home).To(Equal("/home/x"))
-			Expect(x.Shell).To(Equal("/bin/sh"))
-			// first free uid is 1000
-			Expect(x.Uid).To(Equal("1003"))
+			Expect(x.RealName()).To(Equal("Created by entities"))
+			Expect(x.HomeDir()).To(Equal("/home/x"))
+			Expect(x.Shell()).To(Equal("/bin/sh"))
+			Expect(x.Password()).To(Equal("x"))
+			// first free UID() is 1000
+			Expect(x.UID()).To(Equal(1003))
 		})
 
-		It("Creates the user multiple times, keeping the same UID", func() {
+		It("Creates the user multiple times, keeping the same UID()", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/etc/passwd": existingPasswd,
 				"/etc/shadow": "",
 				"/etc/group":  "",
@@ -419,22 +466,24 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			Expect(err).ShouldNot(HaveOccurred())
 
 			passdRaw, _ := fs.RawPath("/etc/passwd")
-			passwd, _ := passwd2.ParseFile(passdRaw)
-			checkDefaultUsers(passwd)
+			list := xpasswd.NewUserList()
+			list.SetPath(passdRaw)
+			err = list.Load()
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(list).To(HaveAllDefaultUsers())
 
-			Expect(passwd["foo"]).ToNot(BeNil())
-			foo := passwd["foo"]
+			foo := list.Get("foo")
 			Expect(foo).ToNot(BeNil())
 
-			Expect(foo.Gecos).To(Equal("Created by entities"))
-			Expect(foo.Pass).To(Equal("x"))
-			Expect(foo.Home).To(Equal("/home/foo"))
-			Expect(foo.Shell).To(Equal("/bin/sh"))
-			// first free uid is 1000, should have not changed
-			Expect(foo.Uid).To(Equal("1000"))
+			Expect(foo.RealName()).To(Equal("Created by entities"))
+			Expect(foo.HomeDir()).To(Equal("/home/foo"))
+			Expect(foo.Shell()).To(Equal("/bin/sh"))
+			Expect(foo.Password()).To(Equal("x"))
+			// first free UID() is 1000, should have not changed
+			Expect(foo.UID()).To(Equal(1000))
 		})
 
-		It("Creates the user multiple times, keeping the same UID, even if a new users is added", func() {
+		It("Creates the user multiple times, keeping the same UID(), even if a new users is added", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/etc/passwd": existingPasswd,
 				"/etc/shadow": "",
 				"/etc/group":  "",
@@ -464,54 +513,41 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			Expect(err).ShouldNot(HaveOccurred())
 
 			passdRaw, _ := fs.RawPath("/etc/passwd")
-			passwd, _ := passwd2.ParseFile(passdRaw)
-			checkDefaultUsers(passwd)
+			list := xpasswd.NewUserList()
+			list.SetPath(passdRaw)
+			err = list.Load()
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(list).To(HaveAllDefaultUsers())
 
-			Expect(passwd["foo"]).ToNot(BeNil())
-			foo := passwd["foo"]
+			foo := list.Get("foo")
 			Expect(foo).ToNot(BeNil())
+			Expect(foo.RealName()).To(Equal("Created by entities"))
+			Expect(foo.HomeDir()).To(Equal("/home/foo"))
+			Expect(foo.Shell()).To(Equal("/bin/sh"))
+			Expect(foo.Password()).To(Equal("x"))
+			// first free UID() is 1000, should have not changed even with other new users getting new UID()s
+			Expect(foo.UID()).To(Equal(1000))
 
-			Expect(foo.Gecos).To(Equal("Created by entities"))
-			Expect(foo.Pass).To(Equal("x"))
-			Expect(foo.Home).To(Equal("/home/foo"))
-			Expect(foo.Shell).To(Equal("/bin/sh"))
-			// first free uid is 1000, should have not changed even with other new users getting new uids
-			Expect(foo.Uid).To(Equal("1000"))
-
-			Expect(passwd["a"]).ToNot(BeNil())
-			a := passwd["a"]
+			a := list.Get("a")
 			Expect(a).ToNot(BeNil())
 
-			Expect(a.Gecos).To(Equal("Created by entities"))
-			Expect(a.Pass).To(Equal("x"))
-			Expect(a.Home).To(Equal("/home/a"))
-			Expect(a.Shell).To(Equal("/bin/sh"))
+			Expect(a.RealName()).To(Equal("Created by entities"))
+			Expect(a.HomeDir()).To(Equal("/home/a"))
+			Expect(a.Shell()).To(Equal("/bin/sh"))
+			Expect(a.Password()).To(Equal("x"))
 			// Should have been created just after our foo user
-			Expect(a.Uid).To(Equal("1001"))
+			Expect(a.UID()).To(Equal(1001))
 
-			Expect(passwd["b"]).ToNot(BeNil())
-			b := passwd["b"]
+			b := list.Get("b")
 			Expect(b).ToNot(BeNil())
 
-			Expect(b.Gecos).To(Equal("Created by entities"))
-			Expect(b.Pass).To(Equal("x"))
-			Expect(b.Home).To(Equal("/home/b"))
-			Expect(b.Shell).To(Equal("/bin/sh"))
+			Expect(b.RealName()).To(Equal("Created by entities"))
+			Expect(b.HomeDir()).To(Equal("/home/b"))
+			Expect(b.Shell()).To(Equal("/bin/sh"))
+			Expect(b.Password()).To(Equal("x"))
 			// Should have been created just after our a user
-			Expect(b.Uid).To(Equal("1002"))
+			Expect(b.UID()).To(Equal(1002))
 
 		})
 	})
 })
-
-func checkDefaultUsers(userList map[string]passwd2.Entry) {
-	for _, u := range []string{"root", "bin", "daemon", "mail", "ftp", "http", "systemd-coredump", "systemd-network",
-		"systemd-oom", "systemd-journal-remote", "systemd-resolve", "systemd-timesync", "tss", "_talkd", "uuid",
-		"avahi", "named", "colord", "dnsmasq", "gdm", "geoclue", "git", "nm-openconnect", "nm-openvpn", "ntp",
-		"openvpn", "polkitd", "rpc", "rpcuser", "rtkit", "usbmux", "nvidia-persistenced", "flatpak", "brltty",
-		"gluster", "qemu", "libvirt-qemu", "fwupd", "passim", "cups", "saned", "last",
-	} {
-		Expect(userList[u]).ToNot(BeNil())
-	}
-
-}

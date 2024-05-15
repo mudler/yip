@@ -5,16 +5,15 @@ import (
 	"net/url"
 	"os"
 	"path"
-	"strconv"
 	"strings"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/mauromorales/xpasswd/pkg/users"
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/mudler/yip/pkg/utils"
 	"github.com/pkg/errors"
 	"github.com/twpayne/go-vfs/v4"
-	passwd "github.com/willdonnelly/passwd"
 )
 
 const (
@@ -121,27 +120,29 @@ func ensureKeys(user string, keys []string, fs vfs.FS) error {
 	var errs error
 	f, err := fs.RawPath(passwdFile)
 
-	current, err := passwd.ParseFile(f)
+	list := users.NewUserList()
+	list.SetPath(f)
+	err = list.Load()
 	if err != nil {
 		return errors.Wrap(err, "Failed parsing passwd")
 	}
 
-	data, ok := current[user]
-	if !ok {
+	data := list.Get(user)
+	if data == nil {
 		return fmt.Errorf("user %s not found", user)
 	}
 
-	uid, err := strconv.Atoi(data.Uid)
+	uid, err := data.UID()
 	if err != nil {
 		return errors.Wrap(err, "Failed getting uid")
 	}
 
-	gid, err := strconv.Atoi(data.Gid)
+	gid, err := data.GID()
 	if err != nil {
 		return errors.Wrap(err, "Failed getting gid")
 	}
 
-	homeDir := data.Home
+	homeDir := data.HomeDir()
 
 	userSSHDir := path.Join(homeDir, sshDir)
 	if _, err := fs.Stat(userSSHDir); os.IsNotExist(err) {
