@@ -21,6 +21,7 @@ fmt:
 
 .PHONY: test
 test:
+	go mod tidy -compat=1.20
 	go run github.com/onsi/ginkgo/v2/ginkgo -race -r ./...
 
 .PHONY: coverage
