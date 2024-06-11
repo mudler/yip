@@ -12,9 +12,9 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/itchyny/gojq v0.12.15
 	github.com/joho/godotenv v1.5.1
-	github.com/mauromorales/xpasswd v0.3.0
+	github.com/mauromorales/xpasswd v0.3.1
 	github.com/moby/moby v24.0.9+incompatible
-	github.com/mudler/entities v0.0.0-20240606103849-caa372976495
+	github.com/mudler/entities v0.0.0-20240611135956-f8f11ba52c2f
 	github.com/onsi/ginkgo/v2 v2.17.1
 	github.com/onsi/gomega v1.33.0
 	github.com/pkg/errors v0.9.1
@@ -47,6 +47,7 @@ require (
 	github.com/go-git/go-billy/v5 v5.5.0 // indirect
 	github.com/go-logr/logr v1.4.1 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
+	github.com/gofrs/flock v0.8.1 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect
