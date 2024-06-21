@@ -205,11 +205,11 @@ func User(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error 
 	for _, k := range users {
 		r := s.Users[k]
 		r.Name = k
-		if !s.Users[k].Exists() {
+		if !r.Exists() {
 			if err := createUser(fs, r, console); err != nil {
 				errs = multierror.Append(errs, err)
 			}
-		} else if s.Users[k].PasswordHash != "" {
+		} else if r.PasswordHash != "" {
 			if err := setUserPass(fs, r.Name, r.PasswordHash); err != nil {
 				return err
 			}
