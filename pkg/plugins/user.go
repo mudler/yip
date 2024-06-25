@@ -69,8 +69,8 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 	}
 
 	primaryGroup := u.Name
-	gid := 1000
 
+	gid := -1 // -1 instructs entities to find the next free id and assign it
 	if u.PrimaryGroup != "" {
 		gr, err := osuser.LookupGroup(u.PrimaryGroup)
 		if err != nil {
@@ -78,21 +78,6 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 		}
 		gid, _ = strconv.Atoi(gr.Gid)
 		primaryGroup = u.PrimaryGroup
-	} else {
-		// Create a new group after the user name
-		all, _ := entities.ParseGroup(etcgroup)
-		if len(all) != 0 {
-			usedGids := []int{}
-			for _, entry := range all {
-				usedGids = append(usedGids, *entry.Gid)
-			}
-			sort.Ints(usedGids)
-			if len(usedGids) == 0 {
-				return errors.New("no new guid found")
-			}
-			gid = usedGids[len(usedGids)-1]
-			gid++
-		}
 	}
 
 	updateGroup := entities.Group{
@@ -101,9 +86,22 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 		Gid:      &gid,
 		Users:    u.Name,
 	}
-	updateGroup.Apply(etcgroup, false)
+	err = updateGroup.Apply(etcgroup, false)
+	if err != nil {
+		return errors.Wrap(err, "creating the user's group")
+	}
 
-	uid := 1000
+	// reload the group to get the generated GID
+	groups, _ := entities.ParseGroup(etcgroup)
+	for name, group := range groups {
+		if name == updateGroup.Name {
+			updateGroup = group
+			gid = *group.Gid
+			break
+		}
+	}
+
+	uid := -1
 	if u.UID != "" {
 		// User defined-uid
 		uid, err = strconv.Atoi(u.UID)
@@ -123,8 +121,15 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 				return errors.Wrap(err, "could not get user id")
 			}
 		} else {
-			uid = list.GenerateUID()
+			// https://systemd.io/UIDS-GIDS/#special-distribution-uid-ranges
+			uid, err = list.GenerateUIDInRange(entities.HumanIDMin, entities.HumanIDMax)
+			if err != nil {
+				return errors.Wrap(err, "no available uid")
+			}
 		}
+	}
+	if uid == -1 {
+		return errors.New("could not set uid for user")
 	}
 
 	if u.Homedir == "" {
@@ -162,7 +167,7 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 		os.Chown(homedir, uid, gid)
 	}
 
-	groups, _ := entities.ParseGroup(etcgroup)
+	groups, _ = entities.ParseGroup(etcgroup)
 	for name, group := range groups {
 		for _, w := range u.Groups {
 			if w == name {

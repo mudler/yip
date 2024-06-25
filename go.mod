@@ -12,9 +12,9 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/itchyny/gojq v0.12.15
 	github.com/joho/godotenv v1.5.1
-	github.com/mauromorales/xpasswd v0.3.1
+	github.com/mauromorales/xpasswd v0.4.0
 	github.com/moby/moby v24.0.9+incompatible
-	github.com/mudler/entities v0.0.0-20240611135956-f8f11ba52c2f
+	github.com/mudler/entities v0.0.0-20240625130751-3d7f84082f3a
 	github.com/onsi/ginkgo/v2 v2.17.1
 	github.com/onsi/gomega v1.33.0
 	github.com/pkg/errors v0.9.1
