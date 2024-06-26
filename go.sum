@@ -138,8 +138,8 @@ github.com/mattn/go-colorable v0.1.1/go.mod h1:FuOcm+DKB9mbwrcAfNl7/TZVBZ6rcncea
 github.com/mattn/go-colorable v0.1.2/go.mod h1:U0ppj6V5qS13XJ6of8GYAs25YV2eR4EVcfRqFIhoBtE=
 github.com/mattn/go-isatty v0.0.5/go.mod h1:Iq45c/XA43vh69/j3iqttzPXn0bhXyGjM0Hdxcsrc5s=
 github.com/mattn/go-isatty v0.0.8/go.mod h1:Iq45c/XA43vh69/j3iqttzPXn0bhXyGjM0Hdxcsrc5s=
-github.com/mauromorales/xpasswd v0.3.1 h1:mVPGISfzN/WaCUjYRFiDgIREb2NMfwgPSj3LS6QMm0Q=
-github.com/mauromorales/xpasswd v0.3.1/go.mod h1:Z3+aY19mhNfcGi3st0+RAVSz2vC+pyoju2S/FPN8kEg=
+github.com/mauromorales/xpasswd v0.4.0 h1:Jf6mfA8lwQsYzwgfQADPDGV7l/liAvRrnG+nQTPy0j8=
+github.com/mauromorales/xpasswd v0.4.0/go.mod h1:Z3+aY19mhNfcGi3st0+RAVSz2vC+pyoju2S/FPN8kEg=
 github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b/go.mod h1:01TrycV0kFyexm33Z7vhZRXopbI8J3TDReVlkTgMUxE=
 github.com/mitchellh/copystructure v1.0.0/go.mod h1:SNtv71yrdKgLRyLFxmLdkAbkKEFWgYaq1OVrnRcwhnw=
 github.com/mitchellh/copystructure v1.2.0 h1:vpKXTN4ewci03Vljg/q9QvCGUDttBOGBIa15WveJJGw=
@@ -149,8 +149,8 @@ github.com/mitchellh/reflectwalk v1.0.2 h1:G2LzWKi524PWgd3mLHV8Y5k7s6XUvT0Gef6zx
 github.com/mitchellh/reflectwalk v1.0.2/go.mod h1:mSTlrgnPZtwu0c4WaC2kGObEpuNDbx0jmZXqmk4esnw=
 github.com/moby/moby v24.0.9+incompatible h1:Z/hFbZJqC5Fmuf6jesMLdHU71CMAgdiSJ1ZYey+bFmg=
 github.com/moby/moby v24.0.9+incompatible/go.mod h1:fDXVQ6+S340veQPv35CzDahGBmHsiclFwfEygB/TWMc=
-github.com/mudler/entities v0.0.0-20240611135956-f8f11ba52c2f h1:5x1OeWl4gSW3L9KzntvWphjrcHASXq3gI351BgBbXjs=
-github.com/mudler/entities v0.0.0-20240611135956-f8f11ba52c2f/go.mod h1:TXMcB82+CBF3fEQhIch/gFSuWVcItz4BdTfomYGW1jg=
+github.com/mudler/entities v0.0.0-20240625130751-3d7f84082f3a h1:IeKeUwMeqfGYblesrk7Gu72z1xsJrceiIDDES4Rj3+U=
+github.com/mudler/entities v0.0.0-20240625130751-3d7f84082f3a/go.mod h1:7bNIR64mpm7ld4bnDQ+LjHBPhUDAqoBQuv4aK53UGSs=
 github.com/nxadm/tail v1.4.4/go.mod h1:kenIhsEOeOJmVchQTgglprH7qJGnHDVpk1VPCcaMI8A=
 github.com/nxadm/tail v1.4.8 h1:nPr65rt6Y5JFSKQO7qToXr7pePgD6Gwiw05lkbyAQTE=
 github.com/nxadm/tail v1.4.8/go.mod h1:+ncqLTQzXmGhMZNUePPaPqPvBxHAIsmXswZKocGu+AU=
