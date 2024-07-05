@@ -3,6 +3,9 @@
   "extends": [
     "config:base"
   ],
+  "constraints": {
+    "go": "1.19"
+  },
   "packageRules": [
     {
       "matchUpdateTypes": ["patch"],
