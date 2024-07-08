@@ -91,3 +91,5 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	pault.ag/go/topsort v0.1.1 // indirect
 )
+
+replace github.com/tredoe/osutil => github.com/kairos-io/osutil v1.5.0
