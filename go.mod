@@ -1,6 +1,6 @@
 module github.com/mudler/yip
 
-go 1.20
+go 1.22.5
 
 require (
 	github.com/Masterminds/sprig/v3 v3.2.3
@@ -14,7 +14,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/mauromorales/xpasswd v0.4.0
 	github.com/moby/moby v24.0.9+incompatible
-	github.com/mudler/entities v0.8.0
+	github.com/mudler/entities v0.8.1
 	github.com/onsi/ginkgo/v2 v2.17.1
 	github.com/onsi/gomega v1.33.0
 	github.com/pkg/errors v0.9.1
