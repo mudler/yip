@@ -25,6 +25,7 @@ require (
 	github.com/spectrocloud-labs/herd v0.4.2
 	github.com/spf13/cobra v1.8.0
 	github.com/twpayne/go-vfs/v4 v4.3.0
+	github.com/twpayne/go-vfs/v5 v5.0.4
 	github.com/zcalusic/sysinfo v0.9.5
 	golang.org/x/crypto v0.22.0
 	gopkg.in/ini.v1 v1.67.0
