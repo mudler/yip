@@ -13,7 +13,7 @@ require (
 	github.com/itchyny/gojq v0.12.16
 	github.com/joho/godotenv v1.5.1
 	github.com/mauromorales/xpasswd v0.4.0
-	github.com/moby/moby v27.1.1+incompatible
+	github.com/moby/moby v27.2.1+incompatible
 	github.com/mudler/entities v0.8.1
 	github.com/onsi/ginkgo/v2 v2.17.1
 	github.com/onsi/gomega v1.33.0
