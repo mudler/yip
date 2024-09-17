@@ -560,6 +560,31 @@ func (dev Disk) expandFilesystem(device string, console Console, l logger.Interf
 		if err != nil {
 			return out, err
 		}
+	case "btrfs":
+		// to grow an btrfs fs it needs to be mounted :/
+		tmpDir, err := os.MkdirTemp("", "yip")
+		defer os.Remove(tmpDir)
+
+		if err != nil {
+			return out, err
+		}
+		out, err = console.Run(fmt.Sprintf("mount -t btrfs %s %s", device, tmpDir))
+		if err != nil {
+			return out, err
+		}
+		out, err = console.Run(fmt.Sprintf("btrfs filesystem resize max %s", tmpDir))
+		if err != nil {
+			// If we error out, try to umount the dir to not leave it hanging
+			out, err2 := console.Run(fmt.Sprintf("umount %s", tmpDir))
+			if err2 != nil {
+				return out, err2
+			}
+			return out, err
+		}
+		out, err = console.Run(fmt.Sprintf("umount %s", tmpDir))
+		if err != nil {
+			return out, err
+		}
 	default:
 		return "", errors.New(fmt.Sprintf("Could not find filesystem for %s, not resizing the filesystem", device))
 	}
@@ -794,7 +819,7 @@ func (gd *GdiskCall) ExpandPTable() {
 func (mkfs MkfsCall) buildOptions() ([]string, error) {
 	opts := []string{}
 
-	linuxFS, _ := regexp.MatchString("ext[2-4]|xfs", mkfs.part.FileSystem)
+	linuxFS, _ := regexp.MatchString("ext[2-4]|xfs|btrfs", mkfs.part.FileSystem)
 	fatFS, _ := regexp.MatchString("fat|vfat", mkfs.part.FileSystem)
 
 	switch {

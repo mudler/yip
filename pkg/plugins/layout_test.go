@@ -355,7 +355,7 @@ var _ = Describe("Layout", func() {
 
 		It("Works on an non-xfs fs with a label longer than 12 chars", func() {
 			label = "LABEL_TOO_LONG_FOR_XFS"
-			for _, filesystem := range []string{"ext2", "ext3", "ext4"} {
+			for _, filesystem := range []string{"ext2", "ext3", "ext4", "btrfs"} {
 				testConsole := console.New()
 				testConsole.AddCmds(CmdsAddPartByLabel(filesystem))
 				err := Layout(l, schema.Stage{
