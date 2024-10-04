@@ -2,6 +2,7 @@ package plugins
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/mudler/yip/pkg/logger"
@@ -18,7 +19,12 @@ func Commands(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) er
 			errs = multierror.Append(errs, err)
 			continue
 		}
-		l.Info(fmt.Sprintf("Command output: %s", string(out)))
+		if strings.TrimSpace(out) != "" {
+			l.Info(fmt.Sprintf("Command output: %s", out))
+		} else {
+			l.Debugf("Empty command output")
+		}
+
 	}
 	return errs
 }
