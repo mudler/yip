@@ -585,6 +585,8 @@ func (dev Disk) expandFilesystem(device string, console Console, l logger.Interf
 		if err != nil {
 			return out, err
 		}
+	case "swap":
+		return "", errors.New(fmt.Sprintf("swap resizing is not supported (device: %s)", device))
 	default:
 		return "", errors.New(fmt.Sprintf("Could not find filesystem for %s, not resizing the filesystem", device))
 	}
@@ -819,7 +821,7 @@ func (gd *GdiskCall) ExpandPTable() {
 func (mkfs MkfsCall) buildOptions() ([]string, error) {
 	opts := []string{}
 
-	linuxFS, _ := regexp.MatchString("ext[2-4]|xfs|btrfs", mkfs.part.FileSystem)
+	linuxFS, _ := regexp.MatchString("ext[2-4]|xfs|btrfs|swap", mkfs.part.FileSystem)
 	fatFS, _ := regexp.MatchString("fat|vfat", mkfs.part.FileSystem)
 
 	switch {
@@ -852,7 +854,15 @@ func (mkfs MkfsCall) Apply(console Console) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	tool := fmt.Sprintf("mkfs.%s", mkfs.part.FileSystem)
+
+	var tool string
+
+	if (mkfs.part.FileSystem == "swap") {
+		tool = "mkswap"
+	} else {
+		tool = fmt.Sprintf("mkfs.%s", mkfs.part.FileSystem)
+	}
+
 	command := fmt.Sprintf("%s %s", tool, strings.Join(opts[:], " "))
 	return console.Run(command)
 }

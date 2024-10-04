@@ -179,6 +179,7 @@ type DNS struct {
 }
 
 type YipConfig struct {
+	Source string             `yaml:"-"`
 	Name   string             `yaml:"name,omitempty"`
 	Stages map[string][]Stage `yaml:"stages,omitempty"`
 }
@@ -187,7 +188,7 @@ type Loader func(s string, fs vfs.FS, m Modifier) ([]byte, error)
 type Modifier func(s []byte) ([]byte, error)
 
 type yipLoader interface {
-	Load([]byte, vfs.FS) (*YipConfig, error)
+	Load(string, []byte, vfs.FS) (*YipConfig, error)
 }
 
 func Load(s string, fs vfs.FS, l Loader, m Modifier) (*YipConfig, error) {
@@ -206,7 +207,7 @@ func Load(s string, fs vfs.FS, l Loader, m Modifier) (*YipConfig, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid file type")
 	}
-	return loader.Load(data, fs)
+	return loader.Load(s, data, fs)
 }
 
 func detect(b []byte) (yipLoader, error) {
