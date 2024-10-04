@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/sanity-io/litter"
 	"os"
 	"path/filepath"
 
@@ -74,24 +75,23 @@ func (l opList) uniqueNames() {
 	}
 }
 
-func (e *DefaultExecutor) applyStage(config schema.YipConfig, stage schema.Stage, fs vfs.FS, console plugins.Console) error {
+func (e *DefaultExecutor) applyStage(config schema.YipConfig, stageName string, stage schema.Stage, fs vfs.FS, console plugins.Console) error {
 	var errs error
 	for _, p := range e.conditionals {
 		if err := p(e.logger, stage, fs, console); err != nil {
 			e.logger.Warnf("(conditional) Skip '%s' stage name: %s",
-				err.Error(), stage.Name)
+				err.Error(), stageName)
 			return nil
 		}
 	}
-
 	e.logger.Infof(
 		"Processing stage step '%s'. ( commands: %d, files: %d, ... )",
-		stage.Name,
+		stageName,
 		len(stage.Commands),
 		len(stage.Files))
 
-	b, _ := json.Marshal(stage)
-	e.logger.Debugf("Stage: %s", string(b))
+	litter.Config.HideZeroValues = true
+	e.logger.Debugf("Stage: %s", litter.Sdump(stage))
 
 	for _, p := range e.plugins {
 		if err := p(e.logger, stage, fs, console); err != nil {
@@ -144,7 +144,7 @@ func (e *DefaultExecutor) genOpFromSchema(file, stage string, config schema.YipC
 			fn: func(ctx context.Context) error {
 				e.logger.Debugf("Reading '%s'", file)
 				e.logger.Debugf("Executing stage '%s'", opName)
-				return e.applyStage(config, stageLocal, fs, console)
+				return e.applyStage(config, opName, stageLocal, fs, console)
 			},
 			name:    opName,
 			options: []herd.OpOption{herd.WeakDeps},
@@ -356,10 +356,9 @@ STAGES:
 				continue STAGES
 			}
 		}
-
 		e.logger.Infof(
 			"Processing stage step '%s'. ( commands: %d, files: %d, ... )\n",
-			stage.Name,
+			stageName,
 			len(stage.Commands),
 			len(stage.Files))
 

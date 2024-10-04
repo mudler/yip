@@ -47,6 +47,8 @@ func initLogger() logger.Interface {
 		ll.SetLevel(log.WarnLevel)
 	case "debug":
 		ll.SetLevel(log.DebugLevel)
+	case "trace":
+		ll.SetLevel(log.TraceLevel)
 	default:
 		ll.SetLevel(log.InfoLevel)
 	}
