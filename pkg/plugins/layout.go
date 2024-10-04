@@ -54,7 +54,7 @@ const (
 
 func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 	if s.Layout.Device == nil {
-		l.Debug("did not find any device in layout")
+		l.Debug("Device empty, not running layout plugin")
 		return nil
 	}
 
