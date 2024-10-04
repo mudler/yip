@@ -74,7 +74,7 @@ func (l opList) uniqueNames() {
 	}
 }
 
-func (e *DefaultExecutor) applyStage(stage schema.Stage, fs vfs.FS, console plugins.Console) error {
+func (e *DefaultExecutor) applyStage(config schema.YipConfig, stage schema.Stage, fs vfs.FS, console plugins.Console) error {
 	var errs error
 	for _, p := range e.conditionals {
 		if err := p(e.logger, stage, fs, console); err != nil {
@@ -95,7 +95,7 @@ func (e *DefaultExecutor) applyStage(stage schema.Stage, fs vfs.FS, console plug
 
 	for _, p := range e.plugins {
 		if err := p(e.logger, stage, fs, console); err != nil {
-			e.logger.Error(err.Error())
+			e.logger.Errorf("Error on file %s on stage %s: %s", config.Source, stage.Name, err)
 			errs = multierror.Append(errs, err)
 		}
 	}
@@ -144,7 +144,7 @@ func (e *DefaultExecutor) genOpFromSchema(file, stage string, config schema.YipC
 			fn: func(ctx context.Context) error {
 				e.logger.Debugf("Reading '%s'", file)
 				e.logger.Debugf("Executing stage '%s'", opName)
-				return e.applyStage(stageLocal, fs, console)
+				return e.applyStage(config, stageLocal, fs, console)
 			},
 			name:    opName,
 			options: []herd.OpOption{herd.WeakDeps},
