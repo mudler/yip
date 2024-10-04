@@ -19,7 +19,7 @@ func Commands(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) er
 			continue
 		}
 		if strings.TrimSpace(out) != "" {
-			l.Info(fmt.Sprintf("Command output: %s", out))
+			l.Debug(fmt.Sprintf("Command output: %s", out))
 		} else {
 			l.Debugf("Empty command output")
 		}
