@@ -329,7 +329,6 @@ func (e *DefaultExecutor) Run(stage string, fs vfs.FS, console plugins.Console, 
 	e.logger.Infof("Running stage: %s\n", stage)
 	for _, source := range args {
 		if err := e.runStage(stage, source, fs, console); err != nil {
-			e.logger.Error(err)
 			errs = multierror.Append(errs, err)
 		}
 	}
