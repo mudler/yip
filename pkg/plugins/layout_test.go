@@ -179,6 +179,36 @@ var CmdsAddAndExpandPart []console.CmdMock = []console.CmdMock{
 	sync,
 }
 
+var CmdsAddAndExpandSwapPart []console.CmdMock = []console.CmdMock{
+	{Cmd: "lsblk -npo type /some/device", Output: "disk"},
+	{Cmd: "sgdisk --verify /some/device", Output: "the end of the disk"},
+	{Cmd: "sgdisk -P -e /some/device"},
+	{Cmd: "sgdisk -e /some/device"},
+	pTableEmpty,
+	{Cmd: "udevadm settle"},
+	{Cmd: "blkid -l --match-token LABEL=MYLABEL -o device"},
+	{Cmd: "sgdisk -P -n=1:2048:+2097152 -t=1:8300 /some/device"},
+	{Cmd: "sgdisk -n=1:2048:+2097152 -t=1:8300 /some/device"},
+	pTablePostCreation,
+	{Cmd: "udevadm settle"},
+	{Cmd: "partprobe /some/device"},
+	sync,
+	{Cmd: "udevadm settle"},
+	{Cmd: "lsblk -ltnpo name,type /some/device", Output: `/some/device disk
+/some/device1 part`},
+	{Cmd: "mkswap -L MYLABEL /some/device1"},
+	{Cmd: "growpart /some/device 1"},
+	{Cmd: "lsblk -ltnpo name /some/device", Output: "/some/device1\n/some/device4"},
+	{Cmd: "udevadm settle"},
+	{Cmd: "partprobe /some/device"},
+	sync,
+	{Cmd: "blkid /some/device1 -s TYPE -o value", Output: "swap"},
+	pTablePostExpansion,
+	{Cmd: "udevadm settle"},
+	{Cmd: "partprobe /some/device"},
+	sync,
+}
+
 var CmdsExpandPartXfs []console.CmdMock = []console.CmdMock{
 	{Cmd: "udevadm settle"},
 	{Cmd: "blkid -l --match-token LABEL=reflabel -o device", Output: "/some/part"},
@@ -366,6 +396,25 @@ var _ = Describe("Layout", func() {
 				}, fs, testConsole)
 				Expect(err).ToNot(HaveOccurred())
 			}
+		})
+
+		It("Adds a swap partition and fails expanding it", func() {
+			testConsole := console.New()
+			testConsole.AddCmds(CmdsAddAndExpandSwapPart)
+
+			buf := new(strings.Builder)
+			l.SetOutput(buf)
+
+			err := Layout(l, schema.Stage{
+				Layout: schema.Layout{
+					Device: &schema.Device{Path: "/some/device"},
+					Parts:  []schema.Partition{{FSLabel: "MYLABEL", Size: 1024, FileSystem: "swap"}},
+					Expand: &schema.Expand{Size: 3072},
+				},
+			}, fs, testConsole)
+
+			Expect(buf.String()).ToNot(MatchRegexp("level=warning"))
+			Expect(err.Error()).To(ContainSubstring("swap resizing is not supported"))
 		})
 	})
 })
