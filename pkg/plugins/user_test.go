@@ -183,7 +183,6 @@ last:x:999:999:Test user for uid:/:/usr/bin/nologin
 				Users: map[string]schema.User{"foo": {
 					PasswordHash: `$fkekofe`,
 					LockPasswd:   true,
-					UID:          "5000",
 					Homedir:      "/run/foo",
 					Shell:        "/bin/bash",
 				}},

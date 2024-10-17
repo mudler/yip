@@ -6,6 +6,7 @@ import (
 	osuser "os/user"
 	"sort"
 	"strconv"
+	"syscall"
 
 	"github.com/mauromorales/xpasswd/pkg/users"
 	"github.com/pkg/errors"
@@ -101,26 +102,30 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 		}
 	}
 
+	if u.Homedir == "" {
+		u.Homedir = fmt.Sprintf("%s/%s", usrDefaults["HOME"], u.Name)
+	}
+
 	uid := -1
-	if u.UID != "" {
-		// User defined-uid
-		uid, err = strconv.Atoi(u.UID)
+	list := users.NewUserList()
+	list.SetPath(etcpasswd)
+	list.Load()
+	user := list.Get(u.Name)
+
+	if user != nil {
+		uid, err = user.UID()
 		if err != nil {
-			return errors.Wrap(err, "invalid uid defined")
+			return errors.Wrap(err, "could not get user id")
 		}
 	} else {
-		list := users.NewUserList()
-		list.SetPath(etcpasswd)
-		list.Load()
-
-		user := list.Get(u.Name)
-
-		if user != nil {
-			uid, err = user.UID()
-			if err != nil {
-				return errors.Wrap(err, "could not get user id")
+		// Try to see if the user is in the system already with a given UID
+		userDir, err := os.Stat(u.Homedir)
+		if err == nil {
+			if stat, ok := userDir.Sys().(*syscall.Stat_t); ok {
+				uid = int(stat.Uid)
 			}
 		} else {
+			// Now generate one if we havent been able to pick the existing one
 			// https://systemd.io/UIDS-GIDS/#special-distribution-uid-ranges
 			uid, err = list.GenerateUIDInRange(entities.HumanIDMin, entities.HumanIDMax)
 			if err != nil {
@@ -130,10 +135,6 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 	}
 	if uid == -1 {
 		return errors.New("could not set uid for user")
-	}
-
-	if u.Homedir == "" {
-		u.Homedir = fmt.Sprintf("%s/%s", usrDefaults["HOME"], u.Name)
 	}
 
 	if u.Shell == "" {
