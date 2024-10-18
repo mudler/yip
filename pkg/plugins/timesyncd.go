@@ -2,6 +2,7 @@ package plugins
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
@@ -9,17 +10,23 @@ import (
 	"gopkg.in/ini.v1"
 )
 
-const timeSyncd = "/etc/systemd/timesyncd.conf"
+const timeSyncd = "/etc/systemd/timesyncd.conf.d/10-yip.conf"
 
 func Timesyncd(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 	if len(s.TimeSyncd) == 0 {
 		return nil
 	}
 	var errs error
-
 	path, err := fs.RawPath(timeSyncd)
 	if err != nil {
 		return err
+	}
+
+	if _, err := fs.Stat(filepath.Dir(timeSyncd)); os.IsNotExist(err) {
+		err = fs.Mkdir(filepath.Dir(timeSyncd), os.ModeDir|os.ModePerm)
+		if err != nil {
+			return err
+		}
 	}
 
 	if _, err := fs.Stat(timeSyncd); os.IsNotExist(err) {
