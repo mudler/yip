@@ -44,7 +44,7 @@ var _ = Describe("Timesyncd", func() {
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			file, err := fs.Open("/etc/systemd/timesyncd.conf")
+			file, err := fs.Open("/etc/systemd/timesyncd.conf.d/10-yip.conf")
 			Expect(err).ShouldNot(HaveOccurred())
 
 			b, err := ioutil.ReadAll(file)
