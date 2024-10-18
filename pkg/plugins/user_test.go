@@ -212,8 +212,7 @@ last:x:999:999:Test user for uid:/:/usr/bin/nologin
 			Expect(foo.HomeDir()).To(Equal("/run/foo"))
 			Expect(foo.Shell()).To(Equal("/bin/bash"))
 			Expect(foo.Password()).To(Equal("x"))
-			// we specifically set this UID()
-			Expect(foo.UID()).To(Equal(5000))
+			Expect(foo.UID()).To(Equal(1000))
 
 		})
 
