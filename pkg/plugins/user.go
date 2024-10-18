@@ -118,7 +118,7 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 			return errors.Wrap(err, "could not get user id")
 		}
 	} else {
-		// Try to see if the user is in the system already with a given UID
+		// Try to see if the user was created previously with a given UID by checking for an existing home dir
 		userDir, err := os.Stat(u.Homedir)
 		if err == nil {
 			if stat, ok := userDir.Sys().(*syscall.Stat_t); ok {
