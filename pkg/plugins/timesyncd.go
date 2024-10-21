@@ -40,11 +40,7 @@ func Timesyncd(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) e
 	}
 
 	for k, v := range s.TimeSyncd {
-		if v == "" {
-			cfg.Section("Time").Key(k).SetValue("\"\"")
-		} else {
-			cfg.Section("Time").Key(k).SetValue(v)
-		}
+		cfg.Section("Time").Key(k).SetValue(v)
 	}
 
 	cfg.SaveTo(path)
