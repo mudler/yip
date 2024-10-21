@@ -55,6 +55,7 @@ func (s StandardConsole) Run(cmd string, opts ...func(cmd *exec.Cmd)) (string, e
 		o(c)
 	}
 	displayProgress(s.logger, 10*time.Second, fmt.Sprintf("Still running command '%s'", cmd))
+
 	out, err := c.CombinedOutput()
 	if err != nil {
 		return string(out), fmt.Errorf("failed to run %s: %v", cmd, err)
@@ -63,7 +64,7 @@ func (s StandardConsole) Run(cmd string, opts ...func(cmd *exec.Cmd)) (string, e
 	return string(out), err
 }
 
-func displayProgress(log logger.Interface, tick time.Duration, message string) chan bool {
+func displayProgress(log logger.Interface, tick time.Duration, message string) {
 	ticker := time.NewTicker(tick)
 	done := make(chan bool)
 
@@ -79,7 +80,7 @@ func displayProgress(log logger.Interface, tick time.Duration, message string) c
 		}
 	}()
 
-	return done
+	return
 }
 
 func (s StandardConsole) Start(cmd *exec.Cmd, opts ...func(cmd *exec.Cmd)) error {
