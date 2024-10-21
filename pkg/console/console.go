@@ -65,7 +65,6 @@ func (s StandardConsole) Run(cmd string, opts ...func(cmd *exec.Cmd)) (string, e
 	out, err := c.CombinedOutput()
 
 	// Stop the timer log
-	cancel()
 
 	if err != nil {
 		return string(out), fmt.Errorf("failed to run %s: %v", cmd, err)
