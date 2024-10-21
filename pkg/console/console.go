@@ -17,6 +17,7 @@ package console
 import (
 	"fmt"
 	"os/exec"
+	"time"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/mudler/yip/pkg/logger"
@@ -53,12 +54,32 @@ func (s StandardConsole) Run(cmd string, opts ...func(cmd *exec.Cmd)) (string, e
 	for _, o := range opts {
 		o(c)
 	}
+	displayProgress(s.logger, 10*time.Second, fmt.Sprintf("Still running command '%s'", cmd))
 	out, err := c.CombinedOutput()
 	if err != nil {
 		return string(out), fmt.Errorf("failed to run %s: %v", cmd, err)
 	}
 
 	return string(out), err
+}
+
+func displayProgress(log logger.Interface, tick time.Duration, message string) chan bool {
+	ticker := time.NewTicker(tick)
+	done := make(chan bool)
+
+	go func() {
+		for {
+			select {
+			case <-done:
+				ticker.Stop()
+				return
+			case <-ticker.C:
+				log.Info(message)
+			}
+		}
+	}()
+
+	return done
 }
 
 func (s StandardConsole) Start(cmd *exec.Cmd, opts ...func(cmd *exec.Cmd)) error {
