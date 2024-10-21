@@ -183,6 +183,7 @@ last:x:999:999:Test user for uid:/:/usr/bin/nologin
 				Users: map[string]schema.User{"foo": {
 					PasswordHash: `$fkekofe`,
 					LockPasswd:   true,
+					UID:          "5000",
 					Homedir:      "/run/foo",
 					Shell:        "/bin/bash",
 				}},
@@ -212,7 +213,7 @@ last:x:999:999:Test user for uid:/:/usr/bin/nologin
 			Expect(foo.HomeDir()).To(Equal("/run/foo"))
 			Expect(foo.Shell()).To(Equal("/bin/bash"))
 			Expect(foo.Password()).To(Equal("x"))
-			Expect(foo.UID()).To(Equal(1000))
+			Expect(foo.UID()).To(Equal(5000))
 
 		})
 

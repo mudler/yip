@@ -98,6 +98,7 @@ type User struct {
 	NoLogInit         bool     `yaml:"no_log_init,omitempty"`
 	Shell             string   `yaml:"shell,omitempty"`
 	LockPasswd        bool     `yaml:"lock_passwd,omitempty"`
+	UID               string   `yaml:"uid,omitempty"`
 }
 
 func (u User) Exists() bool {

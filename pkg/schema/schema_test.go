@@ -94,6 +94,7 @@ stages:
 users:
 - name: "bar"
   passwd: "foo"
+  uid: "1002"
   lock_passwd: true
   groups:
   - sudo
@@ -113,6 +114,7 @@ write_files:
 `)
 			Expect(len(yipConfig.Stages)).To(Equal(3))
 			Expect(yipConfig.Stages["boot"][0].Users["bar"].PasswordHash).To(Equal("foo"))
+			Expect(yipConfig.Stages["boot"][0].Users["bar"].UID).To(Equal("1002"))
 			Expect(yipConfig.Stages["boot"][0].SSHKeys).To(Equal(map[string][]string{"bar": {"faaapploo", "asdd"}}))
 			Expect(yipConfig.Stages["boot"][0].Files[0].Path).To(Equal("/foo/bar"))
 			Expect(yipConfig.Stages["boot"][0].Files[0].Permissions).To(Equal(uint32(0644)))
