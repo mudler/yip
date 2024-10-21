@@ -107,10 +107,14 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 	}
 
 	uid := -1
-	
+
 	// If UID is specified just put it there. No matter whats in the system or the collisions. Good luck.
 	if u.UID != "" {
+		// User defined-uid
 		uid, err = strconv.Atoi(u.UID)
+		if err != nil {
+			return errors.Wrap(err, "invalid uid defined")
+		}
 	} else {
 		// Try to get the existing UID in the system
 		list := users.NewUserList()
