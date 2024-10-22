@@ -16,11 +16,10 @@ package console
 
 import (
 	"fmt"
-	"os/exec"
-
 	"github.com/hashicorp/go-multierror"
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/sirupsen/logrus"
+	"os/exec"
 )
 
 type StandardConsole struct {
@@ -54,6 +53,7 @@ func (s StandardConsole) Run(cmd string, opts ...func(cmd *exec.Cmd)) (string, e
 		o(c)
 	}
 	out, err := c.CombinedOutput()
+
 	if err != nil {
 		return string(out), fmt.Errorf("failed to run %s: %v", cmd, err)
 	}
