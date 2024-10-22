@@ -21,6 +21,7 @@ import (
 	"github.com/sanity-io/litter"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/mudler/yip/pkg/logger"
@@ -94,12 +95,29 @@ func (e *DefaultExecutor) applyStage(config schema.YipConfig, stageName string, 
 	e.logger.Debugf("Stage: %s", litter.Sdump(stage))
 
 	for _, p := range e.plugins {
+		ctx, cancel := context.WithCancel(context.Background())
+		go stillAlive(ctx, e.logger, 10*time.Second, fmt.Sprintf("Still running stage '%s'", stageName))
 		if err := p(e.logger, stage, fs, console); err != nil {
 			e.logger.Errorf("Error on file %s on stage %s: %s", config.Source, stage.Name, err)
 			errs = multierror.Append(errs, err)
 		}
+		cancel()
 	}
 	return errs
+}
+
+func stillAlive(ctx context.Context, log logger.Interface, tick time.Duration, message string) {
+	ticker := time.NewTicker(tick)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			log.Info(message)
+		}
+	}
 }
 
 func checkDuplicates(stages []schema.Stage) bool {

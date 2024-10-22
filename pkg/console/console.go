@@ -15,14 +15,11 @@
 package console
 
 import (
-	"context"
 	"fmt"
-	"os/exec"
-	"time"
-
 	"github.com/hashicorp/go-multierror"
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/sirupsen/logrus"
+	"os/exec"
 )
 
 type StandardConsole struct {
@@ -55,37 +52,13 @@ func (s StandardConsole) Run(cmd string, opts ...func(cmd *exec.Cmd)) (string, e
 	for _, o := range opts {
 		o(c)
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	// Start the timer log
-	go displayProgress(ctx, s.logger, 10*time.Second, fmt.Sprintf("Still running command '%s'", cmd))
-
-	// Run the command
 	out, err := c.CombinedOutput()
-
-	// Stop the timer log
-	cancel()
 
 	if err != nil {
 		return string(out), fmt.Errorf("failed to run %s: %v", cmd, err)
 	}
 
 	return string(out), err
-}
-
-func displayProgress(ctx context.Context, log logger.Interface, tick time.Duration, message string) {
-	ticker := time.NewTicker(tick)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			log.Info(message)
-		}
-	}
 }
 
 func (s StandardConsole) Start(cmd *exec.Cmd, opts ...func(cmd *exec.Cmd)) error {
