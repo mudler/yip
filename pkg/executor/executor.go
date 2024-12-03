@@ -91,6 +91,7 @@ func NewExecutor(opts ...Options) Executor {
 			plugins.SystemdFirstboot,
 			plugins.DataSources,
 			plugins.Layout,
+			plugins.Packages,
 		},
 	}
 
