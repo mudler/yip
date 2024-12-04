@@ -232,6 +232,12 @@ var CmdsExpandPartXfs []console.CmdMock = []console.CmdMock{
 }
 
 func CmdsAddPartByLabel(fs string) []console.CmdMock {
+	mkfsTmpl := "mkfs.%s -L %s /some/device5"
+	if (fs == "btrfs") {
+		// for btrfs adds force flag
+		mkfsTmpl = "mkfs.%s -L %s -f /some/device5"
+	}
+
 	return []console.CmdMock{
 		{Cmd: "udevadm settle"},
 		{Cmd: fmt.Sprintf("blkid -l --match-token LABEL=%s -o device", deviceLabel), Output: "/some/part"},
@@ -247,7 +253,7 @@ func CmdsAddPartByLabel(fs string) []console.CmdMock {
 		{Cmd: "partprobe /some/device"}, sync,
 		{Cmd: "udevadm settle"},
 		lsblkTypes,
-		{Cmd: fmt.Sprintf("mkfs.%s -L %s /some/device5", fs, label)},
+		{Cmd: fmt.Sprintf(mkfsTmpl, fs, label)},
 		{Cmd: "udevadm settle"},
 		{Cmd: "partprobe /some/device"},
 		sync,

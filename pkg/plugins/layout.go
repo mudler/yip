@@ -830,6 +830,9 @@ func (mkfs MkfsCall) buildOptions() ([]string, error) {
 			opts = append(opts, "-L")
 			opts = append(opts, mkfs.part.FSLabel)
 		}
+		if mkfs.part.FileSystem == "btrfs" {
+			opts = append(opts, "-f")
+		}
 		if len(mkfs.customOpts) > 0 {
 			opts = append(opts, mkfs.customOpts...)
 		}
