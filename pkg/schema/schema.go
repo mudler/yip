@@ -164,11 +164,18 @@ type Stage struct {
 	Git       Git               `yaml:"git,omitempty"`
 }
 
+type SystemctlOverride struct {
+	Service string `yaml:"service,omitempty"`
+	Content string `yaml:"content,omitempty"`
+	Name    string `yaml:"name,omitempty"`
+}
+
 type Systemctl struct {
-	Enable  []string `yaml:"enable,omitempty"`
-	Disable []string `yaml:"disable,omitempty"`
-	Start   []string `yaml:"start,omitempty"`
-	Mask    []string `yaml:"mask,omitempty"`
+	Enable    []string            `yaml:"enable,omitempty"`
+	Disable   []string            `yaml:"disable,omitempty"`
+	Start     []string            `yaml:"start,omitempty"`
+	Mask      []string            `yaml:"mask,omitempty"`
+	Overrides []SystemctlOverride `yaml:"overrides,omitempty"`
 }
 
 type DNS struct {
