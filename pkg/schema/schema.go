@@ -152,6 +152,7 @@ type Stage struct {
 	Systemctl       Systemctl           `yaml:"systemctl,omitempty"`
 	Environment     map[string]string   `yaml:"environment,omitempty"`
 	EnvironmentFile string              `yaml:"environment_file,omitempty"`
+	Packages        Packages            `yaml:"packages,omitempty"`
 
 	After []Dependency `yaml:"after,omitempty"`
 
@@ -169,6 +170,12 @@ type Systemctl struct {
 	Disable []string `yaml:"disable,omitempty"`
 	Start   []string `yaml:"start,omitempty"`
 	Mask    []string `yaml:"mask,omitempty"`
+}
+
+type Packages struct {
+	Install []string `yaml:"install,omitempty"`
+	Remove  []string `yaml:"remove,omitempty"`
+	Refresh bool     `yaml:"refresh,omitempty"`
 }
 
 type DNS struct {
