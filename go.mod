@@ -14,7 +14,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/mauromorales/xpasswd v0.4.0
 	github.com/mudler/entities v0.8.1
-	github.com/onsi/ginkgo/v2 v2.17.1
+	github.com/onsi/ginkgo/v2 v2.22.0
 	github.com/onsi/gomega v1.33.0
 	github.com/pkg/errors v0.9.1
 	github.com/rancher-sandbox/linuxkit v1.0.2
