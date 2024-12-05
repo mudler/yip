@@ -27,7 +27,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Systemctl", Focus, func() {
+var _ = Describe("Systemctl", func() {
 	Context("parsing yip file", func() {
 		testConsole := consoletests.TestConsole{}
 		BeforeEach(func() {
@@ -71,7 +71,6 @@ var _ = Describe("Systemctl", Focus, func() {
 				Expect(consoletests.Commands).Should(BeEmpty())
 				content, err := fs.ReadFile("/etc/systemd/system/foo.service.d/override-yip.conf")
 				Expect(err).ToNot(HaveOccurred())
-				fmt.Println(string(content))
 				Expect(string(content)).Should(Equal("[Unit]\nbar=baz"))
 			})
 			It("creates override files if service is given without extension", func() {
@@ -94,7 +93,6 @@ var _ = Describe("Systemctl", Focus, func() {
 				Expect(consoletests.Commands).Should(BeEmpty())
 				content, err := fs.ReadFile("/etc/systemd/system/foo.service.d/override-yip.conf")
 				Expect(err).ToNot(HaveOccurred())
-				fmt.Println(string(content))
 				Expect(string(content)).Should(Equal("[Unit]\nbar=baz"))
 			})
 			It("creates override files with custom override file name", func() {
@@ -121,7 +119,6 @@ var _ = Describe("Systemctl", Focus, func() {
 				Expect(consoletests.Commands).Should(BeEmpty())
 				content, err := fs.ReadFile("/etc/systemd/system/foo.service.d/override-foo.conf")
 				Expect(err).ToNot(HaveOccurred())
-				fmt.Println(string(content))
 				Expect(string(content)).Should(Equal("[Unit]\nbar=baz"))
 			})
 			It("creates override files with custom override file name missing the extension", func() {
@@ -148,7 +145,6 @@ var _ = Describe("Systemctl", Focus, func() {
 				Expect(consoletests.Commands).Should(BeEmpty())
 				content, err := fs.ReadFile("/etc/systemd/system/foo.service.d/override-foo.conf")
 				Expect(err).ToNot(HaveOccurred())
-				fmt.Println(string(content))
 				Expect(string(content)).Should(Equal("[Unit]\nbar=baz"))
 			})
 			It("doesn't do anything if service name is missing", func() {
