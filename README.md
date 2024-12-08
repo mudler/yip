@@ -447,6 +447,13 @@ stages:
 
 A list of systemd services to `enable`, `disable`, `mask` or `start`.
 
+A list of overrides to apply to the service files witht he following fields:
+ - `service`: The service name to add the override for. Required. `.service` extension is appended to the name if not provided.
+   - `name`: The name of the override file. Optional, if not provided it will be named `override-yip.conf`. `.conf` extension is appended to the name if not provided.
+ - `content`: The content of the override file.
+
+Overrides don't check if the service is enabled or disabled, or even if it exists, it will apply the override anyway.
+
 ```yaml
 stages:
    default:
@@ -461,6 +468,13 @@ stages:
           - crond
          start:
           - cronie
+         overrides:
+            - service: "systemd-timesyncd"
+              name: "override-custom.conf"
+              content: |
+                [Service]
+                ExecStart=
+                ExecStart=/usr/lib/systemd/systemd-timesyncd
 ```
 ### `stages.<stageID>.[<stepN>].environment`
 
