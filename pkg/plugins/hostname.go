@@ -3,7 +3,6 @@ package plugins
 import (
 	"bufio"
 	"fmt"
-	"math/rand"
 	"strings"
 	"syscall"
 	"time"
@@ -28,9 +27,21 @@ func Hostname(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) er
 
 	// Template the input string with random generated strings and UUID.
 	// Those can be used to e.g. generate random node names based on patterns "foo-{{.UUID}}"
-	rand.Seed(time.Now().UnixNano())
+	// Exponential back-off for machineid generation.
+	// Systemd might take a while before it populates /etc/machine-id.
+	var id string
+	var err error
+	for i := 0; i < 4; i++ {
+		id, err = machineid.ID()
+		if err == nil {
+			break
+		}
+		time.Sleep(time.Duration(2<<i) * time.Second) // Exponential back-off starting at 2 seconds
+	}
+	if err != nil {
+		return fmt.Errorf("failed to get machine id: %w", err)
+	}
 
-	id, _ := machineid.ID()
 	myuuid, err := uuid.NewV4()
 	if err != nil {
 		return err
