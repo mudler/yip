@@ -3,7 +3,7 @@ module github.com/mudler/yip
 go 1.22.5
 
 require (
-	github.com/Masterminds/sprig/v3 v3.2.3
+	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/apex/log v1.9.0
 	github.com/cavaliergopher/grab v2.0.0+incompatible
 	github.com/denisbrodbeck/machineid v1.0.1
