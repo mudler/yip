@@ -21,6 +21,9 @@ func OnlyIfOS(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) er
 
 		// Get the OS name from the system
 		system.GetSysInfo()
+		if system.OS.Name == "" {
+			return fmt.Errorf("skipping stage (OnlyIfOs regex (%s) as system os name is empty)", s.OnlyIfOs)
+		}
 		if compile.MatchString(system.OS.Name) {
 			return nil
 		}
@@ -41,6 +44,9 @@ func OnlyIfOSVersion(l logger.Interface, s schema.Stage, fs vfs.FS, console Cons
 
 		// Get the OS version from the system
 		system.GetSysInfo()
+		if system.OS.Version == "" {
+			return fmt.Errorf("skipping stage (OnlyIfOsVersion regex (%s) as system version is empty)", s.OnlyIfOsVersion)
+		}
 		if compile.MatchString(system.OS.Version) {
 			return nil
 		}
