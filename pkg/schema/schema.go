@@ -163,6 +163,8 @@ type Stage struct {
 
 	TimeSyncd map[string]string `yaml:"timesyncd,omitempty"`
 	Git       Git               `yaml:"git,omitempty"`
+
+	OnlyIfOs string `yaml:"only_os,omitempty"`
 }
 
 type SystemctlOverride struct {
@@ -196,6 +198,15 @@ type YipConfig struct {
 	Source string             `yaml:"-"`
 	Name   string             `yaml:"name,omitempty"`
 	Stages map[string][]Stage `yaml:"stages,omitempty"`
+}
+
+// ToString returns the yaml representation of the YipConfig
+func (y *YipConfig) ToString() string {
+	s, err := yaml.Marshal(y)
+	if err != nil {
+		return ""
+	}
+	return string(s)
 }
 
 type Loader func(s string, fs vfs.FS, m Modifier) ([]byte, error)
