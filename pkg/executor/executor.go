@@ -94,6 +94,7 @@ func NewExecutor(opts ...Options) Executor {
 			plugins.DataSources,
 			plugins.Layout,
 			plugins.Packages,
+			plugins.UnpackImage,
 		},
 	}
 

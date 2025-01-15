@@ -153,6 +153,7 @@ type Stage struct {
 	Environment     map[string]string   `yaml:"environment,omitempty"`
 	EnvironmentFile string              `yaml:"environment_file,omitempty"`
 	Packages        Packages            `yaml:"packages,omitempty"`
+	UnpackImages    []UnpackImageConf   `yaml:"unpack_images,omitempty"`
 
 	After []Dependency `yaml:"after,omitempty"`
 
@@ -166,6 +167,12 @@ type Stage struct {
 
 	OnlyIfOs        string `yaml:"only_os,omitempty"`
 	OnlyIfOsVersion string `yaml:"only_os_version,omitempty"`
+}
+
+type UnpackImageConf struct {
+	Source   string `yaml:"source,omitempty"`
+	Target   string `yaml:"target,omitempty"`
+	Platform string `yaml:"platform,omitempty"`
 }
 
 type SystemctlOverride struct {
