@@ -28,3 +28,23 @@ func OnlyIfOS(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) er
 	}
 	return nil
 }
+
+// OnlyIfOSVersion checks if the OS VERSION matches the if statement and runs it if so
+func OnlyIfOSVersion(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
+	l.Info("Running OnlyIfOSVersion")
+	if s.OnlyIfOs != "" {
+		compile, err := regexp.Compile(s.OnlyIfOsVersion)
+		if err != nil {
+			l.Debugf("Skipping stage (OnlyIfOsVersion regex compile (%s) statement error: %w)", s.OnlyIfOsVersion, err)
+			return err
+		}
+
+		// Get the OS version from the system
+		system.GetSysInfo()
+		if compile.MatchString(system.OS.Version) {
+			return nil
+		}
+		return fmt.Errorf("skipping stage (OnlyIfOsVersion regex (%s) doesn't match os version '%s')", s.OnlyIfOs, system.OS.Version)
+	}
+	return nil
+}
