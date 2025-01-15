@@ -11,7 +11,6 @@ import (
 
 // OnlyIfOS checks if the OS matches the if statement and runs it if so
 func OnlyIfOS(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
-	l.Info("Running OnlyIfOS")
 	if s.OnlyIfOs != "" {
 		compile, err := regexp.Compile(s.OnlyIfOs)
 		if err != nil {
@@ -34,7 +33,6 @@ func OnlyIfOS(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) er
 
 // OnlyIfOSVersion checks if the OS VERSION matches the if statement and runs it if so
 func OnlyIfOSVersion(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
-	l.Info("Running OnlyIfOSVersion")
 	if s.OnlyIfOsVersion != "" {
 		compile, err := regexp.Compile(s.OnlyIfOsVersion)
 		if err != nil {
