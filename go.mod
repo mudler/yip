@@ -5,7 +5,7 @@ go 1.22.5
 require (
 	github.com/Masterminds/sprig/v3 v3.2.3
 	github.com/apex/log v1.9.0
-	github.com/cavaliergopher/grab v2.0.0+incompatible
+	github.com/cavaliergopher/grab v3.0.1+incompatible
 	github.com/containerd/containerd v1.7.25
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/go-git/go-git/v5 v5.13.0
