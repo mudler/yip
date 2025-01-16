@@ -70,6 +70,8 @@ func NewExecutor(opts ...Options) Executor {
 		conditionals: []Plugin{
 			plugins.NodeConditional,
 			plugins.IfConditional,
+			plugins.OnlyIfOS,
+			plugins.OnlyIfOSVersion,
 		},
 		plugins: []Plugin{
 			plugins.DNS,
@@ -92,6 +94,7 @@ func NewExecutor(opts ...Options) Executor {
 			plugins.DataSources,
 			plugins.Layout,
 			plugins.Packages,
+			plugins.UnpackImage,
 		},
 	}
 

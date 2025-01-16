@@ -15,6 +15,7 @@
 package plugins_test
 
 import (
+	"fmt"
 	. "github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
 	consoletests "github.com/mudler/yip/tests/console"
@@ -25,24 +26,52 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("If", func() {
-	Context("Succeeds", func() {
-		testConsole := consoletests.TestConsole{}
-		BeforeEach(func() {
-			consoletests.Reset()
+var _ = Describe("Conditionals", Label("conditionals"), func() {
+	var testConsole consoletests.TestConsole
+	var fs *vfst.TestFS
+	var cleanup func()
+	var err error
+
+	BeforeEach(func() {
+		testConsole = consoletests.TestConsole{}
+		fs, cleanup, err = vfst.NewTestFS(map[string]interface{}{"/etc/hostname": "boo", "/etc/hosts": "127.0.0.1 boo"})
+		Expect(err).Should(BeNil())
+	})
+	AfterEach(func() {
+		consoletests.Reset()
+		cleanup()
+	})
+	Describe("IfConditional", func() {
+		Context("Succeeds", func() {
+			It("Executes", func() {
+				err = IfConditional(logrus.New(), schema.Stage{
+					If: "exit 1",
+				}, fs, testConsole)
+
+				Expect(err).ShouldNot(HaveOccurred())
+				Expect(consoletests.Commands).Should(Equal([]string{"exit 1"}))
+			})
 		})
-		It("Executes", func() {
-			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/etc/hostname": "boo", "/etc/hosts": "127.0.0.1 boo"})
-			Expect(err).Should(BeNil())
-			defer cleanup()
+		Describe("IfOsConditional", func() {
+			It("Executes", func() {
+				err = OnlyIfOS(logrus.New(), schema.Stage{
+					OnlyIfOs: "weird",
+				}, fs, testConsole)
 
-			err = IfConditional(logrus.New(), schema.Stage{
-				If: "exit 1",
-			}, fs, testConsole)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring(fmt.Sprintf(SkipOnlyOs, "weird")))
+				Expect(err.Error()).Should(ContainSubstring("doesn't match os name"))
+			})
+		})
+		Describe("IfOsVersionConditional", func() {
+			It("Executes", func() {
+				err = OnlyIfOSVersion(logrus.New(), schema.Stage{
+					OnlyIfOsVersion: "weird",
+				}, fs, testConsole)
 
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(consoletests.Commands).Should(Equal([]string{"exit 1"}))
-
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring(fmt.Sprintf(SkipOnlyOsVersion, "weird")), err.Error())
+			})
 		})
 	})
 })
