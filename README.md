@@ -234,6 +234,45 @@ name: "Test yip!"
 
 The expression inside the if will be evaluated in bash and, if specified, the stage gets executed only if the condition returns successfully (exit 0).
 
+## Filtering stages with only_os and only_os_version statement
+
+`yip` can skip stages based on the OS and OS version:
+
+Use the `only_os` and `only_os_version` fields to specify the OS and OS version where the stage should be executed. They can be used together or separately and mixed with the normal `if` statement to provide several filtering criteria.
+
+Notice that both fields are compiled as a regex, so you can use regex patterns to match the OS and OS version.
+
+```yaml
+stages:
+  foo:
+  - name: "echo ubuntu"
+    commands:
+    - echo hello
+    only_os: "ubuntu"
+  - name: "echo ubuntu and opensuse-leap"
+    commands:
+       - echo hello
+    only_os: "ubuntu|opensuse-leap"
+  - name: "echo everything but ubuntu"
+    commands:
+       - echo hello
+    only_os: "^(?!ubuntu).*"
+  - name: "echo ubuntu 20.04"
+    commands:
+       - echo hello
+    only_os: "ubuntu"
+    only_os_version: "20.04"
+  - name: "echo ubuntu 20.04 or 22.04"
+    commands:
+       - echo hello
+    only_os: "ubuntu"
+    only_os_version: "20.04|22.04"
+
+name: "Test yip!"
+```
+
+
+
 ## Configuration reference
 
 Below is a reference of all keys available in the cloud-init style files.
@@ -592,4 +631,23 @@ stages:
            - fsLabel: COS_PERSISTENT
              # default filesystem is ext2 if omitted
              filesystem: ext4
+```
+
+### `stages.<stageID>.[<stepN>].unpack_images`
+
+Unpacks a list of OCI images to disk.
+Accepts a list of `source` and `target` paths.
+The `source` is the image to unpack, and the `target` is the path where the image will be unpacked.
+Optially a `platform` can be specified to unpack the image for a specific platform. By default it will unpack the image for the current platform.
+
+```yaml
+stages:
+   default:
+     - name: "Unpack images"
+       unpack_images:
+         - source: "quay.io/luet/base:latest"
+           target: "/usr/local/luet/"
+         - source: "rancher/k3s:latest"
+           target: "/usr/local/k3s-arm64"
+           platform: "linux/arm64"
 ```

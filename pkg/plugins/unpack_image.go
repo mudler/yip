@@ -11,6 +11,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/mutate"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
+	"github.com/hashicorp/go-multierror"
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/twpayne/go-vfs/v4"
@@ -21,6 +22,8 @@ import (
 )
 
 func UnpackImage(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
+	var errs *multierror.Error
+
 	if len(s.UnpackImages) == 0 {
 		return nil
 	}
@@ -36,20 +39,23 @@ func UnpackImage(l logger.Interface, s schema.Stage, fs vfs.FS, console Console)
 		// create the target directory if it doesnt exist
 		if err := mkdirAll(fs, imageConf.Target, 0755); err != nil {
 			l.Errorf("Error creating target directory for unpack_image: %w", err)
+			errs = multierror.Append(errs, err)
 			continue
 		}
 		// unpack the image
 		image, err := getImage(imageConf.Source, imageConf.Platform)
 		if err != nil {
 			l.Errorf("Error getting image for unpack_image: %w", err)
+			errs = multierror.Append(errs, err)
 			continue
 		}
 		if err := extractOCIImage(image, imageConf.Target); err != nil {
 			l.Errorf("Error extracting image for unpack_image: %w", err)
+			errs = multierror.Append(errs, err)
 			continue
 		}
 	}
-	return nil
+	return errs.ErrorOrNil()
 }
 
 // ExtractOCIImage will extract a given targetImage into a given targetDestination
@@ -84,18 +90,26 @@ func getImage(targetImage, targetPlatform string) (v1.Image, error) {
 	}
 
 	tr := transport.NewRetry(http.DefaultTransport)
+
+	// Try to get the image from the local Docker daemon
 	image, err = daemon.Image(ref)
-
-	if err != nil {
-		opts := []remote.Option{
-			remote.WithTransport(tr),
-			remote.WithPlatform(*platform),
+	if err == nil {
+		// Check if the image matches the requested platform
+		imgConfig, err := image.ConfigFile()
+		if err == nil && imgConfig.Architecture == platform.Architecture && imgConfig.OS == platform.OS {
+			return image, nil
 		}
-
-		opts = append(opts, remote.WithAuthFromKeychain(authn.DefaultKeychain))
-
-		image, err = remote.Image(ref, opts...)
 	}
+
+	// If the image is not in the local Docker daemon, or does not match the platform try to get it from the registry
+	opts := []remote.Option{
+		remote.WithTransport(tr),
+		remote.WithPlatform(*platform),
+	}
+
+	opts = append(opts, remote.WithAuthFromKeychain(authn.DefaultKeychain))
+
+	image, err = remote.Image(ref, opts...)
 
 	return image, err
 }
