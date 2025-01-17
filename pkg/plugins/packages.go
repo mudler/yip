@@ -44,17 +44,17 @@ const (
 	OpenSUSETumbleweed Distro = "opensuse-tumbleweed"
 )
 
-// Packages runs the package manager to try to install/remove/refresh packages
+// Packages runs the package manager to try to install/remove/upgrade/refresh packages
 // It will try to identify the package manager based on the distro
 // If it can't identify the package manager, it will return an error
-// Order is Refresh -> Install -> Remove
+// Order is Refresh -> Upgrade -> Install -> Remove
 func Packages(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 	// Don't do anything if empty
 	if len(s.Packages.Remove) == 0 && len(s.Packages.Install) == 0 && s.Packages.Refresh == false {
 		return nil
 	}
 
-	var installArgs, updateArgs, removeArgs []string
+	var installArgs, updateArgs, removeArgs, refreshArgs []string
 
 	cmd := identifyInstaller(fs)
 
@@ -65,28 +65,51 @@ func Packages(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) er
 		defer func() {
 			_ = os.Unsetenv("DEBIAN_FRONTEND")
 		}()
-		updateArgs = []string{"-y", "update"}
+		refreshArgs = []string{"-y", "update"}
+		updateArgs = []string{"-y", "upgrade"}
 		installArgs = []string{"-y", "--no-install-recommends", "install"}
 		removeArgs = []string{"-y", "remove"}
 	case AlpineInstaller:
-		updateArgs = []string{"update"}
+		refreshArgs = []string{"update"}
+		updateArgs = []string{"upgrade", "--no-cache"}
 		installArgs = []string{"add", "--no-cache"}
 		removeArgs = []string{"del", "--no-cache"}
-	case DNFInstaller, SUSEInstaller:
-		updateArgs = []string{"-y", "update"}
-		installArgs = []string{"-y", "install"}
-		removeArgs = []string{"-y", "remove"}
+	case DNFInstaller:
+		refreshArgs = []string{"makecache"}
+		updateArgs = []string{"update", "-y"}
+		installArgs = []string{"install", "-y"}
+		removeArgs = []string{"remove", "-y"}
+	case SUSEInstaller:
+		refreshArgs = []string{"refresh"}
+		updateArgs = []string{"update", "-y"}
+		installArgs = []string{"install", "-y"}
+		removeArgs = []string{"remove", "-y"}
 	case PacmanInstaller:
-		updateArgs = []string{"-Sy"}
+		refreshArgs = []string{"-Sy", "--noconfirm"}
+		updateArgs = []string{"-Syu", "--noconfirm"}
 		installArgs = []string{"-S", "--noconfirm"}
 		removeArgs = []string{"-R", "--noconfirm"}
 	default:
 		l.Errorf("Unknown installer")
 		return errors.New("unknown package manager")
 	}
-	// Run update
+	// Run update databases/repos
 	if s.Packages.Refresh {
-		l.Debugf("Running update")
+		l.Debugf("Running refresh")
+		out, err := console.Run(templateSysData(l, strings.Join(append([]string{cmd.String()}, refreshArgs...), " ")))
+		if err != nil {
+			return err
+		}
+		if strings.TrimSpace(out) != "" {
+			l.Debug(fmt.Sprintf("Command output: %s", out))
+		} else {
+			l.Debugf("Empty command output")
+		}
+	}
+
+	// Upgrade packages
+	if s.Packages.Upgrade {
+		l.Debugf("Running upgrade")
 		out, err := console.Run(templateSysData(l, strings.Join(append([]string{cmd.String()}, updateArgs...), " ")))
 		if err != nil {
 			return err

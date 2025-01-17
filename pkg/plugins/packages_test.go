@@ -11,7 +11,7 @@ import (
 	"io"
 )
 
-var _ = Describe("Commands", func() {
+var _ = Describe("Commands", Label("packages"), func() {
 	Context("parsing yip file", func() {
 		testConsole := consoletests.TestConsole{}
 		l := logrus.New()
@@ -47,6 +47,7 @@ var _ = Describe("Commands", func() {
 					Install: []string{"foo", "bar"},
 					Remove:  []string{"baz", "qux"},
 					Refresh: true,
+					Upgrade: true,
 				},
 			}
 			type test struct {
@@ -56,35 +57,35 @@ var _ = Describe("Commands", func() {
 			tests := []test{
 				{
 					osRelease: "ID=debian\nVERSION=10\n",
-					expected:  []string{"apt-get -y update", "apt-get -y --no-install-recommends install foo bar", "apt-get -y remove baz qux"},
+					expected:  []string{"apt-get -y update", "apt-get -y upgrade", "apt-get -y --no-install-recommends install foo bar", "apt-get -y remove baz qux"},
 				},
 				{
 					osRelease: "ID=debian\nVERSION=11\n",
-					expected:  []string{"apt-get -y update", "apt-get -y --no-install-recommends install foo bar", "apt-get -y remove baz qux"},
+					expected:  []string{"apt-get -y update", "apt-get -y upgrade", "apt-get -y --no-install-recommends install foo bar", "apt-get -y remove baz qux"},
 				},
 				{
 					osRelease: "ID=ubuntu\nVERSION=20.04\n",
-					expected:  []string{"apt-get -y update", "apt-get -y --no-install-recommends install foo bar", "apt-get -y remove baz qux"},
+					expected:  []string{"apt-get -y update", "apt-get -y upgrade", "apt-get -y --no-install-recommends install foo bar", "apt-get -y remove baz qux"},
 				},
 				{
 					osRelease: "ID=centos\nVERSION=8\n",
-					expected:  []string{"dnf -y update", "dnf -y install foo bar", "dnf -y remove baz qux"},
+					expected:  []string{"dnf makecache", "dnf update -y", "dnf install -y foo bar", "dnf remove -y baz qux"},
 				},
 				{
 					osRelease: "ID=fedora\nVERSION=34\n",
-					expected:  []string{"dnf -y update", "dnf -y install foo bar", "dnf -y remove baz qux"},
+					expected:  []string{"dnf makecache", "dnf update -y", "dnf install -y foo bar", "dnf remove -y baz qux"},
 				},
 				{
 					osRelease: "ID=alpine\nVERSION=3.14\n",
-					expected:  []string{"apk update", "apk add --no-cache foo bar", "apk del --no-cache baz qux"},
+					expected:  []string{"apk update", "apk upgrade --no-cache", "apk add --no-cache foo bar", "apk del --no-cache baz qux"},
 				},
 				{
 					osRelease: "ID=opensuse-leap\nVERSION=15.3\n",
-					expected:  []string{"zypper -y update", "zypper -y install foo bar", "zypper -y remove baz qux"},
+					expected:  []string{"zypper refresh", "zypper update -y", "zypper install -y foo bar", "zypper remove -y baz qux"},
 				},
 				{
 					osRelease: "ID=arch\nVERSION=rolling\n",
-					expected:  []string{"pacman -Sy", "pacman -S --noconfirm foo bar", "pacman -R --noconfirm baz qux"},
+					expected:  []string{"pacman -Sy --noconfirm", "pacman -Syu --noconfirm", "pacman -S --noconfirm foo bar", "pacman -R --noconfirm baz qux"},
 				},
 			}
 
