@@ -193,6 +193,7 @@ type Packages struct {
 	Install []string `yaml:"install,omitempty"`
 	Remove  []string `yaml:"remove,omitempty"`
 	Refresh bool     `yaml:"refresh,omitempty"`
+	Upgrade bool     `yaml:"upgrade,omitempty"`
 }
 
 type DNS struct {
