@@ -110,7 +110,7 @@ var _ = Describe("Conditionals", Label("conditionals"), func() {
 			Expect(err.Error()).Should(ContainSubstring(fmt.Sprintf(SkipOnlyServiceManager, "openrc")))
 		})
 		It("Fails if it finds both", func() {
-			// Create our fake systemctl
+			// Create our fake systemctl and openrc
 			Expect(fs.Mkdir("/sbin", 0755)).ToNot(HaveOccurred())
 			Expect(fs.WriteFile("/sbin/systemctl", []byte{}, 0755)).ToNot(HaveOccurred())
 			Expect(fs.WriteFile("/sbin/openrc", []byte{}, 0755)).ToNot(HaveOccurred())
@@ -134,7 +134,7 @@ var _ = Describe("Conditionals", Label("conditionals"), func() {
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 		It("Succeeds to find openrc", func() {
-			// Create our fake systemctl
+			// Create our fake openrc
 			Expect(fs.Mkdir("/sbin", 0755)).ToNot(HaveOccurred())
 			Expect(fs.WriteFile("/sbin/openrc", []byte{}, 0755)).ToNot(HaveOccurred())
 
