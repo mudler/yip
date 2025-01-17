@@ -165,8 +165,10 @@ type Stage struct {
 	TimeSyncd map[string]string `yaml:"timesyncd,omitempty"`
 	Git       Git               `yaml:"git,omitempty"`
 
-	OnlyIfOs        string `yaml:"only_os,omitempty"`
-	OnlyIfOsVersion string `yaml:"only_os_version,omitempty"`
+	OnlyIfOs             string `yaml:"only_os,omitempty"`
+	OnlyIfOsVersion      string `yaml:"only_os_version,omitempty"`
+	OnlyIfArch           string `yaml:"only_arch,omitempty"`
+	OnlyIfServiceManager string `yaml:"only_service_manager,omitempty"`
 }
 
 type UnpackImageConf struct {

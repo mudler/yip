@@ -21,6 +21,7 @@ import (
 	consoletests "github.com/mudler/yip/tests/console"
 	"github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs/v4/vfst"
+	"runtime"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -52,26 +53,96 @@ var _ = Describe("Conditionals", Label("conditionals"), func() {
 				Expect(consoletests.Commands).Should(Equal([]string{"exit 1"}))
 			})
 		})
-		Describe("IfOsConditional", func() {
-			It("Executes", func() {
-				err = OnlyIfOS(logrus.New(), schema.Stage{
-					OnlyIfOs: "weird",
-				}, fs, testConsole)
+	})
+	Describe("IfOsConditional", func() {
+		It("Executes", func() {
+			err = OnlyIfOS(logrus.New(), schema.Stage{
+				OnlyIfOs: "weird",
+			}, fs, testConsole)
 
-				Expect(err).Should(HaveOccurred())
-				Expect(err.Error()).Should(ContainSubstring(fmt.Sprintf(SkipOnlyOs, "weird")))
-				Expect(err.Error()).Should(ContainSubstring("doesn't match os name"))
-			})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring(fmt.Sprintf(SkipOnlyOs, "weird")))
+			Expect(err.Error()).Should(ContainSubstring("doesn't match os name"))
 		})
-		Describe("IfOsVersionConditional", func() {
-			It("Executes", func() {
-				err = OnlyIfOSVersion(logrus.New(), schema.Stage{
-					OnlyIfOsVersion: "weird",
-				}, fs, testConsole)
+	})
+	Describe("IfOsVersionConditional", func() {
+		It("Executes", func() {
+			err = OnlyIfOSVersion(logrus.New(), schema.Stage{
+				OnlyIfOsVersion: "weird",
+			}, fs, testConsole)
 
-				Expect(err).Should(HaveOccurred())
-				Expect(err.Error()).Should(ContainSubstring(fmt.Sprintf(SkipOnlyOsVersion, "weird")), err.Error())
-			})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring(fmt.Sprintf(SkipOnlyOsVersion, "weird")), err.Error())
+		})
+	})
+	Describe("IfArchConditional", func() {
+		It("Fails with no match", func() {
+			err = IfArch(logrus.New(), schema.Stage{
+				OnlyIfArch: "weird",
+			}, fs, testConsole)
+
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring(fmt.Sprintf(SkipOnlyArch, runtime.GOARCH, "weird")), err.Error())
+		})
+		It("Succeeds", func() {
+			err = IfArch(logrus.New(), schema.Stage{
+				OnlyIfArch: runtime.GOARCH,
+			}, fs, testConsole)
+
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+	})
+	Describe("IfServiceConditional", func() {
+		It("Fails if not supported", func() {
+			err = IfServiceManager(logrus.New(), schema.Stage{
+				OnlyIfServiceManager: "weird",
+			}, fs, testConsole)
+
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring(fmt.Sprintf(SkipNotSupportedServiceManager, "weird")))
+		})
+		It("Fails if not matched", func() {
+			err = IfServiceManager(logrus.New(), schema.Stage{
+				OnlyIfServiceManager: "openrc",
+			}, fs, testConsole)
+
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring(fmt.Sprintf(SkipOnlyServiceManager, "openrc")))
+		})
+		It("Fails if it finds both", func() {
+			// Create our fake systemctl
+			Expect(fs.Mkdir("/sbin", 0755)).ToNot(HaveOccurred())
+			Expect(fs.WriteFile("/sbin/systemctl", []byte{}, 0755)).ToNot(HaveOccurred())
+			Expect(fs.WriteFile("/sbin/openrc", []byte{}, 0755)).ToNot(HaveOccurred())
+
+			err = IfServiceManager(logrus.New(), schema.Stage{
+				OnlyIfServiceManager: "systemd",
+			}, fs, testConsole)
+
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring(SkipBothServices))
+		})
+		It("Succeeds to find systemctl", func() {
+			// Create our fake systemctl
+			Expect(fs.Mkdir("/sbin", 0755)).ToNot(HaveOccurred())
+			Expect(fs.WriteFile("/sbin/systemctl", []byte{}, 0755)).ToNot(HaveOccurred())
+
+			err = IfServiceManager(logrus.New(), schema.Stage{
+				OnlyIfServiceManager: "systemd",
+			}, fs, testConsole)
+
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+		It("Succeeds to find openrc", func() {
+			// Create our fake systemctl
+			Expect(fs.Mkdir("/sbin", 0755)).ToNot(HaveOccurred())
+			Expect(fs.WriteFile("/sbin/openrc", []byte{}, 0755)).ToNot(HaveOccurred())
+
+			err = IfServiceManager(logrus.New(), schema.Stage{
+				OnlyIfServiceManager: "openrc",
+			}, fs, testConsole)
+
+			Expect(err).ShouldNot(HaveOccurred())
 		})
 	})
 })
