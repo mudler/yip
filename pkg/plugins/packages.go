@@ -98,6 +98,7 @@ func Packages(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) er
 		l.Debugf("Running refresh")
 		out, err := console.Run(templateSysData(l, strings.Join(append([]string{cmd.String()}, refreshArgs...), " ")))
 		if err != nil {
+			l.Debug(fmt.Sprintf("Command output: %s", out))
 			return err
 		}
 		if strings.TrimSpace(out) != "" {
@@ -112,6 +113,7 @@ func Packages(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) er
 		l.Debugf("Running upgrade")
 		out, err := console.Run(templateSysData(l, strings.Join(append([]string{cmd.String()}, updateArgs...), " ")))
 		if err != nil {
+			l.Debug(fmt.Sprintf("Command output: %s", out))
 			return err
 		}
 		if strings.TrimSpace(out) != "" {
@@ -127,6 +129,7 @@ func Packages(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) er
 		l.Debugf("Running install")
 		out, err := console.Run(templateSysData(l, strings.Join(append([]string{cmd.String()}, installArgs...), " ")))
 		if err != nil {
+			l.Debug(fmt.Sprintf("Command output: %s", out))
 			return err
 		}
 		if strings.TrimSpace(out) != "" {
@@ -142,6 +145,7 @@ func Packages(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) er
 		l.Debugf("Running remove")
 		out, err := console.Run(templateSysData(l, strings.Join(append([]string{cmd.String()}, removeArgs...), " ")))
 		if err != nil {
+			l.Debug(fmt.Sprintf("Command output: %s", out))
 			return err
 		}
 		if strings.TrimSpace(out) != "" {
