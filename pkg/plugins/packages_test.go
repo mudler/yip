@@ -69,11 +69,11 @@ var _ = Describe("Commands", Label("packages"), func() {
 				},
 				{
 					osRelease: "ID=centos\nVERSION=8\n",
-					expected:  []string{"dnf refresh", "dnf update -y", "dnf install -y foo bar", "dnf remove -y baz qux"},
+					expected:  []string{"dnf makecache", "dnf update -y", "dnf install -y foo bar", "dnf remove -y baz qux"},
 				},
 				{
 					osRelease: "ID=fedora\nVERSION=34\n",
-					expected:  []string{"dnf refresh", "dnf update -y", "dnf install -y foo bar", "dnf remove -y baz qux"},
+					expected:  []string{"dnf makecache", "dnf update -y", "dnf install -y foo bar", "dnf remove -y baz qux"},
 				},
 				{
 					osRelease: "ID=alpine\nVERSION=3.14\n",

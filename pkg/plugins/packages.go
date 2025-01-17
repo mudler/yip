@@ -74,7 +74,12 @@ func Packages(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) er
 		updateArgs = []string{"upgrade", "--no-cache"}
 		installArgs = []string{"add", "--no-cache"}
 		removeArgs = []string{"del", "--no-cache"}
-	case DNFInstaller, SUSEInstaller:
+	case DNFInstaller:
+		refreshArgs = []string{"makecache"}
+		updateArgs = []string{"update", "-y"}
+		installArgs = []string{"install", "-y"}
+		removeArgs = []string{"remove", "-y"}
+	case SUSEInstaller:
 		refreshArgs = []string{"refresh"}
 		updateArgs = []string{"update", "-y"}
 		installArgs = []string{"install", "-y"}
