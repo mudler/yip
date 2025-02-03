@@ -77,12 +77,12 @@ func Packages(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) er
 	case DNFInstaller:
 		refreshArgs = []string{"makecache"}
 		updateArgs = []string{"update", "-y"}
-		installArgs = []string{"install", "-y"}
+		installArgs = []string{"install", "-y", "--setopt=install_weak_deps=False"}
 		removeArgs = []string{"remove", "-y"}
 	case SUSEInstaller:
 		refreshArgs = []string{"refresh"}
 		updateArgs = []string{"update", "-y"}
-		installArgs = []string{"install", "-y"}
+		installArgs = []string{"install", "-y", "--no-recommends"}
 		removeArgs = []string{"remove", "-y"}
 	case PacmanInstaller:
 		refreshArgs = []string{"-Sy", "--noconfirm"}
