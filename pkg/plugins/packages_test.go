@@ -69,11 +69,11 @@ var _ = Describe("Commands", Label("packages"), func() {
 				},
 				{
 					osRelease: "ID=centos\nVERSION=8\n",
-					expected:  []string{"dnf makecache", "dnf update -y", "dnf install -y foo bar", "dnf remove -y baz qux"},
+					expected:  []string{"dnf makecache", "dnf update -y", "dnf install -y --setopt=install_weak_deps=False foo bar", "dnf remove -y baz qux"},
 				},
 				{
 					osRelease: "ID=fedora\nVERSION=34\n",
-					expected:  []string{"dnf makecache", "dnf update -y", "dnf install -y foo bar", "dnf remove -y baz qux"},
+					expected:  []string{"dnf makecache", "dnf update -y", "dnf install -y --setopt=install_weak_deps=False foo bar", "dnf remove -y baz qux"},
 				},
 				{
 					osRelease: "ID=alpine\nVERSION=3.14\n",
@@ -81,7 +81,7 @@ var _ = Describe("Commands", Label("packages"), func() {
 				},
 				{
 					osRelease: "ID=opensuse-leap\nVERSION=15.3\n",
-					expected:  []string{"zypper refresh", "zypper update -y", "zypper install -y foo bar", "zypper remove -y baz qux"},
+					expected:  []string{"zypper refresh", "zypper update -y", "zypper install -y --no-recommends foo bar", "zypper remove -y baz qux"},
 				},
 				{
 					osRelease: "ID=arch\nVERSION=rolling\n",
