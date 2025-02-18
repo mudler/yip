@@ -14,7 +14,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/itchyny/gojq v0.12.16
 	github.com/joho/godotenv v1.5.1
-	github.com/mauromorales/xpasswd v0.4.0
+	github.com/mauromorales/xpasswd v0.4.1
 	github.com/mudler/entities v0.8.1
 	github.com/onsi/ginkgo/v2 v2.22.1
 	github.com/onsi/gomega v1.36.2
