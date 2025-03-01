@@ -8,7 +8,7 @@ require (
 	github.com/cavaliergopher/grab v2.0.0+incompatible
 	github.com/containerd/containerd v1.7.25
 	github.com/denisbrodbeck/machineid v1.0.1
-	github.com/go-git/go-git/v5 v5.13.2
+	github.com/go-git/go-git/v5 v5.14.0
 	github.com/google/go-containerregistry v0.20.3
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/hashicorp/go-multierror v1.1.1
