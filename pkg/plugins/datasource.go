@@ -13,9 +13,9 @@ import (
 	"sync"
 
 	"github.com/mudler/yip/pkg/logger"
+	prv "github.com/mudler/yip/pkg/plugins/datasourceProviders"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/pkg/errors"
-	prv "github.com/rancher-sandbox/linuxkit/providers"
 	"github.com/twpayne/go-vfs/v4"
 )
 

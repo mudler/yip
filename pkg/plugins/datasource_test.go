@@ -16,11 +16,11 @@ package plugins_test
 
 import (
 	. "github.com/mudler/yip/pkg/plugins"
+	"github.com/mudler/yip/pkg/plugins/datasourceProviders"
 	"github.com/mudler/yip/pkg/schema"
 	consoletests "github.com/mudler/yip/tests/console"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/rancher-sandbox/linuxkit/providers"
 	"github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs/v4/vfst"
 	"io"
