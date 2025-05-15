@@ -42,6 +42,7 @@ const (
 	Alpine             Distro = "alpine"
 	OpenSUSELeap       Distro = "opensuse-leap"
 	OpenSUSETumbleweed Distro = "opensuse-tumbleweed"
+	SUSE               Distro = "suse"
 )
 
 // Packages runs the package manager to try to install/remove/upgrade/refresh packages
@@ -183,7 +184,7 @@ func identifyInstaller(fsys vfs.FS) Installer {
 		return PacmanInstaller
 	case Alpine:
 		return AlpineInstaller
-	case OpenSUSELeap, OpenSUSETumbleweed:
+	case OpenSUSELeap, OpenSUSETumbleweed, SUSE:
 		return SUSEInstaller
 	default:
 		return UnknownInstaller
