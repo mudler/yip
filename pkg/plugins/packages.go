@@ -33,7 +33,7 @@ type Distro string
 const (
 	Debian             Distro = "debian"
 	Ubuntu             Distro = "ubuntu"
-	RedHat             Distro = "redhat"
+	RedHat             Distro = "rhel"
 	CentOS             Distro = "centos"
 	RockyLinux         Distro = "rocky"
 	AlmaLinux          Distro = "almalinux"
