@@ -15,11 +15,9 @@
 package plugins_test
 
 import (
-	"fmt"
 	. "github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
 	consoletests "github.com/mudler/yip/tests/console"
-	"github.com/sanity-io/litter"
 	"github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs/v4/vfst"
 
@@ -51,9 +49,6 @@ var _ = Describe("SystemdFirstboot", Label("systemd-firstboot"), func() {
 				},
 			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
-
-			litter.Config.HidePrivateFields = false
-			fmt.Println(litter.Sdump(testConsole.Commands))
 
 			Expect(testConsole.Commands).Should(ContainElements(
 				"systemd-firstboot --force --keymap=us --locale=en_US.UTF-8",

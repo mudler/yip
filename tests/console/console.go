@@ -17,10 +17,8 @@ func (s *TestConsole) Run(cmd string, opts ...func(*exec.Cmd)) (string, error) {
 	for _, o := range opts {
 		o(c)
 	}
-	fmt.Println("Commands:", s.Commands)
 	s.Commands = append(s.Commands, cmd)
 	s.Commands = append(s.Commands, c.Args...)
-	fmt.Println("Commands after append:", s.Commands)
 
 	return "", nil
 }
