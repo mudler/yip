@@ -34,6 +34,10 @@ var _ = Describe("Sysctl", func() {
 		l := logrus.New()
 		l.SetOutput(io.Discard)
 
+		AfterEach(func() {
+			testConsole.Reset()
+		})
+
 		It("configures a /sys/proc setting", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/proc/sys/debug/.keep": ""})
 			Expect(err).Should(BeNil())
@@ -41,7 +45,7 @@ var _ = Describe("Sysctl", func() {
 
 			err = Sysctl(l, schema.Stage{
 				Sysctl: map[string]string{"debug.exception-trace": "0"},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			file, err := fs.Open("/proc/sys/debug/exception-trace")

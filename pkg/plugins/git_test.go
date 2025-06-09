@@ -62,7 +62,7 @@ var _ = Describe("Git", func() {
 					URL:  "https://gist.github.com/mudler/13d2c42fd2cf7fc33cdb8cae6b5bdd57",
 					Path: "/testarea/foo",
 				},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 			file, err := fs.Open("/testarea/foo/unittest.txt")
 			Expect(err).ShouldNot(HaveOccurred())
@@ -85,7 +85,7 @@ var _ = Describe("Git", func() {
 					URL:  "https://gist.github.com/mudler/13d2c42fd2cf7fc33cdb8cae6b5bdd57",
 					Path: "/testarea",
 				},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 			file, err := fs.Open("/testarea/unittest.txt")
 			Expect(err).ShouldNot(HaveOccurred())
@@ -107,7 +107,7 @@ var _ = Describe("Git", func() {
 					URL:  "https://gist.github.com/mudler/13d2c42fd2cf7fc33cdb8cae6b5bdd57",
 					Path: "/testarea",
 				},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			fs.WriteFile("/testarea/unittest.txt", []byte("foo"), os.ModePerm)
@@ -127,7 +127,7 @@ var _ = Describe("Git", func() {
 					Path:   "/testarea",
 					Branch: "master",
 				},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			file, err = fs.Open("/testarea/unittest.txt")
@@ -154,7 +154,7 @@ var _ = Describe("Git", func() {
 
 					Auth: schema.Auth{PrivateKey: testPrivateKey, PublicKey: gitlabKey},
 				},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			fs.WriteFile("/testarea/test.txt", []byte("foo"), os.ModePerm)
@@ -175,7 +175,7 @@ var _ = Describe("Git", func() {
 					Path:   "/testarea",
 					Branch: "main",
 				},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			file, err = fs.Open("/testarea/test.txt")

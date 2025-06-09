@@ -35,7 +35,7 @@ var _ = Describe("Commands", func() {
 		l.SetOutput(io.Discard)
 
 		BeforeEach(func() {
-			consoletests.Reset()
+			testConsole.Reset()
 		})
 		It("execute commands", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{})
@@ -44,9 +44,9 @@ var _ = Describe("Commands", func() {
 
 			err = Commands(l, schema.Stage{
 				Commands: []string{"echo foo", "echo bar"},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(consoletests.Commands).Should(Equal([]string{"echo foo", "echo bar"}))
+			Expect(testConsole.Commands).Should(Equal([]string{"echo foo", "echo bar"}))
 		})
 		It("execute templated commands", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{})
@@ -55,9 +55,9 @@ var _ = Describe("Commands", func() {
 			arch := runtime.GOARCH
 			err = Commands(l, schema.Stage{
 				Commands: []string{"echo {{.Values.os.architecture}}", "echo bar"},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(consoletests.Commands).Should(Equal([]string{"echo " + arch, "echo bar"}))
+			Expect(testConsole.Commands).Should(Equal([]string{"echo " + arch, "echo bar"}))
 		})
 	})
 })

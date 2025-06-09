@@ -59,7 +59,7 @@ var _ = Describe("Executor", func() {
 				}},
 			}}
 
-			def.Apply("foo", config, fs, testConsole)
+			def.Apply("foo", config, fs, &testConsole)
 			file, err := fs.Open("/tmp/test/foo")
 			Expect(err).ShouldNot(HaveOccurred())
 
@@ -86,7 +86,7 @@ var _ = Describe("Executor", func() {
 				}},
 			}}
 
-			def.Apply("foo", config, fs, testConsole)
+			def.Apply("foo", config, fs, &testConsole)
 			file, err := fs.Open("/tmp/test/foo")
 			Expect(err).ShouldNot(HaveOccurred())
 
@@ -105,7 +105,7 @@ var _ = Describe("Executor", func() {
 				}},
 			}}
 
-			def.Apply("foo", config, fs, testConsole)
+			def.Apply("foo", config, fs, &testConsole)
 			_, err = fs.Open("/tmp/test/bbb")
 			Expect(err).Should(HaveOccurred())
 		})
@@ -123,7 +123,7 @@ var _ = Describe("Executor", func() {
 				}},
 			}}
 
-			def.Apply("foo", config, fs, testConsole)
+			def.Apply("foo", config, fs, &testConsole)
 			_, err = fs.Open("/tmp/boo")
 
 			Expect(err).ShouldNot(HaveOccurred())
@@ -372,7 +372,7 @@ users: "one,two,tree"
 `,
 						}}}}},
 			}
-			err = def.Apply("foo", config, fs, testConsole)
+			err = def.Apply("foo", config, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 			file, err := os.Open(temp + "/foo")
 			Expect(err).ShouldNot(HaveOccurred())
@@ -407,7 +407,7 @@ gid: 1
 users: "one,two,tree"
 `,
 						}}}}}}
-			err = def.Apply("foo", config, fs, testConsole)
+			err = def.Apply("foo", config, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 			file, err := os.Open(temp + "/foo")
 			Expect(err).ShouldNot(HaveOccurred())

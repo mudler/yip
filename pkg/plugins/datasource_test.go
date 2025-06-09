@@ -44,7 +44,7 @@ var _ = Describe("Datasources", func() {
 				DataSources: schema.DataSource{
 					Providers: []string{"cdrom"},
 				},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).To(HaveOccurred())
 			Expect(strings.ToLower(err.Error())).To(ContainSubstring("no metadata/userdata found"))
 			_, err = fs.Stat(providers.ConfigPath)
@@ -71,7 +71,7 @@ var _ = Describe("Datasources", func() {
 				DataSources: schema.DataSource{
 					Providers: prv,
 				},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			elapsed := time.Since(start)
 			Expect(err).To(HaveOccurred())
 			Expect(strings.ToLower(err.Error())).To(ContainSubstring("no metadata/userdata found"))
@@ -96,7 +96,7 @@ var _ = Describe("Datasources", func() {
 					// This is the path that the file datasource is using. It doesn't use any vfs passed, so it checks the real os fs
 					Path: filepath.Join(temp, "datasource"),
 				},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ToNot(HaveOccurred())
 			// Final userdata its set on the test fs
 			_, err = fs.Stat(filepath.Join(providers.ConfigPath, "userdata.yaml"))

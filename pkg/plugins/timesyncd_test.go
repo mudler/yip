@@ -41,7 +41,7 @@ var _ = Describe("Timesyncd", func() {
 
 			err = Timesyncd(l, schema.Stage{
 				TimeSyncd: map[string]string{"NTP": "0.pool"},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			file, err := fs.Open("/etc/systemd/timesyncd.conf.d/10-yip.conf")

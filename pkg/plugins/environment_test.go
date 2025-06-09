@@ -41,7 +41,7 @@ var _ = Describe("Environment", func() {
 
 			err = Environment(l, schema.Stage{
 				Environment: map[string]string{"foo": "0"},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			file, err := fs.Open("/etc/environment")
@@ -62,7 +62,7 @@ var _ = Describe("Environment", func() {
 			err = Environment(l, schema.Stage{
 				Environment:     map[string]string{"foo": "0"},
 				EnvironmentFile: "/run/cos/cos-layout.env",
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			inf, _ := fs.Stat("/run/cos")

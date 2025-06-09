@@ -33,7 +33,7 @@ var _ = Describe("Dns", func() {
 		testConsole := consoletests.TestConsole{}
 
 		BeforeEach(func() {
-			consoletests.Reset()
+			testConsole.Reset()
 		})
 		It("sets dns", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/tmp/test/bar": "boo"})
@@ -42,7 +42,7 @@ var _ = Describe("Dns", func() {
 
 			defer cleanup()
 
-			err = DNS(logrus.New(), schema.Stage{Dns: schema.DNS{Path: temp + "/foo", Nameservers: []string{"8.8.8.8"}}}, fs, testConsole)
+			err = DNS(logrus.New(), schema.Stage{Dns: schema.DNS{Path: temp + "/foo", Nameservers: []string{"8.8.8.8"}}}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 			file, err := os.Open(temp + "/foo")
 			Expect(err).ShouldNot(HaveOccurred())

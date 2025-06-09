@@ -18,7 +18,7 @@ var _ = Describe("Commands", Label("packages"), func() {
 		l.SetOutput(io.Discard)
 
 		BeforeEach(func() {
-			consoletests.Reset()
+			testConsole.Reset()
 		})
 		It("execute proper install commands", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{})
@@ -33,9 +33,9 @@ var _ = Describe("Commands", Label("packages"), func() {
 					Remove:  []string{"baz", "qux"},
 					Refresh: true,
 				},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(consoletests.Commands).Should(Equal([]string{"apt-get -y update", "apt-get -y --no-install-recommends install foo bar", "apt-get -y remove baz qux"}))
+			Expect(testConsole.Commands).Should(Equal([]string{"apt-get -y update", "apt-get -y --no-install-recommends install foo bar", "apt-get -y remove baz qux"}))
 		})
 		It("execute proper install commands for different OS", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{})
@@ -91,10 +91,10 @@ var _ = Describe("Commands", Label("packages"), func() {
 
 			for _, t := range tests {
 				Expect(fs.WriteFile("/etc/os-release", []byte(t.osRelease), 0644)).ToNot(HaveOccurred())
-				err = Packages(l, stage, fs, testConsole)
+				err = Packages(l, stage, fs, &testConsole)
 				Expect(err).ShouldNot(HaveOccurred(), t.osRelease)
-				Expect(consoletests.Commands).Should(Equal(t.expected), litter.Sdump(t.osRelease))
-				consoletests.Reset()
+				Expect(testConsole.Commands).Should(Equal(t.expected), litter.Sdump(t.osRelease))
+				testConsole.Reset()
 			}
 		})
 		It("fails if it cant identify the systems package manager", func() {
@@ -107,7 +107,7 @@ var _ = Describe("Commands", Label("packages"), func() {
 					Remove:  []string{"baz", "qux"},
 					Refresh: true,
 				},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("unknown package manager"))
 		})

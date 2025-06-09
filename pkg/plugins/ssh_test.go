@@ -44,7 +44,7 @@ var _ = Describe("SSH", func() {
 
 			err = SSH(l, schema.Stage{
 				SSHKeys: map[string][]string{"foo": {"efafeeafea,t,t,pgl3,pbar", "github:mudler"}},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			//Expect(err).ShouldNot(HaveOccurred())
 
 			file, err := fs.Open("/home/foo/.ssh/authorized_keys")
