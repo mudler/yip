@@ -44,7 +44,7 @@ var _ = Describe("Download", func() {
 
 			err = Download(l, schema.Stage{
 				Downloads: []schema.Download{{Path: "/tmp/test/foo", URL: testURL, Permissions: 0777, Owner: os.Getuid(), Group: os.Getgid()}},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 			file, err := fs.Open("/tmp/test/foo")
 			Expect(err).ShouldNot(HaveOccurred())
@@ -63,7 +63,7 @@ var _ = Describe("Download", func() {
 
 			err = Download(l, schema.Stage{
 				Downloads: []schema.Download{{Path: "/tmp/test/", URL: testURL, Permissions: 0777, Owner: os.Getuid(), Group: os.Getgid()}},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 			file, err := fs.Open("/tmp/test/unittest.txt")
 			Expect(err).ShouldNot(HaveOccurred())

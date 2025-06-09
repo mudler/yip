@@ -121,7 +121,7 @@ saned:x:953:953:SANE daemon user:/:/usr/bin/nologin
 last:x:999:999:Test user for uid:/:/usr/bin/nologin
 `
 		BeforeEach(func() {
-			consoletests.Reset()
+			testConsole.Reset()
 		})
 		It("change user password", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/etc/passwd": existingPasswd,
@@ -133,7 +133,7 @@ last:x:999:999:Test user for uid:/:/usr/bin/nologin
 
 			err = User(l, schema.Stage{
 				Users: map[string]schema.User{"foo": {PasswordHash: `$fkekofe`, SSHAuthorizedKeys: []string{"github:mudler", "efafeeafea,t,t,pgl3,pbar"}}},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			shadow, err := fs.ReadFile("/etc/shadow")
@@ -187,7 +187,7 @@ last:x:999:999:Test user for uid:/:/usr/bin/nologin
 					Homedir:      "/run/foo",
 					Shell:        "/bin/bash",
 				}},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			shadow, err := fs.ReadFile("/etc/shadow")
@@ -229,7 +229,7 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 
 			err = User(l, schema.Stage{
 				Users: map[string]schema.User{"foo": {PasswordHash: `$fkekofe`, Homedir: "/home/foo", SSHAuthorizedKeys: []string{"github:mudler", "efafeeafea,t,t,pgl3,pbar"}}},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			shadow, err := fs.ReadFile("/etc/shadow")
@@ -277,12 +277,12 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 
 			err = User(l, schema.Stage{
 				Users: map[string]schema.User{"admin": {PasswordHash: `$fkekofe`, Homedir: "/home/foo", SSHAuthorizedKeys: []string{"github:mudler", "efafeeafea,t,t,pgl3,pbar"}}},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			err = User(l, schema.Stage{
 				Users: map[string]schema.User{"bar": {Groups: []string{"admin"}, PasswordHash: `$fkekofe`, Homedir: "/home/foo", SSHAuthorizedKeys: []string{"github:mudler", "efafeeafea,t,t,pgl3,pbar"}}},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			group, err := fs.ReadFile("/etc/group")
@@ -292,7 +292,7 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 
 			err = User(l, schema.Stage{
 				Users: map[string]schema.User{"baz": {Homedir: "/home/foo", Groups: []string{"admin"}}},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			group, err = fs.ReadFile("/etc/group")
@@ -319,7 +319,7 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 
 			err = User(l, schema.Stage{
 				Users: users,
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			passdRaw, _ := fs.RawPath("/etc/passwd")
@@ -381,7 +381,7 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 
 			err = User(l, schema.Stage{
 				Users: users,
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			passdRaw, _ = fs.RawPath("/etc/passwd")
@@ -446,23 +446,23 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 
 			err = User(l, schema.Stage{
 				Users: users,
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 			err = User(l, schema.Stage{
 				Users: users,
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 			err = User(l, schema.Stage{
 				Users: users,
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 			err = User(l, schema.Stage{
 				Users: users,
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 			err = User(l, schema.Stage{
 				Users: users,
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			passdRaw, _ := fs.RawPath("/etc/passwd")
@@ -497,7 +497,7 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 
 			err = User(l, schema.Stage{
 				Users: users,
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Now we add a new user that is created BEFORE the foo users
@@ -509,7 +509,7 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			}
 			err = User(l, schema.Stage{
 				Users: users,
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			passdRaw, _ := fs.RawPath("/etc/passwd")

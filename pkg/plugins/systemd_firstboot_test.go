@@ -25,11 +25,16 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("SystemdFirstboot", func() {
+var _ = Describe("SystemdFirstboot", Label("systemd-firstboot"), func() {
 	Context("parsing yip file", func() {
-		testConsole := consoletests.TestConsole{}
+		var testConsole consoletests.TestConsole
+
 		BeforeEach(func() {
-			consoletests.Reset()
+			testConsole = consoletests.TestConsole{}
+		})
+
+		AfterEach(func() {
+			testConsole.Reset()
 		})
 		It("sets first-boot configuration", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{})
@@ -42,13 +47,13 @@ var _ = Describe("SystemdFirstboot", func() {
 					"LOCALE": "en_US.UTF-8",
 					"force":  "true",
 				},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			Expect(consoletests.Commands).Should(ContainElements(
+			Expect(testConsole.Commands).Should(ContainElements(
 				"systemd-firstboot --force --keymap=us --locale=en_US.UTF-8",
 			))
-			Expect(len(consoletests.Commands)).To(Equal(1))
+			Expect(len(testConsole.Commands)).To(Equal(1))
 		})
 	})
 })

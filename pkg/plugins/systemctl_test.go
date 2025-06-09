@@ -31,7 +31,7 @@ var _ = Describe("Systemctl", func() {
 	Context("parsing yip file", func() {
 		testConsole := consoletests.TestConsole{}
 		BeforeEach(func() {
-			consoletests.Reset()
+			testConsole.Reset()
 		})
 		It("starts and enables services", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{})
@@ -45,10 +45,10 @@ var _ = Describe("Systemctl", func() {
 					Mask:    []string{"baz"},
 					Start:   []string{"moz"},
 				},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			Expect(consoletests.Commands).Should(Equal([]string{"systemctl enable foo", "systemctl disable bar", "systemctl mask baz", "systemctl start moz"}))
+			Expect(testConsole.Commands).Should(Equal([]string{"systemctl enable foo", "systemctl disable bar", "systemctl mask baz", "systemctl start moz"}))
 		})
 		Context("Overrides", func() {
 			It("creates override files", func() {
@@ -65,10 +65,10 @@ var _ = Describe("Systemctl", func() {
 							},
 						},
 					},
-				}, fs, testConsole)
+				}, fs, &testConsole)
 				Expect(err).ShouldNot(HaveOccurred())
 				Expect(fs.Stat("/etc/systemd/system/foo.service.d/override-yip.conf")).ToNot(BeNil())
-				Expect(consoletests.Commands).Should(BeEmpty())
+				Expect(testConsole.Commands).Should(BeEmpty())
 				content, err := fs.ReadFile("/etc/systemd/system/foo.service.d/override-yip.conf")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(string(content)).Should(Equal("[Unit]\nbar=baz"))
@@ -87,10 +87,10 @@ var _ = Describe("Systemctl", func() {
 							},
 						},
 					},
-				}, fs, testConsole)
+				}, fs, &testConsole)
 				Expect(err).ShouldNot(HaveOccurred())
 				Expect(fs.Stat("/etc/systemd/system/foo.service.d/override-yip.conf")).ToNot(BeNil())
-				Expect(consoletests.Commands).Should(BeEmpty())
+				Expect(testConsole.Commands).Should(BeEmpty())
 				content, err := fs.ReadFile("/etc/systemd/system/foo.service.d/override-yip.conf")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(string(content)).Should(Equal("[Unit]\nbar=baz"))
@@ -110,13 +110,13 @@ var _ = Describe("Systemctl", func() {
 							},
 						},
 					},
-				}, fs, testConsole)
+				}, fs, &testConsole)
 				Expect(err).ShouldNot(HaveOccurred())
 				_, err = fs.Stat("/etc/systemd/system/foo.service.d/override-yip.conf")
 				Expect(err).ToNot(BeNil())
 				_, err = fs.Stat("/etc/systemd/system/foo.service.d/override-foo.conf")
 				Expect(err).To(BeNil())
-				Expect(consoletests.Commands).Should(BeEmpty())
+				Expect(testConsole.Commands).Should(BeEmpty())
 				content, err := fs.ReadFile("/etc/systemd/system/foo.service.d/override-foo.conf")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(string(content)).Should(Equal("[Unit]\nbar=baz"))
@@ -136,13 +136,13 @@ var _ = Describe("Systemctl", func() {
 							},
 						},
 					},
-				}, fs, testConsole)
+				}, fs, &testConsole)
 				Expect(err).ShouldNot(HaveOccurred())
 				_, err = fs.Stat("/etc/systemd/system/foo.service.d/override-yip.conf")
 				Expect(err).ToNot(BeNil())
 				_, err = fs.Stat("/etc/systemd/system/foo.service.d/override-foo.conf")
 				Expect(err).To(BeNil())
-				Expect(consoletests.Commands).Should(BeEmpty())
+				Expect(testConsole.Commands).Should(BeEmpty())
 				content, err := fs.ReadFile("/etc/systemd/system/foo.service.d/override-foo.conf")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(string(content)).Should(Equal("[Unit]\nbar=baz"))
@@ -163,12 +163,12 @@ var _ = Describe("Systemctl", func() {
 							},
 						},
 					},
-				}, fs, testConsole)
+				}, fs, &testConsole)
 				Expect(err).ToNot(HaveOccurred())
 				// Should not create the directory
 				_, err = fs.Stat("/etc/systemd/system/")
 				Expect(err).To(HaveOccurred())
-				Expect(consoletests.Commands).Should(BeEmpty())
+				Expect(testConsole.Commands).Should(BeEmpty())
 				Expect(buf.String()).Should(ContainSubstring(ErrorEmptyOverrideService))
 			})
 			It("doesn't do anything if content is missing", func() {
@@ -187,12 +187,12 @@ var _ = Describe("Systemctl", func() {
 							},
 						},
 					},
-				}, fs, testConsole)
+				}, fs, &testConsole)
 				Expect(err).ToNot(HaveOccurred())
 				// Should not create the directory
 				_, err = fs.Stat("/etc/systemd/system/")
 				Expect(err).To(HaveOccurred())
-				Expect(consoletests.Commands).Should(BeEmpty())
+				Expect(testConsole.Commands).Should(BeEmpty())
 				Expect(buf.String()).Should(ContainSubstring(fmt.Sprintf(ErrorEmptyOverrideContent, "test.service")))
 			})
 		})

@@ -30,7 +30,7 @@ var _ = Describe("UnpackImage", Label("unpack_image"), func() {
 		fs = vfs.OSFS
 	})
 	AfterEach(func() {
-		consoletests.Reset()
+		testConsole.Reset()
 		Expect(os.RemoveAll(target)).ToNot(HaveOccurred())
 	})
 
@@ -43,7 +43,7 @@ var _ = Describe("UnpackImage", Label("unpack_image"), func() {
 						Target: target,
 					},
 				},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 
 			Expect(err).ShouldNot(HaveOccurred())
 			_, err := os.Stat(target)
@@ -60,7 +60,7 @@ var _ = Describe("UnpackImage", Label("unpack_image"), func() {
 						Platform: "linux/arm64",
 					},
 				},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 
 			Expect(err).ShouldNot(HaveOccurred())
 			_, err := os.Stat(target)

@@ -39,7 +39,7 @@ var _ = Describe("Conditionals", Label("conditionals"), func() {
 		Expect(err).Should(BeNil())
 	})
 	AfterEach(func() {
-		consoletests.Reset()
+		testConsole.Reset()
 		cleanup()
 	})
 	Describe("IfConditional", func() {
@@ -47,10 +47,10 @@ var _ = Describe("Conditionals", Label("conditionals"), func() {
 			It("Executes", func() {
 				err = IfConditional(logrus.New(), schema.Stage{
 					If: "exit 1",
-				}, fs, testConsole)
+				}, fs, &testConsole)
 
 				Expect(err).ShouldNot(HaveOccurred())
-				Expect(consoletests.Commands).Should(Equal([]string{"exit 1"}))
+				Expect(testConsole.Commands).Should(Equal([]string{"exit 1"}))
 			})
 		})
 	})
@@ -58,7 +58,7 @@ var _ = Describe("Conditionals", Label("conditionals"), func() {
 		It("Executes", func() {
 			err = OnlyIfOS(logrus.New(), schema.Stage{
 				OnlyIfOs: "weird",
-			}, fs, testConsole)
+			}, fs, &testConsole)
 
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).Should(ContainSubstring(fmt.Sprintf(SkipOnlyOs, "weird")))
@@ -69,7 +69,7 @@ var _ = Describe("Conditionals", Label("conditionals"), func() {
 		It("Executes", func() {
 			err = OnlyIfOSVersion(logrus.New(), schema.Stage{
 				OnlyIfOsVersion: "weird",
-			}, fs, testConsole)
+			}, fs, &testConsole)
 
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).Should(ContainSubstring(fmt.Sprintf(SkipOnlyOsVersion, "weird")), err.Error())
@@ -79,7 +79,7 @@ var _ = Describe("Conditionals", Label("conditionals"), func() {
 		It("Fails with no match", func() {
 			err = IfArch(logrus.New(), schema.Stage{
 				OnlyIfArch: "weird",
-			}, fs, testConsole)
+			}, fs, &testConsole)
 
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).Should(ContainSubstring(fmt.Sprintf(SkipOnlyArch, runtime.GOARCH, "weird")), err.Error())
@@ -87,7 +87,7 @@ var _ = Describe("Conditionals", Label("conditionals"), func() {
 		It("Succeeds", func() {
 			err = IfArch(logrus.New(), schema.Stage{
 				OnlyIfArch: runtime.GOARCH,
-			}, fs, testConsole)
+			}, fs, &testConsole)
 
 			Expect(err).ShouldNot(HaveOccurred())
 		})
@@ -96,7 +96,7 @@ var _ = Describe("Conditionals", Label("conditionals"), func() {
 		It("Fails if not supported", func() {
 			err = IfServiceManager(logrus.New(), schema.Stage{
 				OnlyIfServiceManager: "weird",
-			}, fs, testConsole)
+			}, fs, &testConsole)
 
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).Should(ContainSubstring(fmt.Sprintf(SkipNotSupportedServiceManager, "weird")))
@@ -104,7 +104,7 @@ var _ = Describe("Conditionals", Label("conditionals"), func() {
 		It("Fails if not matched", func() {
 			err = IfServiceManager(logrus.New(), schema.Stage{
 				OnlyIfServiceManager: "openrc",
-			}, fs, testConsole)
+			}, fs, &testConsole)
 
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).Should(ContainSubstring(fmt.Sprintf(SkipOnlyServiceManager, "openrc")))
@@ -117,7 +117,7 @@ var _ = Describe("Conditionals", Label("conditionals"), func() {
 
 			err = IfServiceManager(logrus.New(), schema.Stage{
 				OnlyIfServiceManager: "systemd",
-			}, fs, testConsole)
+			}, fs, &testConsole)
 
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).Should(ContainSubstring(SkipBothServices))
@@ -129,7 +129,7 @@ var _ = Describe("Conditionals", Label("conditionals"), func() {
 
 			err = IfServiceManager(logrus.New(), schema.Stage{
 				OnlyIfServiceManager: "systemd",
-			}, fs, testConsole)
+			}, fs, &testConsole)
 
 			Expect(err).ShouldNot(HaveOccurred())
 		})
@@ -140,7 +140,7 @@ var _ = Describe("Conditionals", Label("conditionals"), func() {
 
 			err = IfServiceManager(logrus.New(), schema.Stage{
 				OnlyIfServiceManager: "openrc",
-			}, fs, testConsole)
+			}, fs, &testConsole)
 
 			Expect(err).ShouldNot(HaveOccurred())
 		})

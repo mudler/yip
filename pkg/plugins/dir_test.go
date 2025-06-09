@@ -40,7 +40,7 @@ var _ = Describe("Files", func() {
 
 			err = EnsureDirectories(l, schema.Stage{
 				Directories: []schema.Directory{{Path: "/tmp/dir", Permissions: 0740, Owner: os.Getuid(), Group: os.Getgid()}},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 			inf, _ := fs.Stat("/tmp/dir")
 			Expect(inf.Mode().Perm()).To(Equal(os.FileMode(int(0740))))
@@ -54,7 +54,7 @@ var _ = Describe("Files", func() {
 			Expect(inf.Mode().Perm()).To(Equal(os.FileMode(int(0755))))
 			err = EnsureDirectories(l, schema.Stage{
 				Directories: []schema.Directory{{Path: "/tmp/dir", Permissions: 0740, Owner: os.Getuid(), Group: os.Getgid()}},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 			inf, _ = fs.Stat("/tmp/dir")
 			Expect(inf.Mode().Perm()).To(Equal(os.FileMode(int(0740))))
@@ -66,7 +66,7 @@ var _ = Describe("Files", func() {
 			defer cleanup()
 			err = EnsureDirectories(l, schema.Stage{
 				Directories: []schema.Directory{{Path: "/tmp/dir/subdir1/subdir2", Permissions: 0740, Owner: os.Getuid(), Group: os.Getgid()}},
-			}, fs, testConsole)
+			}, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 			inf, _ := fs.Stat("/tmp")
 			Expect(inf.Mode().Perm()).To(Equal(os.FileMode(int(0755))))
