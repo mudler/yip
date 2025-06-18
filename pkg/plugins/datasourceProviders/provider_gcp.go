@@ -21,12 +21,13 @@ package providers
 import (
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"path"
 	"strings"
 	"time"
+
+	"github.com/mudler/yip/pkg/logger"
 )
 
 const (
@@ -36,11 +37,12 @@ const (
 
 // ProviderGCP is the type implementing the Provider interface for GCP
 type ProviderGCP struct {
+	l logger.Interface
 }
 
 // NewGCP returns a new ProviderGCP
-func NewGCP() *ProviderGCP {
-	return &ProviderGCP{}
+func NewGCP(l logger.Interface) *ProviderGCP {
+	return &ProviderGCP{l}
 }
 
 func (p *ProviderGCP) String() string {
@@ -67,13 +69,13 @@ func (p *ProviderGCP) Extract() ([]byte, error) {
 	}
 
 	if err := p.handleSSH(); err != nil {
-		log.Printf("GCP: Failed to get ssh data: %s", err)
+		p.l.Errorf("GCP: Failed to get ssh data: %s", err)
 	}
 
 	// Generic userdata
 	userData, err := gcpGet(instance + "attributes/user-data")
 	if err != nil {
-		log.Printf("GCP: Failed to get user-data: %s", err)
+		p.l.Errorf("GCP: Failed to get user-data: %s", err)
 		// This is not an error
 		return nil, nil
 	}

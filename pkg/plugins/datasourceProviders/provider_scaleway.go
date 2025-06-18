@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -32,6 +31,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/mudler/yip/pkg/logger"
 )
 
 const (
@@ -45,11 +46,12 @@ const (
 
 // ProviderScaleway is the type implementing the Provider interface for Scaleway
 type ProviderScaleway struct {
+	l logger.Interface
 }
 
 // NewScaleway returns a new ProviderScaleway
-func NewScaleway() *ProviderScaleway {
-	return &ProviderScaleway{}
+func NewScaleway(l logger.Interface) *ProviderScaleway {
+	return &ProviderScaleway{l}
 }
 
 func (p *ProviderScaleway) String() string {
@@ -103,7 +105,7 @@ func (p *ProviderScaleway) Extract() ([]byte, error) {
 	publicIP, err := p.extractInformation(metadata, "public_ip_address")
 	if err != nil {
 		// not an error
-		log.Printf("Scaleway: Failed to get publicIP: %s", err)
+		p.l.Debugf("Scaleway: Failed to get publicIP: %s", err)
 	} else {
 		err = os.WriteFile(path.Join(ConfigPath, publicIPFile), publicIP, 0644)
 		if err != nil {
@@ -123,13 +125,13 @@ func (p *ProviderScaleway) Extract() ([]byte, error) {
 	}
 
 	if err := p.handleSSH(metadata); err != nil {
-		log.Printf("Scaleway: Failed to get ssh data: %s", err)
+		p.l.Debug("Scaleway: Failed to get ssh data: %s", err)
 	}
 
 	// Generic userdata
 	userData, err := scalewayGetUserdata()
 	if err != nil {
-		log.Printf("Scaleway: Failed to get user-data: %s", err)
+		p.l.Errorf("Scaleway: Failed to get user-data: %s", err)
 		// This is not an error
 		return nil, nil
 	}

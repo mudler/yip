@@ -20,11 +20,15 @@ limitations under the License.
 
 package providers
 
+import "github.com/mudler/yip/pkg/logger"
+
 // ProviderVMware implements VMware provider interface for unsupported architectures
-type ProviderVMware struct{}
+type ProviderVMware struct {
+	l logger.Interface
+}
 
 // NewVMware returns a new VMware Provider
-func NewVMware() *ProviderVMware {
+func NewVMware(l logger.Interface) *ProviderVMware {
 	return nil
 }
 

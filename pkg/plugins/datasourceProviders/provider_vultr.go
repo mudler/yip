@@ -21,11 +21,12 @@ package providers
 import (
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"path"
 	"time"
+
+	"github.com/mudler/yip/pkg/logger"
 )
 
 const (
@@ -34,11 +35,12 @@ const (
 
 // ProviderVultr is the type implementing the Provider interface for Vultr
 type ProviderVultr struct {
+	l logger.Interface
 }
 
 // NewVultr returns a new ProviderVultr
-func NewVultr() *ProviderVultr {
-	return &ProviderVultr{}
+func NewVultr(l logger.Interface) *ProviderVultr {
+	return &ProviderVultr{l}
 }
 
 func (p *ProviderVultr) String() string {
@@ -65,40 +67,40 @@ func (p *ProviderVultr) Extract() ([]byte, error) {
 	}
 
 	// public ipv4
-	vultrMetaGet("interfaces/0/ipv4/address", "public_ipv4", 0644)
+	p.vultrMetaGet("interfaces/0/ipv4/address", "public_ipv4", 0644)
 
 	// private ipv4
-	vultrMetaGet("interfaces/1/ipv4/address", "private_ipv4", 0644)
+	p.vultrMetaGet("interfaces/1/ipv4/address", "private_ipv4", 0644)
 
 	// private netmask
-	vultrMetaGet("interfaces/1/ipv4/netmask", "private_netmask", 0644)
+	p.vultrMetaGet("interfaces/1/ipv4/netmask", "private_netmask", 0644)
 
 	// region code
-	vultrMetaGet("region/regioncode", "region_code", 0644)
+	p.vultrMetaGet("region/regioncode", "region_code", 0644)
 
 	// instance-id
-	vultrMetaGet("instanceid", "instance_id", 0644)
+	p.vultrMetaGet("instanceid", "instance_id", 0644)
 
 	// ssh
 	if err := p.handleSSH(); err != nil {
-		log.Printf("Vultr: Failed to get ssh data: %s", err)
+		p.l.Errorf("Vultr: Failed to get ssh data: %s", err)
 	}
 
 	return nil, nil
 }
 
 // lookup a value (lookupName) in Vultr metaservice and store in given fileName
-func vultrMetaGet(lookupName string, fileName string, fileMode os.FileMode) {
+func (p *ProviderVultr) vultrMetaGet(lookupName string, fileName string, fileMode os.FileMode) {
 	if lookupValue, err := vultrGet(vultrMetaDataURL + lookupName); err == nil {
 		// we got a value from the metadata server, now save to filesystem
 		err = os.WriteFile(path.Join(ConfigPath, fileName), lookupValue, fileMode)
 		if err != nil {
 			// we couldn't save the file for some reason
-			log.Printf("Vultr: Failed to write %s:%s %s", fileName, lookupValue, err)
+			p.l.Errorf("Vultr: Failed to write %s:%s %s", fileName, lookupValue, err)
 		}
 	} else {
 		// we did not get a value back from the metadata server
-		log.Printf("Vultr: Failed to get %s: %s", lookupName, err)
+		p.l.Errorf("Vultr: Failed to get %s: %s", lookupName, err)
 	}
 }
 

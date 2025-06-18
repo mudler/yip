@@ -28,21 +28,23 @@ import (
 	"strings"
 	"time"
 
-	"log"
+	"github.com/mudler/yip/pkg/logger"
 )
 
 // ProviderAzure reads from Azure's Instance Metadata Service (IMDS) API.
 type ProviderAzure struct {
 	client *http.Client
+	l      logger.Interface
 }
 
 // NewAzure factory
-func NewAzure() *ProviderAzure {
+func NewAzure(l logger.Interface) *ProviderAzure {
 	client := &http.Client{
 		Timeout: time.Second * 2,
 	}
 	return &ProviderAzure{
 		client: client,
+		l:      l,
 	}
 }
 
@@ -65,7 +67,7 @@ func (p *ProviderAzure) Extract() ([]byte, error) {
 	}
 
 	if err := p.saveSSHKeys(); err != nil {
-		log.Printf("%s: Saving SSH keys failed: %s", p.String(), err)
+		p.l.Infof("%s: Saving SSH keys failed: %s", p.String(), err)
 	}
 
 	p.imdsSave("network/interface/0/ipv4/ipAddress/0/publicIpAddress")
@@ -89,7 +91,7 @@ func (p *ProviderAzure) saveHostname() error {
 	if err != nil {
 		return fmt.Errorf("%s: Failed to write hostname: %s", p.String(), err)
 	}
-	log.Printf("%s: Saved hostname: %s", p.String(), string(hostname))
+	p.l.Infof("%s: Saved hostname: %s", p.String(), string(hostname))
 	return nil
 }
 
@@ -106,7 +108,7 @@ func (p *ProviderAzure) saveSSHKeys() error {
 	if err != nil {
 		return fmt.Errorf("Writing SSH key failed: %s", err)
 	}
-	log.Printf("%s: Saved authorized_keys", p.String())
+	p.l.Infof("%s: Saved authorized_keys", p.String())
 	return nil
 }
 
@@ -116,11 +118,11 @@ func (p *ProviderAzure) imdsSave(resourceName string) {
 		fileName := strings.Replace(resourceName, "/", "_", -1)
 		err = ioutil.WriteFile(path.Join(ConfigPath, fileName), value, 0644)
 		if err != nil {
-			log.Printf("%s: Failed to write file %s:%s %s", p.String(), fileName, value, err)
+			p.l.Infof("%s: Failed to write file %s:%s %s", p.String(), fileName, value, err)
 		}
-		log.Printf("%s: Saved resource %s: %s", p.String(), resourceName, string(value))
+		p.l.Infof("%s: Saved resource %s: %s", p.String(), resourceName, string(value))
 	} else {
-		log.Printf("%s: Failed to get resource %s: %s", p.String(), resourceName, err)
+		p.l.Infof("%s: Failed to get resource %s: %s", p.String(), resourceName, err)
 	}
 }
 
@@ -169,14 +171,14 @@ func imdsURL(node string) string {
 func (p *ProviderAzure) getUserData() ([]byte, error) {
 	userDataBase64, err := p.imdsGet("compute/userData")
 	if err != nil {
-		log.Printf("Failed to get user data: %s", err)
+		p.l.Errorf("Failed to get user data: %s", err)
 		return nil, err
 	}
 
 	userData := make([]byte, base64.StdEncoding.DecodedLen(len(userDataBase64)))
 	msgLen, err := base64.StdEncoding.Decode(userData, userDataBase64)
 	if err != nil {
-		log.Printf("Failed to base64-decode user data: %s", err)
+		p.l.Errorf("Failed to base64-decode user data: %s", err)
 		return nil, err
 	}
 	userData = userData[:msgLen]

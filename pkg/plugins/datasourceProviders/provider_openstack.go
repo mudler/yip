@@ -21,20 +21,22 @@ package providers
 import (
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"path"
 	"time"
+
+	"github.com/mudler/yip/pkg/logger"
 )
 
 // ProviderOpenstack is the type implementing the Provider interface for OpenStack
 type ProviderOpenstack struct {
+	l logger.Interface
 }
 
 // NewOpenstack returns a new ProviderOpenstack
-func NewOpenstack() *ProviderOpenstack {
-	return &ProviderOpenstack{}
+func NewOpenstack(l logger.Interface) *ProviderOpenstack {
+	return &ProviderOpenstack{l}
 }
 
 func (p *ProviderOpenstack) String() string {
@@ -61,32 +63,32 @@ func (p *ProviderOpenstack) Extract() ([]byte, error) {
 	}
 
 	// public ipv4
-	openstackMetaGet("public-ipv4", "public_ipv4", 0644)
+	p.openstackMetaGet("public-ipv4", "public_ipv4", 0644)
 
 	// private ipv4
-	openstackMetaGet("local-ipv4", "local_ipv4", 0644)
+	p.openstackMetaGet("local-ipv4", "local_ipv4", 0644)
 
 	// availability zone
-	openstackMetaGet("placement/availability-zone", "availability_zone", 0644)
+	p.openstackMetaGet("placement/availability-zone", "availability_zone", 0644)
 
 	// instance type
-	openstackMetaGet("instance-type", "instance_type", 0644)
+	p.openstackMetaGet("instance-type", "instance_type", 0644)
 
 	// instance-id
-	openstackMetaGet("instance-id", "instance_id", 0644)
+	p.openstackMetaGet("instance-id", "instance_id", 0644)
 
 	// local-hostname
-	openstackMetaGet("local-hostname", "local_hostname", 0644)
+	p.openstackMetaGet("local-hostname", "local_hostname", 0644)
 
 	// ssh
 	if err := p.handleSSH(); err != nil {
-		log.Printf("OpenStack: Failed to get ssh data: %s", err)
+		p.l.Errorf("OpenStack: Failed to get ssh data: %s", err)
 	}
 
 	// Generic userdata
 	userData, err := openstackGet(userDataURL)
 	if err != nil {
-		log.Printf("OpenStack: Failed to get user-data: %s", err)
+		p.l.Errorf("OpenStack: Failed to get user-data: %s", err)
 		// This is not an error
 		return nil, nil
 	}
@@ -94,17 +96,17 @@ func (p *ProviderOpenstack) Extract() ([]byte, error) {
 }
 
 // lookup a value (lookupName) in OpenStack's metaservice and store in given fileName
-func openstackMetaGet(lookupName string, fileName string, fileMode os.FileMode) {
+func (p *ProviderOpenstack) openstackMetaGet(lookupName string, fileName string, fileMode os.FileMode) {
 	if lookupValue, err := openstackGet(metaDataURL + lookupName); err == nil {
 		// we got a value from the metadata server, now save to filesystem
 		err = os.WriteFile(path.Join(ConfigPath, fileName), lookupValue, fileMode)
 		if err != nil {
 			// we couldn't save the file for some reason
-			log.Printf("OpenStack: Failed to write %s:%s %s", fileName, lookupValue, err)
+			p.l.Errorf("OpenStack: Failed to write %s:%s %s", fileName, lookupValue, err)
 		}
 	} else {
 		// we did not get a value back from the metadata server
-		log.Printf("OpenStack: Failed to get %s: %s", lookupName, err)
+		p.l.Errorf("OpenStack: Failed to get %s: %s", lookupName, err)
 	}
 }
 

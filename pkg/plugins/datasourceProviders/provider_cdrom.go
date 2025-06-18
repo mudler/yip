@@ -20,12 +20,13 @@ package providers
 
 import (
 	"fmt"
-	"log"
 	"path/filepath"
+
+	"github.com/mudler/yip/pkg/logger"
 )
 
 // ListCDROMs lists all the cdroms in the system
-func ListCDROMs() []Provider {
+func ListCDROMs(l logger.Interface) []Provider {
 	// UserdataFiles is where to find the user data
 	var userdataFiles = []string{"user-data", "config"}
 	cdroms, err := filepath.Glob(cdromDevs)
@@ -33,17 +34,17 @@ func ListCDROMs() []Provider {
 		// Glob can only error on invalid pattern
 		panic(fmt.Sprintf("Invalid glob pattern: %s", cdromDevs))
 	}
-	log.Printf("cdrom devices to be checked: %v", cdroms)
+	l.Debugf("cdrom devices to be checked: %v", cdroms)
 	// get the devices that match the cloud-init spec
-	cidevs := FindCIs("cidata")
-	log.Printf("CIDATA devices to be checked: %v", cidevs)
+	cidevs := FindCIs("cidata", l)
+	l.Debugf("CIDATA devices to be checked: %v", cidevs)
 	// merge the two, ensuring that the list is unique
 	cdroms = append(cidevs, cdroms...)
 	cdroms = uniqueString(cdroms)
-	log.Printf("unique devices to be checked: %v", cdroms)
+	l.Debugf("unique devices to be checked: %v", cdroms)
 	var providers []Provider
 	for _, device := range cdroms {
-		providers = append(providers, NewProviderCDROM(device, userdataFiles, "CDROM"))
+		providers = append(providers, NewProviderCDROM(device, userdataFiles, "CDROM", l))
 	}
 	return providers
 }

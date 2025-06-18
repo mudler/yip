@@ -21,11 +21,12 @@ package providers
 import (
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"path"
 	"time"
+
+	"github.com/mudler/yip/pkg/logger"
 )
 
 const (
@@ -35,11 +36,12 @@ const (
 
 // ProviderMetaldata is the type implementing the Provider interface for Metaldata
 type ProviderMetaldata struct {
+	l logger.Interface
 }
 
 // NewMetalData returns a new ProviderMetaldata
-func NewMetalData() *ProviderMetaldata {
-	return &ProviderMetaldata{}
+func NewMetalData(l logger.Interface) *ProviderMetaldata {
+	return &ProviderMetaldata{l}
 }
 
 func (p *ProviderMetaldata) String() string {
@@ -66,29 +68,29 @@ func (p *ProviderMetaldata) Extract() ([]byte, error) {
 	}
 
 	// public ipv4
-	metaldataMetaGet("public-ipv4", "public_ipv4", 0644)
+	p.metaldataMetaGet("public-ipv4", "public_ipv4", 0644)
 
 	// private ipv4
-	metaldataMetaGet("private-ipv4", "private_ipv4", 0644)
+	p.metaldataMetaGet("private-ipv4", "private_ipv4", 0644)
 
 	// failure domain
-	metaldataMetaGet("failure-domain", "failure_domain", 0644)
+	p.metaldataMetaGet("failure-domain", "failure_domain", 0644)
 
 	// id
-	metaldataMetaGet("machine-id", "machine_id", 0644)
+	p.metaldataMetaGet("machine-id", "machine_id", 0644)
 
 	// type
-	metaldataMetaGet("machine-type", "machine_type", 0644)
+	p.metaldataMetaGet("machine-type", "machine_type", 0644)
 
 	// ssh
 	if err := p.handleSSH(); err != nil {
-		log.Printf("Metaldata: Failed to get ssh data: %s", err)
+		p.l.Errorf("Metaldata: Failed to get ssh data: %s", err)
 	}
 
 	// Generic userdata
 	userData, err := metaldataGet(metaldataUserDataURL)
 	if err != nil {
-		log.Printf("Metaldata: Failed to get user-data: %s", err)
+		p.l.Errorf("Metaldata: Failed to get user-data: %s", err)
 		// This is not an error
 		return nil, nil
 	}
@@ -96,17 +98,17 @@ func (p *ProviderMetaldata) Extract() ([]byte, error) {
 }
 
 // lookup a value (lookupName) in Metaldata metaservice and store in given fileName
-func metaldataMetaGet(lookupName string, fileName string, fileMode os.FileMode) {
+func (p *ProviderMetaldata) metaldataMetaGet(lookupName string, fileName string, fileMode os.FileMode) {
 	if lookupValue, err := metaldataGet(metaldataMetaDataURL + lookupName); err == nil {
 		// we got a value from the metadata server, now save to filesystem
 		err = os.WriteFile(path.Join(ConfigPath, fileName), lookupValue, fileMode)
 		if err != nil {
 			// we couldn't save the file for some reason
-			log.Printf("Metaldata: Failed to write %s:%s %s", fileName, lookupValue, err)
+			p.l.Errorf("Metaldata: Failed to write %s:%s %s", fileName, lookupValue, err)
 		}
 	} else {
 		// we did not get a value back from the metadata server
-		log.Printf("Metaldata: Failed to get %s: %s", lookupName, err)
+		p.l.Errorf("Metaldata: Failed to get %s: %s", lookupName, err)
 	}
 }
 

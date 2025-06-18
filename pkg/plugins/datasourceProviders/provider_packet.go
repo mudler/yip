@@ -28,6 +28,8 @@ import (
 	"path"
 	"strings"
 	"time"
+
+	"github.com/mudler/yip/pkg/logger"
 )
 
 const PacketBaseURL = "https://metadata.platformequinix.com"
@@ -41,11 +43,12 @@ type PacketMetadata struct {
 type ProviderPacket struct {
 	metadata *PacketMetadata
 	err      error
+	l        logger.Interface
 }
 
 // NewPacket returns a new ProviderPacket
-func NewPacket() *ProviderPacket {
-	return &ProviderPacket{}
+func NewPacket(l logger.Interface) *ProviderPacket {
+	return &ProviderPacket{l: l}
 }
 
 func (p *ProviderPacket) String() string {

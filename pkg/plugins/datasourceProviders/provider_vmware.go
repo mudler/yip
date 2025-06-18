@@ -25,12 +25,13 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path"
 	"strings"
 
+	"github.com/mudler/yip/pkg/logger"
 	"github.com/vmware/vmw-guestinfo/rpcvmx"
 	"github.com/vmware/vmw-guestinfo/vmcheck"
-	"log"
 )
 
 const (
@@ -42,11 +43,13 @@ const (
 )
 
 // ProviderVMware implements the Provider interface for VMware guestinfo api
-type ProviderVMware struct{}
+type ProviderVMware struct {
+	l logger.Interface
+}
 
 // NewVMware returns a new VMware Provider
-func NewVMware() *ProviderVMware {
-	return &ProviderVMware{}
+func NewVMware(l logger.Interface) *ProviderVMware {
+	return &ProviderVMware{l}
 }
 
 // String returns provider name
@@ -61,8 +64,8 @@ func (p *ProviderVMware) Probe() bool {
 		return false
 	}
 
-	md, merr := vmwareGet(guestMetaData)
-	ud, uerr := vmwareGet(guestUserData)
+	md, merr := p.vmwareGet(guestMetaData)
+	ud, uerr := p.vmwareGet(guestUserData)
 
 	return ((merr == nil) && len(md) > 1 && string(md) != "---") || ((uerr == nil) && len(ud) > 1 && string(ud) != "---")
 }
@@ -71,31 +74,31 @@ func (p *ProviderVMware) Probe() bool {
 // This function returns error if it fails to write metadata or vendordata to disk
 func (p *ProviderVMware) Extract() ([]byte, error) {
 	// Get vendor data, if empty do not fail
-	vendorData, err := vmwareGet(guestVendorData)
+	vendorData, err := p.vmwareGet(guestVendorData)
 	if err != nil {
-		log.Printf("VMWare: Failed to get vendordata: %v", err)
+		p.l.Errorf("VMWare: Failed to get vendordata: %v", err)
 	} else {
-		err = ioutil.WriteFile(path.Join(ConfigPath, "vendordata"), vendorData, 0644)
+		err = os.WriteFile(path.Join(ConfigPath, "vendordata"), vendorData, 0644)
 		if err != nil {
-			log.Printf("VMWare: Failed to write vendordata: %v", err)
+			p.l.Errorf("VMWare: Failed to write vendordata: %v", err)
 		}
 	}
 
 	// Get metadata
-	metaData, err := vmwareGet(guestMetaData)
+	metaData, err := p.vmwareGet(guestMetaData)
 	if err != nil {
-		log.Printf("VMWare: Failed to get metadata: %v", err)
+		p.l.Errorf("VMWare: Failed to get metadata: %v", err)
 	} else {
-		err = ioutil.WriteFile(path.Join(ConfigPath, "metadata"), metaData, 0644)
+		err = os.WriteFile(path.Join(ConfigPath, "metadata"), metaData, 0644)
 		if err != nil {
 			return nil, fmt.Errorf("VMWare: Failed to write metadata: %s", err)
 		}
 	}
 
 	// Get userdata
-	userData, err := vmwareGet(guestUserData)
+	userData, err := p.vmwareGet(guestUserData)
 	if err != nil {
-		log.Printf("VMware: Failed to get userdata: %v", err)
+		p.l.Errorf("VMware: Failed to get userdata: %v", err)
 		// This is not an error
 		return nil, nil
 	}
@@ -104,19 +107,19 @@ func (p *ProviderVMware) Extract() ([]byte, error) {
 }
 
 // vmwareGet gets and extracts the guestinfo data
-func vmwareGet(name string) ([]byte, error) {
+func (p *ProviderVMware) vmwareGet(name string) ([]byte, error) {
 	config := rpcvmx.NewConfig()
 
 	// get the gusest info value
 	out, err := config.String(name, "")
 	if err != nil {
-		log.Printf("Getting guest info %s failed: error %s", name, err)
+		p.l.Errorf("Getting guest info %s failed: error %s", name, err)
 		return nil, err
 	}
 
 	enc, err := config.String(name+".encoding", "")
 	if err != nil {
-		log.Printf("Getting guest info %s.encoding failed: error %s", name, err)
+		p.l.Errorf("Getting guest info %s.encoding failed: error %s", name, err)
 		return nil, err
 	}
 
@@ -128,7 +131,7 @@ func vmwareGet(name string) ([]byte, error) {
 
 		dst, err := ioutil.ReadAll(r)
 		if err != nil {
-			log.Printf("Decoding base64 of '%s' failed %v", name, err)
+			p.l.Errorf("Decoding base64 of '%s' failed %v", name, err)
 			return nil, err
 		}
 
@@ -138,13 +141,13 @@ func vmwareGet(name string) ([]byte, error) {
 
 		zr, err := gzip.NewReader(r)
 		if err != nil {
-			log.Printf("New gzip reader from '%s' failed %v", name, err)
+			p.l.Errorf("New gzip reader from '%s' failed %v", name, err)
 			return nil, err
 		}
 
 		dst, err := ioutil.ReadAll(zr)
 		if err != nil {
-			log.Printf("Read '%s' failed %v", name, err)
+			p.l.Errorf("Read '%s' failed %v", name, err)
 			return nil, err
 		}
 
