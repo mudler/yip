@@ -20,12 +20,13 @@ package providers
 
 import (
 	"fmt"
-	"log"
 	"path/filepath"
+
+	"github.com/mudler/yip/pkg/logger"
 )
 
 // ListConfigDrives lists all the cdroms in the system the fill the config-drive standard
-func ListConfigDrives() []Provider {
+func ListConfigDrives(l logger.Interface) []Provider {
 	// UserdataFiles is where to find the user data
 	var userdataFiles = []string{"/openstack/latest/user_data"}
 	cdroms, err := filepath.Glob(cdromDevs)
@@ -33,17 +34,17 @@ func ListConfigDrives() []Provider {
 		// Glob can only error on invalid pattern
 		panic(fmt.Sprintf("Invalid glob pattern: %s", cdromDevs))
 	}
-	log.Printf("cdrom devices to be checked: %v", cdroms)
+	l.Debugf("cdrom devices to be checked: %v", cdroms)
 	// get the devices that match the cloud-init spec
-	cidevs := FindCIs("config-2")
-	log.Printf("CONFIG-2 devices to be checked: %v", cidevs)
+	cidevs := FindCIs("config-2", l)
+	l.Debugf("CONFIG-2 devices to be checked: %v", cidevs)
 	// merge the two, ensuring that the list is unique
 	cdroms = append(cidevs, cdroms...)
 	cdroms = uniqueString(cdroms)
-	log.Printf("unique devices to be checked: %v", cdroms)
+	l.Debugf("unique devices to be checked: %v", cdroms)
 	var providers []Provider
 	for _, device := range cdroms {
-		providers = append(providers, NewProviderCDROM(device, userdataFiles, "CONFIG_DRIVE"))
+		providers = append(providers, NewProviderCDROM(device, userdataFiles, "CONFIG_DRIVE", l))
 	}
 	return providers
 }

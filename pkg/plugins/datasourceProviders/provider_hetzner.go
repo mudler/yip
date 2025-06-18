@@ -22,20 +22,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"path"
 	"time"
+
+	"github.com/mudler/yip/pkg/logger"
 )
 
 // ProviderHetzner is the type implementing the Provider interface for Hetzner
 type ProviderHetzner struct {
+	l logger.Interface
 }
 
 // NewHetzner returns a new ProviderHetzner
-func NewHetzner() *ProviderHetzner {
-	return &ProviderHetzner{}
+func NewHetzner(l logger.Interface) *ProviderHetzner {
+	return &ProviderHetzner{l}
 }
 
 func (p *ProviderHetzner) String() string {
@@ -62,26 +64,26 @@ func (p *ProviderHetzner) Extract() ([]byte, error) {
 	}
 
 	// public ipv4
-	hetznerMetaGet("public-ipv4", "public_ipv4", 0644)
+	p.hetznerMetaGet("public-ipv4", "public_ipv4", 0644)
 
 	// private ipv4
-	hetznerMetaGet("local-ipv4", "local_ipv4", 0644)
+	p.hetznerMetaGet("local-ipv4", "local_ipv4", 0644)
 
 	// instance-id
-	hetznerMetaGet("instance-id", "instance_id", 0644)
+	p.hetznerMetaGet("instance-id", "instance_id", 0644)
 
 	// // local-hostname
 	// hetznerMetaGet("local-hostname", "local_hostname", 0644)
 
 	// ssh
 	if err := p.handleSSH(); err != nil {
-		log.Printf("Hetzner: Failed to get ssh data: %s", err)
+		p.l.Errorf("Hetzner: Failed to get ssh data: %s", err)
 	}
 
 	// Generic userdata
 	userData, err := hetznerGet(userDataURL)
 	if err != nil {
-		log.Printf("Hetzner: Failed to get user-data: %s", err)
+		p.l.Errorf("Hetzner: Failed to get user-data: %s", err)
 		// This is not an error
 		return nil, nil
 	}
@@ -89,17 +91,17 @@ func (p *ProviderHetzner) Extract() ([]byte, error) {
 }
 
 // lookup a value (lookupName) in hetzner metaservice and store in given fileName
-func hetznerMetaGet(lookupName string, fileName string, fileMode os.FileMode) {
+func (p *ProviderHetzner) hetznerMetaGet(lookupName string, fileName string, fileMode os.FileMode) {
 	if lookupValue, err := hetznerGet(metaDataURL + lookupName); err == nil {
 		// we got a value from the metadata server, now save to filesystem
 		err = os.WriteFile(path.Join(ConfigPath, fileName), lookupValue, fileMode)
 		if err != nil {
 			// we couldn't save the file for some reason
-			log.Printf("Hetzner: Failed to write %s:%s %s", fileName, lookupValue, err)
+			p.l.Errorf("Hetzner: Failed to write %s:%s %s", fileName, lookupValue, err)
 		}
 	} else {
 		// we did not get a value back from the metadata server
-		log.Printf("Hetzner: Failed to get %s: %s", lookupName, err)
+		p.l.Errorf("Hetzner: Failed to get %s: %s", lookupName, err)
 	}
 }
 

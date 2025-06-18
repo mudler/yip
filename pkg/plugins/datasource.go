@@ -36,8 +36,8 @@ func unique(stringSlice []string) []string {
 }
 
 func DataSources(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
-	var AvailableProviders = []prv.Provider{}
-	var CdromProviders = []prv.Provider{}
+	var AvailableProviders []prv.Provider
+	var CdromProviders []prv.Provider
 
 	if s.DataSources.Providers == nil || len(s.DataSources.Providers) == 0 {
 		return nil
@@ -48,31 +48,31 @@ func DataSources(l logger.Interface, s schema.Stage, fs vfs.FS, console Console)
 	for _, dSProviders := range uniqueProviders {
 		switch {
 		case dSProviders == "aws":
-			AvailableProviders = append(AvailableProviders, prv.NewAWS())
+			AvailableProviders = append(AvailableProviders, prv.NewAWS(l))
 		case dSProviders == "azure":
-			AvailableProviders = append(AvailableProviders, prv.NewAzure())
+			AvailableProviders = append(AvailableProviders, prv.NewAzure(l))
 		case dSProviders == "gcp":
-			AvailableProviders = append(AvailableProviders, prv.NewGCP())
+			AvailableProviders = append(AvailableProviders, prv.NewGCP(l))
 		case dSProviders == "hetzner":
-			AvailableProviders = append(AvailableProviders, prv.NewHetzner())
+			AvailableProviders = append(AvailableProviders, prv.NewHetzner(l))
 		case dSProviders == "openstack":
-			AvailableProviders = append(AvailableProviders, prv.NewOpenstack())
+			AvailableProviders = append(AvailableProviders, prv.NewOpenstack(l))
 		case dSProviders == "packet":
-			AvailableProviders = append(AvailableProviders, prv.NewPacket())
+			AvailableProviders = append(AvailableProviders, prv.NewPacket(l))
 		case dSProviders == "scaleway":
-			AvailableProviders = append(AvailableProviders, prv.NewScaleway())
+			AvailableProviders = append(AvailableProviders, prv.NewScaleway(l))
 		case dSProviders == "vultr":
-			AvailableProviders = append(AvailableProviders, prv.NewVultr())
+			AvailableProviders = append(AvailableProviders, prv.NewVultr(l))
 		case dSProviders == "digitalocean":
-			AvailableProviders = append(AvailableProviders, prv.NewDigitalOcean())
+			AvailableProviders = append(AvailableProviders, prv.NewDigitalOcean(l))
 		case dSProviders == "metaldata":
-			AvailableProviders = append(AvailableProviders, prv.NewMetalData())
+			AvailableProviders = append(AvailableProviders, prv.NewMetalData(l))
 		case dSProviders == "vmware":
-			AvailableProviders = append(AvailableProviders, prv.NewVMware())
+			AvailableProviders = append(AvailableProviders, prv.NewVMware(l))
 		case dSProviders == "cdrom":
-			CdromProviders = append(CdromProviders, prv.ListCDROMs()...)
+			CdromProviders = append(CdromProviders, prv.ListCDROMs(l)...)
 		case dSProviders == "config-drive":
-			CdromProviders = append(CdromProviders, prv.ListConfigDrives()...)
+			CdromProviders = append(CdromProviders, prv.ListConfigDrives(l)...)
 		case dSProviders == "file" && s.DataSources.Path != "":
 			AvailableProviders = append(AvailableProviders, prv.FileProvider(s.DataSources.Path))
 		}

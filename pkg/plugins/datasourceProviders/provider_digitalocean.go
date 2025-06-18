@@ -21,11 +21,12 @@ package providers
 import (
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"path"
 	"time"
+
+	"github.com/mudler/yip/pkg/logger"
 )
 
 const (
@@ -34,11 +35,12 @@ const (
 
 // ProviderDigitalOcean is the type implementing the Provider interface for DigitalOcean
 type ProviderDigitalOcean struct {
+	l logger.Interface
 }
 
 // NewDigitalOcean returns a new ProviderDigitalOcean
-func NewDigitalOcean() *ProviderDigitalOcean {
-	return &ProviderDigitalOcean{}
+func NewDigitalOcean(l logger.Interface) *ProviderDigitalOcean {
+	return &ProviderDigitalOcean{l}
 }
 
 func (p *ProviderDigitalOcean) String() string {
@@ -65,26 +67,26 @@ func (p *ProviderDigitalOcean) Extract() ([]byte, error) {
 	}
 
 	// public ipv4
-	digitalOceanMetaGet("interfaces/public/0/ipv4/address", "public_ipv4", 0644)
+	p.digitalOceanMetaGet("interfaces/public/0/ipv4/address", "public_ipv4", 0644)
 
 	// private ipv4
-	digitalOceanMetaGet("interfaces/private/0/ipv4/address", "private_ipv4", 0644)
+	p.digitalOceanMetaGet("interfaces/private/0/ipv4/address", "private_ipv4", 0644)
 
 	// region
-	digitalOceanMetaGet("region", "region", 0644)
+	p.digitalOceanMetaGet("region", "region", 0644)
 
 	// droplet id
-	digitalOceanMetaGet("id", "id", 0644)
+	p.digitalOceanMetaGet("id", "id", 0644)
 
 	// ssh
 	if err := p.handleSSH(); err != nil {
-		log.Printf("DigitalOcean: Failed to get ssh data: %s", err)
+		p.l.Errorf("DigitalOcean: Failed to get ssh data: %s", err)
 	}
 
 	// Generic userdata
 	userData, err := digitalOceanGet(digitalOceanMetaDataURL + "user-data")
 	if err != nil {
-		log.Printf("DigitalOcean: Failed to get user-data: %s", err)
+		p.l.Errorf("DigitalOcean: Failed to get user-data: %s", err)
 		// This is not an error
 		return nil, nil
 	}
@@ -92,17 +94,17 @@ func (p *ProviderDigitalOcean) Extract() ([]byte, error) {
 }
 
 // lookup a value (lookupName) in DigitalOcean metaservice and store in given fileName
-func digitalOceanMetaGet(lookupName string, fileName string, fileMode os.FileMode) {
+func (p *ProviderDigitalOcean) digitalOceanMetaGet(lookupName string, fileName string, fileMode os.FileMode) {
 	if lookupValue, err := digitalOceanGet(digitalOceanMetaDataURL + lookupName); err == nil {
 		// we got a value from the metadata server, now save to filesystem
 		err = os.WriteFile(path.Join(ConfigPath, fileName), lookupValue, fileMode)
 		if err != nil {
 			// we couldn't save the file for some reason
-			log.Printf("DigitalOcean: Failed to write %s:%s %s", fileName, lookupValue, err)
+			p.l.Errorf("DigitalOcean: Failed to write %s:%s %s", fileName, lookupValue, err)
 		}
 	} else {
 		// we did not get a value back from the metadata server
-		log.Printf("DigitalOcean: Failed to get %s: %s", lookupName, err)
+		p.l.Errorf("DigitalOcean: Failed to get %s: %s", lookupName, err)
 	}
 }
 

@@ -2,13 +2,14 @@ package providers
 
 import (
 	"fmt"
-	"github.com/diskfs/go-diskfs"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	"github.com/diskfs/go-diskfs"
+	"github.com/mudler/yip/pkg/logger"
 )
 
 const (
@@ -23,6 +24,7 @@ type ProviderCDROM struct {
 	mountPoint   string
 	err          error
 	userdata     []byte
+	l            logger.Interface
 }
 
 func (p *ProviderCDROM) String() string {
@@ -32,7 +34,7 @@ func (p *ProviderCDROM) String() string {
 // Probe checks if the CD has the right file
 func (p *ProviderCDROM) Probe() bool {
 	if p.err != nil {
-		log.Printf("there were errors probing %s: %v", p.device, p.err)
+		p.l.Errorf("there were errors probing %s: %v", p.device, p.err)
 	}
 	return len(p.userdata) != 0
 }
@@ -77,9 +79,9 @@ func uniqueString(input []string) []string {
 	return u
 }
 
-func NewProviderCDROM(device string, datafiles []string, providerType string) *ProviderCDROM {
+func NewProviderCDROM(device string, datafiles []string, providerType string, l logger.Interface) *ProviderCDROM {
 	mountPoint, err := os.MkdirTemp("", "cd")
-	p := ProviderCDROM{providerType, device, mountPoint, err, []byte{}}
+	p := ProviderCDROM{providerType, device, mountPoint, err, []byte{}, l}
 	if err == nil {
 		if p.err = p.mount(); p.err == nil {
 			defer p.unmount()
@@ -94,7 +96,7 @@ func NewProviderCDROM(device string, datafiles []string, providerType string) *P
 				}
 			}
 			if p.userdata == nil {
-				log.Printf("no userdata file found at any of %v", datafiles)
+				p.l.Debug("no userdata file found at any of %v", datafiles)
 			}
 		}
 	}
@@ -104,9 +106,9 @@ func NewProviderCDROM(device string, datafiles []string, providerType string) *P
 // FindCIs goes through all known devices and checks for the given label
 // https://github.com/canonical/cloud-init/blob/main/doc/rtd/reference/datasources/configdrive.rst
 // https://github.com/canonical/cloud-init/blob/master/doc/rtd/topics/datasources/nocloud.rst
-func FindCIs(findLabel string) []string {
+func FindCIs(findLabel string, l logger.Interface) []string {
 	devs, err := filepath.Glob(blockDevs)
-	log.Printf("block devices found: %v", devs)
+	l.Tracef("block devices found: %v", devs)
 	if err != nil {
 		// Glob can only error on invalid pattern
 		panic(fmt.Sprintf("Invalid glob pattern: %s", blockDevs))
@@ -117,34 +119,34 @@ func FindCIs(findLabel string) []string {
 		dev := filepath.Base(device)
 		// ignore loop and ram devices
 		if strings.HasPrefix(dev, "loop") || strings.HasPrefix(dev, "ram") {
-			log.Printf("ignoring loop or ram device: %s", dev)
+			l.Tracef("ignoring loop or ram device: %s", dev)
 			continue
 		}
 		dev = fmt.Sprintf("/dev/%s", dev)
-		log.Printf("checking device: %s", dev)
+		l.Tracef("checking device: %s", dev)
 		// open readonly, ignore errors
 		disk, err := diskfs.Open(dev, diskfs.WithOpenMode(diskfs.ReadOnly))
 		if err != nil {
-			log.Printf("failed to open device read-only: %s: %v", dev, err)
+			l.Tracef("failed to open device read-only: %s: %v", dev, err)
 			continue
 		}
 		disk.DefaultBlocks = true
 		fs, err := disk.GetFilesystem(0)
 		if err != nil {
-			log.Printf("failed to get filesystem on partition 0 for device: %s: %v", dev, err)
+			l.Tracef("failed to get filesystem on partition 0 for device: %s: %v", dev, err)
 			_ = disk.Close()
 			continue
 		}
 		// get the label
 		label := strings.TrimSpace(fs.Label())
-		log.Printf("found trimmed filesystem label for device: %s: '%s'", dev, label)
+		l.Tracef("found trimmed filesystem label for device: %s: '%s'", dev, label)
 		if label == strings.ToUpper(findLabel) || label == strings.ToLower(findLabel) {
-			log.Printf("adding device: %s", dev)
+			l.Debugf("adding device: %s", dev)
 			foundDevices = append(foundDevices, dev)
 		}
 		err = disk.Close()
 		if err != nil {
-			log.Printf("failed closing device %s", dev)
+			l.Tracef("failed closing device %s", dev)
 		}
 	}
 	return foundDevices

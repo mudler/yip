@@ -26,6 +26,8 @@ import (
 	"os"
 	"path"
 	"time"
+
+	"github.com/mudler/yip/pkg/logger"
 )
 
 const (
@@ -36,11 +38,12 @@ const (
 
 // ProviderAWS is the type implementing the Provider interface for AWS
 type ProviderAWS struct {
+	l logger.Interface
 }
 
 // NewAWS returns a new ProviderAWS
-func NewAWS() *ProviderAWS {
-	return &ProviderAWS{}
+func NewAWS(l logger.Interface) *ProviderAWS {
+	return &ProviderAWS{l}
 }
 
 func (p *ProviderAWS) String() string {
