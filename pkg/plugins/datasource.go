@@ -160,8 +160,13 @@ func DataSources(l logger.Interface, s schema.Stage, fs vfs.FS, console Console)
 		basePath = s.DataSources.Path
 	}
 
+	userDataName := s.DataSources.UserdataName
+	if userDataName == "" {
+		userDataName = "userdata.yaml"
+	}
+
 	if userdata != nil {
-		if err := processUserData(l, basePath, userdata, fs, console); err != nil {
+		if err := processUserData(l, basePath, userdata, userDataName, fs, console); err != nil {
 			return err
 		}
 	}
@@ -235,8 +240,8 @@ func DecodeMultipartVmware(data []byte) []byte {
 	return data
 }
 
-// If userdata can be parsed as a yipConfig file will create a <basePath>/userdata.yaml file
-func processUserData(l logger.Interface, basePath string, data []byte, fs vfs.FS, console Console) error {
+// If userdata can be parsed as a yipConfig file will create a <basePath>/<userdataName> file
+func processUserData(l logger.Interface, basePath string, data []byte, userdataName string, fs vfs.FS, console Console) error {
 	// VMWARE provider returns a multipart/mixed data, so try first to parse that
 	// If we fail to parse it it will return the original data unchanged
 	data = DecodeMultipartVmware(data)
@@ -248,7 +253,7 @@ func processUserData(l logger.Interface, basePath string, data []byte, fs vfs.FS
 	}
 
 	if _, err := schema.Load(dataS, fs, nil, nil); err == nil {
-		return writeToFile(l, path.Join(basePath, "userdata.yaml"), dataS, 0644, fs, console)
+		return writeToFile(l, path.Join(basePath, userdataName), dataS, 0644, fs, console)
 	}
 
 	scanner := bufio.NewScanner(strings.NewReader(dataS))
