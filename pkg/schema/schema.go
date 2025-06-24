@@ -63,8 +63,9 @@ type Directory struct {
 }
 
 type DataSource struct {
-	Providers []string `yaml:"providers,omitempty"`
-	Path      string   `yaml:"path,omitempty"`
+	Providers    []string `yaml:"providers,omitempty"`
+	Path         string   `yaml:"path,omitempty"`
+	UserdataName string   `yaml:"userdata_name,omitempty"`
 }
 
 type Git struct {

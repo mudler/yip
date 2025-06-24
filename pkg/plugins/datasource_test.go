@@ -30,7 +30,7 @@ import (
 	"time"
 )
 
-var _ = Describe("Datasources", func() {
+var _ = Describe("Datasources", Label("datasource"), func() {
 	Context("running", func() {
 		testConsole := consoletests.TestConsole{}
 		l := logrus.New()
@@ -102,6 +102,32 @@ var _ = Describe("Datasources", func() {
 			_, err = fs.Stat(filepath.Join(providers.ConfigPath, "userdata.yaml"))
 			Expect(err).ToNot(HaveOccurred())
 			file, err := fs.ReadFile(filepath.Join(providers.ConfigPath, "userdata.yaml"))
+			Expect(err).ToNot(HaveOccurred())
+			// Data should match in the file
+			Expect(string(file)).To(Equal(cloudConfigData))
+		})
+		It("Properly finds a datasource and transforms it into a userdata file with custom name", func() {
+			cloudConfigData := "#cloud-config\nhostname: test"
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/oem": ""})
+			Expect(err).ToNot(HaveOccurred())
+			defer cleanup()
+			temp, err := os.MkdirTemp("", "yip-xxx")
+			Expect(err).ToNot(HaveOccurred())
+			err = os.WriteFile(filepath.Join(temp, "datasource"), []byte(cloudConfigData), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+			err = DataSources(l, schema.Stage{
+				DataSources: schema.DataSource{
+					Providers: []string{"file"},
+					// This is the path that the file datasource is using. It doesn't use any vfs passed, so it checks the real os fs
+					Path:         filepath.Join(temp, "datasource"),
+					UserdataName: "01_userdata.yaml",
+				},
+			}, fs, &testConsole)
+			Expect(err).ToNot(HaveOccurred())
+			// Final userdata its set on the test fs
+			_, err = fs.Stat(filepath.Join(providers.ConfigPath, "01_userdata.yaml"))
+			Expect(err).ToNot(HaveOccurred())
+			file, err := fs.ReadFile(filepath.Join(providers.ConfigPath, "01_userdata.yaml"))
 			Expect(err).ToNot(HaveOccurred())
 			// Data should match in the file
 			Expect(string(file)).To(Equal(cloudConfigData))
