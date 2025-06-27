@@ -22,16 +22,18 @@ func IfServiceManager(l logger.Interface, s schema.Stage, fs vfs.FS, console Con
 
 		var isSystemd, isOpenRC bool
 
-		for _, c := range []string{"/sbin/systemctl", "/usr/bin/systemctl", "/usr/sbin/systemctl", "/usr/bin/systemctl"} {
+		for _, c := range []string{"/sbin/systemctl", "/bin/systemctl", "/usr/sbin/systemctl", "/usr/bin/systemctl"} {
 			if _, ok := fs.Stat(c); ok == nil {
 				isSystemd = true
+				l.Debugf("Found systemd at %s", c)
 				break
 			}
 		}
 
-		for _, c := range []string{"/sbin/openrc", "/usr/bin/openrc", "/usr/sbin/openrc", "/usr/bin/openrc"} {
+		for _, c := range []string{"/sbin/openrc", "/bin/openrc", "/usr/sbin/openrc", "/usr/bin/openrc"} {
 			if _, ok := fs.Stat(c); ok == nil {
 				isOpenRC = true
+				l.Debugf("Found openrc at %s", c)
 				break
 			}
 		}
