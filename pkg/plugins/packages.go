@@ -161,9 +161,10 @@ func Packages(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) er
 
 // identifyInstaller returns the package manager based on the distro
 func identifyInstaller(fsys vfs.FS) Installer {
+	identifiedInstaller := UnknownInstaller
 	file, err := fsys.Open("/etc/os-release")
 	if err != nil {
-		return UnknownInstaller
+		return identifiedInstaller
 	}
 	defer func(file fs.File) {
 		err := file.Close()
@@ -173,20 +174,27 @@ func identifyInstaller(fsys vfs.FS) Installer {
 	}(file)
 	val, err := godotenv.Parse(file)
 	if err != nil {
-		return UnknownInstaller
+		return identifiedInstaller
 	}
 	switch Distro(val["ID"]) {
 	case Debian, Ubuntu:
-		return APTInstaller
+		identifiedInstaller = APTInstaller
 	case Fedora, RockyLinux, AlmaLinux, RedHat, CentOS:
-		return DNFInstaller
+		identifiedInstaller = DNFInstaller
 	case Arch:
-		return PacmanInstaller
+		identifiedInstaller = PacmanInstaller
 	case Alpine:
-		return AlpineInstaller
+		identifiedInstaller = AlpineInstaller
 	case OpenSUSELeap, OpenSUSETumbleweed, SUSE:
-		return SUSEInstaller
-	default:
-		return UnknownInstaller
+		identifiedInstaller = SUSEInstaller
 	}
+
+	if identifiedInstaller == "" {
+		switch Distro(val["ID_LIKE"]) {
+		case SUSE:
+			identifiedInstaller = SUSEInstaller
+		}
+	}
+
+	return identifiedInstaller
 }
