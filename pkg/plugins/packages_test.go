@@ -1,6 +1,8 @@
 package plugins
 
 import (
+	"io"
+
 	"github.com/mudler/yip/pkg/schema"
 	consoletests "github.com/mudler/yip/tests/console"
 	. "github.com/onsi/ginkgo/v2"
@@ -8,7 +10,6 @@ import (
 	"github.com/sanity-io/litter"
 	"github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs/v4/vfst"
-	"io"
 )
 
 var _ = Describe("Commands", Label("packages"), func() {
@@ -86,6 +87,10 @@ var _ = Describe("Commands", Label("packages"), func() {
 				{
 					osRelease: "ID=arch\nVERSION=rolling\n",
 					expected:  []string{"pacman -Sy --noconfirm", "pacman -Syu --noconfirm", "pacman -S --noconfirm foo bar", "pacman -R --noconfirm baz qux"},
+				},
+				{
+					osRelease: "ID=sle-micro\nID_LIKE=suse\nVERSION=5.4\n",
+					expected:  []string{"zypper refresh", "zypper update -y", "zypper install -y --no-recommends foo bar", "zypper remove -y baz qux"},
 				},
 			}
 
