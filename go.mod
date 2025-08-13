@@ -28,7 +28,7 @@ require (
 	github.com/twpayne/go-vfs/v4 v4.3.0
 	github.com/vmware/vmw-guestinfo v0.0.0-20220317130741-510905f0efa3
 	github.com/zcalusic/sysinfo v1.1.3
-	golang.org/x/crypto v0.36.0
+	golang.org/x/crypto v0.41.0
 	gopkg.in/ini.v1 v1.67.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
