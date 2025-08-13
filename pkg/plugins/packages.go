@@ -189,7 +189,8 @@ func identifyInstaller(fsys vfs.FS) Installer {
 		identifiedInstaller = SUSEInstaller
 	}
 
-	if identifiedInstaller == "" {
+	// Catch-all for distros which determine a common ID_LIKE
+	if identifiedInstaller == UnknownInstaller {
 		switch Distro(val["ID_LIKE"]) {
 		case SUSE:
 			identifiedInstaller = SUSEInstaller
