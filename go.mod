@@ -18,7 +18,7 @@ require (
 	github.com/mauromorales/xpasswd v0.4.1
 	github.com/mudler/entities v0.8.2
 	github.com/onsi/ginkgo/v2 v2.23.0
-	github.com/onsi/gomega v1.36.2
+	github.com/onsi/gomega v1.38.0
 	github.com/pkg/errors v0.9.1
 	github.com/sanity-io/litter v1.5.8
 	github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b
