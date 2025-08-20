@@ -43,6 +43,7 @@ const (
 	OpenSUSELeap       Distro = "opensuse-leap"
 	OpenSUSETumbleweed Distro = "opensuse-tumbleweed"
 	SUSE               Distro = "suse"
+	OpenEuler          Distro = "openEuler"
 )
 
 // Packages runs the package manager to try to install/remove/upgrade/refresh packages
@@ -179,7 +180,7 @@ func identifyInstaller(fsys vfs.FS) Installer {
 	switch Distro(val["ID"]) {
 	case Debian, Ubuntu:
 		identifiedInstaller = APTInstaller
-	case Fedora, RockyLinux, AlmaLinux, RedHat, CentOS:
+	case Fedora, RockyLinux, AlmaLinux, RedHat, CentOS, OpenEuler:
 		identifiedInstaller = DNFInstaller
 	case Arch:
 		identifiedInstaller = PacmanInstaller
