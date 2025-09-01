@@ -126,7 +126,7 @@ write_files:
 			Expect(yipConfig.Stages["boot"][1].Layout.Expand.Size).To(Equal(uint(0)))
 			Expect(yipConfig.Stages["boot"][1].Layout.Device.Path).To(Equal("/"))
 		})
-		It("Reads sshkeys to network stage if they require network", Focus, func() {
+		It("Reads sshkeys to network stage if they require network", func() {
 			yipConfig := loadstdYip(`#cloud-config
 growpart:
  devices: ['/']
