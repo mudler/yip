@@ -166,11 +166,18 @@ type Stage struct {
 	TimeSyncd map[string]string `yaml:"timesyncd,omitempty"`
 	Git       Git               `yaml:"git,omitempty"`
 
-	OnlyIfOs             string `yaml:"only_os,omitempty"`
-	OnlyIfOsVersion      string `yaml:"only_os_version,omitempty"`
-	OnlyIfArch           string `yaml:"only_arch,omitempty"`
-	OnlyIfServiceManager string `yaml:"only_service_manager,omitempty"`
+	OnlyIfOs             string                   `yaml:"only_os,omitempty"`
+	OnlyIfOsVersion      string                   `yaml:"only_os_version,omitempty"`
+	OnlyIfArch           string                   `yaml:"only_arch,omitempty"`
+	OnlyIfServiceManager string                   `yaml:"only_service_manager,omitempty"`
+	IfFiles              map[IfCheckType][]string `yaml:"if_files,omitempty"`
 }
+
+type IfCheckType string
+
+const IfCheckAny IfCheckType = "any"
+const IfCheckAll IfCheckType = "all"
+const IfCheckNone IfCheckType = "none"
 
 type UnpackImageConf struct {
 	Source   string `yaml:"source,omitempty"`
