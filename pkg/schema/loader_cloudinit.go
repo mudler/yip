@@ -129,9 +129,9 @@ func (cloudInit) Load(source string, s []byte, fs vfs.FS) (*YipConfig, error) {
 	}
 
 	if networkStage {
-		finalStages["network"] = append(finalStages["network"], sshKeysStage...)
+		finalStages["network"] = sshKeysStage
 	} else {
-		finalStages["boot"] = append(finalStages["boot"], sshKeysStage...)
+		finalStages["boot"][0].SSHKeys = sshKeys
 	}
 
 	result := &YipConfig{Stages: finalStages}
