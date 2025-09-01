@@ -146,7 +146,7 @@ var _ = Describe("Conditionals", Label("conditionals"), func() {
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 	})
-	Describe("IfFiles", Focus, func() {
+	Describe("IfFiles", func() {
 		It("Fails with unknown check type", func() {
 			stage := schema.Stage{
 				IfFiles: map[schema.IfCheckType][]string{
