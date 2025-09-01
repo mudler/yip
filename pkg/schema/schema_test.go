@@ -112,7 +112,7 @@ write_files:
   permissions: "0644"
   owner: "bar"
 `)
-			Expect(len(yipConfig.Stages)).To(Equal(3))
+			Expect(len(yipConfig.Stages)).To(Equal(4))
 			Expect(yipConfig.Stages["boot"][0].Users["bar"].UID).To(Equal("1002"))
 			Expect(yipConfig.Stages["boot"][0].Users["bar"].PasswordHash).To(Equal("foo"))
 			Expect(yipConfig.Stages["boot"][0].SSHKeys).To(Equal(map[string][]string{"bar": {"faaapploo", "asdd"}}))
@@ -125,6 +125,53 @@ write_files:
 			Expect(yipConfig.Stages["boot"][0].Users["bar"].LockPasswd).To(Equal(true))
 			Expect(yipConfig.Stages["boot"][1].Layout.Expand.Size).To(Equal(uint(0)))
 			Expect(yipConfig.Stages["boot"][1].Layout.Device.Path).To(Equal("/"))
+		})
+		It("Reads sshkeys to network stage if they require network", func() {
+			yipConfig := loadstdYip(`#cloud-config
+growpart:
+ devices: ['/']
+stages:
+  test:
+  - environment:
+      foo: bar
+users:
+- name: "bar"
+  passwd: "foo"
+  uid: "1002"
+  lock_passwd: true
+  groups:
+  - sudo
+  ssh_authorized_keys:
+  - gitlab:test
+ssh_authorized_keys:
+  - asdd
+runcmd:
+- foo
+hostname: "bar"
+write_files:
+- encoding: b64
+  content: CiMgVGhpcyBmaWxlIGNvbnRyb2xzIHRoZSBzdGF0ZSBvZiBTRUxpbnV4
+  path: /foo/bar
+  permissions: "0644"
+  owner: "bar"
+`)
+			Expect(len(yipConfig.Stages)).To(Equal(4))
+			Expect(yipConfig.Stages["boot"][0].Users["bar"].UID).To(Equal("1002"))
+			Expect(yipConfig.Stages["boot"][0].Users["bar"].PasswordHash).To(Equal("foo"))
+			Expect(len(yipConfig.Stages["boot"][0].SSHKeys)).To(Equal(1))
+			Expect(yipConfig.Stages["boot"][0].SSHKeys).To(Equal(map[string][]string{"bar": {"asdd"}}))
+			Expect(yipConfig.Stages["boot"][0].Files[0].Path).To(Equal("/foo/bar"))
+			Expect(yipConfig.Stages["boot"][0].Files[0].Permissions).To(Equal(uint32(0644)))
+			Expect(yipConfig.Stages["boot"][0].Hostname).To(Equal(""))
+			Expect(yipConfig.Stages["initramfs"][0].Hostname).To(Equal("bar"))
+			Expect(yipConfig.Stages["boot"][0].Commands).To(Equal([]string{"foo"}))
+			Expect(yipConfig.Stages["test"][0].Environment["foo"]).To(Equal("bar"))
+			Expect(yipConfig.Stages["boot"][0].Users["bar"].LockPasswd).To(Equal(true))
+			Expect(yipConfig.Stages["boot"][1].Layout.Expand.Size).To(Equal(uint(0)))
+			Expect(yipConfig.Stages["boot"][1].Layout.Device.Path).To(Equal("/"))
+			// if just one key needs network, it should go to the network stage
+			Expect(len(yipConfig.Stages["network"][0].SSHKeys)).To(Equal(1))
+			Expect(yipConfig.Stages["network"][0].SSHKeys).To(Equal(map[string][]string{"bar": {"gitlab:test"}}))
 		})
 	})
 })

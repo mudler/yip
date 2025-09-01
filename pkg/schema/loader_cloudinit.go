@@ -17,6 +17,7 @@ package schema
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	cloudconfig "github.com/mudler/yip/pkg/schema/cloudinit"
 	"github.com/twpayne/go-vfs/v4"
@@ -90,11 +91,30 @@ func (cloudInit) Load(source string, s []byte, fs vfs.FS) (*YipConfig, error) {
 		f = append(f, newFile)
 	}
 
+	// Check the keys to know if we need to move them into the network stage
+	// (if they are github or gitlab keys we assume they need network)
+	// Separate them into 2 groups
+	networkSshKeys := map[string][]string{}
+	noNetworkSshKeys := map[string][]string{}
+
+	for user, keys := range sshKeys {
+		for _, key := range keys {
+			if strings.HasPrefix(key, "gitlab") || strings.HasPrefix(key, "github") {
+				networkSshKeys[user] = append(networkSshKeys[user], key)
+			} else {
+				noNetworkSshKeys[user] = append(noNetworkSshKeys[user], key)
+			}
+		}
+	}
 	stages := []Stage{{
 		Commands: cc.RunCmd,
 		Files:    f,
 		Users:    users,
-		SSHKeys:  sshKeys,
+		SSHKeys:  noNetworkSshKeys,
+	}}
+
+	networkSshKeysStage := []Stage{{
+		SSHKeys: networkSshKeys,
 	}}
 
 	for _, d := range cc.Partitioning.Devices {
@@ -104,14 +124,15 @@ func (cloudInit) Load(source string, s []byte, fs vfs.FS) (*YipConfig, error) {
 		stages = append(stages, Stage{Layout: *layout})
 	}
 
-	result := &YipConfig{
-		Stages: map[string][]Stage{
-			"boot": stages,
-			"initramfs": {{
-				Hostname: cc.Hostname,
-			}},
-		},
+	finalStages := map[string][]Stage{
+		"boot": stages,
+		"initramfs": {{
+			Hostname: cc.Hostname,
+		}},
+		"network": networkSshKeysStage,
 	}
+
+	result := &YipConfig{Stages: finalStages}
 
 	// optimistically load data as yip yaml
 	yipConfig, err := yipYAML{}.Load(source, s, fs)
