@@ -91,27 +91,30 @@ func (cloudInit) Load(source string, s []byte, fs vfs.FS) (*YipConfig, error) {
 		f = append(f, newFile)
 	}
 
+	// Check the keys to know if we need to move them into the network stage
+	// (if they are github or gitlab keys we assume they need network)
+	// Separate them into 2 groups
+	networkSshKeys := map[string][]string{}
+	noNetworkSshKeys := map[string][]string{}
+
+	for user, keys := range sshKeys {
+		for _, key := range keys {
+			if strings.HasPrefix(key, "gitlab") || strings.HasPrefix(key, "github") {
+				networkSshKeys[user] = append(networkSshKeys[user], key)
+			} else {
+				noNetworkSshKeys[user] = append(noNetworkSshKeys[user], key)
+			}
+		}
+	}
 	stages := []Stage{{
 		Commands: cc.RunCmd,
 		Files:    f,
 		Users:    users,
+		SSHKeys:  noNetworkSshKeys,
 	}}
 
-	// Check the keys to know if we need to move them into the network stage
-	// (if they are github or gitlab keys we assume they need network)
-	networkStage := false
-
-	for _, keys := range sshKeys {
-		for _, key := range keys {
-			if strings.HasPrefix(key, "gitlab") || strings.HasPrefix(key, "github") {
-				networkStage = true
-				break
-			}
-		}
-	}
-
-	sshKeysStage := []Stage{{
-		SSHKeys: sshKeys,
+	networkSshKeysStage := []Stage{{
+		SSHKeys: networkSshKeys,
 	}}
 
 	for _, d := range cc.Partitioning.Devices {
@@ -126,12 +129,7 @@ func (cloudInit) Load(source string, s []byte, fs vfs.FS) (*YipConfig, error) {
 		"initramfs": {{
 			Hostname: cc.Hostname,
 		}},
-	}
-
-	if networkStage {
-		finalStages["network"] = sshKeysStage
-	} else {
-		finalStages["boot"][0].SSHKeys = sshKeys
+		"network": networkSshKeysStage,
 	}
 
 	result := &YipConfig{Stages: finalStages}

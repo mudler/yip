@@ -112,7 +112,7 @@ write_files:
   permissions: "0644"
   owner: "bar"
 `)
-			Expect(len(yipConfig.Stages)).To(Equal(3))
+			Expect(len(yipConfig.Stages)).To(Equal(4))
 			Expect(yipConfig.Stages["boot"][0].Users["bar"].UID).To(Equal("1002"))
 			Expect(yipConfig.Stages["boot"][0].Users["bar"].PasswordHash).To(Equal("foo"))
 			Expect(yipConfig.Stages["boot"][0].SSHKeys).To(Equal(map[string][]string{"bar": {"faaapploo", "asdd"}}))
@@ -158,7 +158,8 @@ write_files:
 			Expect(len(yipConfig.Stages)).To(Equal(4))
 			Expect(yipConfig.Stages["boot"][0].Users["bar"].UID).To(Equal("1002"))
 			Expect(yipConfig.Stages["boot"][0].Users["bar"].PasswordHash).To(Equal("foo"))
-			Expect(len(yipConfig.Stages["boot"][0].SSHKeys)).To(Equal(0))
+			Expect(len(yipConfig.Stages["boot"][0].SSHKeys)).To(Equal(1))
+			Expect(yipConfig.Stages["boot"][0].SSHKeys).To(Equal(map[string][]string{"bar": {"asdd"}}))
 			Expect(yipConfig.Stages["boot"][0].Files[0].Path).To(Equal("/foo/bar"))
 			Expect(yipConfig.Stages["boot"][0].Files[0].Permissions).To(Equal(uint32(0644)))
 			Expect(yipConfig.Stages["boot"][0].Hostname).To(Equal(""))
@@ -169,7 +170,8 @@ write_files:
 			Expect(yipConfig.Stages["boot"][1].Layout.Expand.Size).To(Equal(uint(0)))
 			Expect(yipConfig.Stages["boot"][1].Layout.Device.Path).To(Equal("/"))
 			// if just one key needs network, it should go to the network stage
-			Expect(yipConfig.Stages["network"][0].SSHKeys).To(Equal(map[string][]string{"bar": {"gitlab:test", "asdd"}}))
+			Expect(len(yipConfig.Stages["network"][0].SSHKeys)).To(Equal(1))
+			Expect(yipConfig.Stages["network"][0].SSHKeys).To(Equal(map[string][]string{"bar": {"gitlab:test"}}))
 		})
 	})
 })
