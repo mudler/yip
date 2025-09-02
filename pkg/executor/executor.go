@@ -74,6 +74,7 @@ func NewExecutor(opts ...Options) Executor {
 			plugins.OnlyIfOSVersion,
 			plugins.IfArch,
 			plugins.IfServiceManager,
+			plugins.IfFiles,
 		},
 		plugins: []Plugin{
 			plugins.DNS,

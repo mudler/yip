@@ -16,12 +16,13 @@ package plugins_test
 
 import (
 	"fmt"
+	"runtime"
+
 	. "github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
 	consoletests "github.com/mudler/yip/tests/console"
 	"github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs/v4/vfst"
-	"runtime"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -142,6 +143,85 @@ var _ = Describe("Conditionals", Label("conditionals"), func() {
 				OnlyIfServiceManager: "openrc",
 			}, fs, &testConsole)
 
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+	})
+	Describe("IfFiles", func() {
+		It("Fails with unknown check type", func() {
+			stage := schema.Stage{
+				IfFiles: map[schema.IfCheckType][]string{
+					schema.IfCheckType("wrongCheck"): {},
+				},
+			}
+			err = IfFiles(logrus.New(), stage, fs, &testConsole)
+			Expect(err).Should(MatchError("unknown if_files check type: wrongCheck"))
+		})
+		It("Succeeds when all files exist (IfCheckAll)", func() {
+			stage := schema.Stage{
+				IfFiles: map[schema.IfCheckType][]string{
+					schema.IfCheckAll: {"/etc/hostname", "/etc/hosts"},
+				},
+			}
+			err = IfFiles(logrus.New(), stage, fs, &testConsole)
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+		It("Fails when not all files exist (IfCheckAll)", func() {
+			stage := schema.Stage{
+				IfFiles: map[schema.IfCheckType][]string{
+					schema.IfCheckAll: {"/etc/hostname", "/notfound"},
+				},
+			}
+			err = IfFiles(logrus.New(), stage, fs, &testConsole)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("skipping stage, file /notfound missing"))
+		})
+		It("Succeeds when at least one file exists (IfCheckAny)", func() {
+			stage := schema.Stage{
+				IfFiles: map[schema.IfCheckType][]string{
+					schema.IfCheckAny: {"/etc/hostname", "/notfound"},
+				},
+			}
+			err = IfFiles(logrus.New(), stage, fs, &testConsole)
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+		It("Fails when no files exist (IfCheckAny)", func() {
+			stage := schema.Stage{
+				IfFiles: map[schema.IfCheckType][]string{
+					schema.IfCheckAny: {"/notfound1", "/notfound2"},
+				},
+			}
+			err = IfFiles(logrus.New(), stage, fs, &testConsole)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("skipping stage, none of the files exist"))
+		})
+		It("Succeeds when no files exist (IfCheckNone)", func() {
+			stage := schema.Stage{
+				IfFiles: map[schema.IfCheckType][]string{
+					schema.IfCheckNone: {"/notfound1", "/notfound2"},
+				},
+			}
+			err = IfFiles(logrus.New(), stage, fs, &testConsole)
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+		It("Fails when at least one file exists (IfCheckNone)", func() {
+			stage := schema.Stage{
+				IfFiles: map[schema.IfCheckType][]string{
+					schema.IfCheckNone: {"/etc/hostname", "/notfound"},
+				},
+			}
+			err = IfFiles(logrus.New(), stage, fs, &testConsole)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("skipping stage, file /etc/hostname exists"))
+		})
+		It("Succeeds with empty file list for all checks", func() {
+			stage := schema.Stage{
+				IfFiles: map[schema.IfCheckType][]string{
+					schema.IfCheckAll:  {},
+					schema.IfCheckAny:  {},
+					schema.IfCheckNone: {},
+				},
+			}
+			err = IfFiles(logrus.New(), stage, fs, &testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 	})

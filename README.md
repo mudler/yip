@@ -272,6 +272,33 @@ name: "Test yip!"
 ```
 
 
+## Filtering stages with if_files statement
+
+`yip` can skip stages based on the existence of files:
+
+```yaml
+stages:
+    foo:
+    - name: "echo"
+      commands:
+      - echo hello
+      if_files:
+        any:
+          - /etc/os-release
+          - /tmp/foo
+        all:
+          - /etc/passwd
+        none:
+          - /tmp/bar
+```
+
+The `if_files` field accepts three subfields: `any`, `all`, and `none`. Each subfield takes a list of file paths.
+- `any`: The stage will execute if at least one of the specified files exists.
+- `all`: The stage will execute only if all the specified files exist.
+- `none`: The stage will execute only if none of the specified files exist.
+
+You can use any combination of these subfields to create complex file existence conditions for stage execution.
+
 
 ## Configuration reference
 
