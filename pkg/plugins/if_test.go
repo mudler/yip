@@ -150,11 +150,11 @@ var _ = Describe("Conditionals", Label("conditionals"), func() {
 		It("Fails with unknown check type", func() {
 			stage := schema.Stage{
 				IfFiles: map[schema.IfCheckType][]string{
-					schema.IfCheckType("unknown"): {},
+					schema.IfCheckType("wrongCheck"): {},
 				},
 			}
 			err = IfFiles(logrus.New(), stage, fs, &testConsole)
-			Expect(err).Should(HaveOccurred())
+			Expect(err).Should(MatchError("unknown if_files check type: wrongCheck"))
 		})
 		It("Succeeds when all files exist (IfCheckAll)", func() {
 			stage := schema.Stage{
