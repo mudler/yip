@@ -39,7 +39,23 @@ func templateSysData(l logger.Interface, s string) string {
 	}
 	litter.Config.HideZeroValues = true
 	litter.Config.HidePrivateFields = true
-	l.Trace(litter.Sdump(&system))
+
+	// Protect against panic in litter.Sdump
+	// We suspect some struct fields might cause it to panic
+	// (e.g. complex nested structs, circular references, etc.)
+	// so we recover from the panic and log a warning instead of crashing
+	// the entire application.
+	// This way, we can still get useful debug information without
+	// interrupting the normal flow of the program.
+
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				l.Warn(fmt.Sprintf("litter.Sdump panicked: %v", r))
+			}
+		}()
+		l.Trace(litter.Sdump(&system))
+	}()
 
 	err = json.Unmarshal(data, &interpolateOpts)
 	if err != nil {
