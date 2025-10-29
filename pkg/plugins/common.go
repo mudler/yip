@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/denisbrodbeck/machineid"
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/utils"
 	"github.com/pkg/errors"
@@ -62,6 +63,13 @@ func templateSysData(l logger.Interface, s string) string {
 		l.Warn(fmt.Sprintf("Failed marshalling '%s': %s", s, err.Error()))
 		return s
 	}
+
+	// Expand the interpolation options with extra data
+	interpolateOpts["Random"] = utils.RandomString(32)
+
+	// Add the secure machineID
+	protectedId, _ := machineid.ProtectedID("yip")
+	interpolateOpts["ProtectedID"] = protectedId
 
 	rendered, err := utils.TemplatedString(s, map[string]interface{}{"Values": interpolateOpts})
 	if err != nil {
