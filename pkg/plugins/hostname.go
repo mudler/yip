@@ -31,19 +31,22 @@ func Hostname(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) er
 	rand.Seed(time.Now().UnixNano())
 
 	id, _ := machineid.ID()
+	protectedId, _ := machineid.ProtectedID("yip")
 	myuuid, err := uuid.NewV4()
 	if err != nil {
 		return err
 	}
 	tmpl, err := utils.TemplatedString(hostname,
 		struct {
-			UUID      string
-			Random    string
-			MachineID string
+			UUID        string
+			Random      string
+			MachineID   string
+			ProtectedID string
 		}{
-			UUID:      myuuid.String(),
-			MachineID: id,
-			Random:    utils.RandomString(32),
+			UUID:        myuuid.String(),
+			MachineID:   id,
+			ProtectedID: protectedId,
+			Random:      utils.RandomString(32),
 		},
 	)
 	if err != nil {
