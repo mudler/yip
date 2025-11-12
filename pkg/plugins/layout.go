@@ -16,6 +16,28 @@ import (
 	"github.com/twpayne/go-vfs/v4"
 )
 
+const (
+	extMagicOffset1          = 1080
+	extMagicOffset2          = 1081
+	extMagic1                = 0x53
+	extMagic2                = 0xEF
+	ext4ExtentFeatureOffset  = 1124
+	ext3JournalFeatureOffset = 1084
+	fat16MagicOffset1        = 54
+	fat16MagicOffset2        = 57
+	fat32MagicOffset1        = 82
+	fat32MagicOffset2        = 90
+	fat16Magic               = "FAT"
+	fat32Magic               = "FAT32"
+	btrfsMagicOffset1        = 0x40
+	btrfsMagicOffset2        = 0x48
+	btrfsMagic               = "_BHRfS_M"
+	xfsMagicOffset1          = 0
+	xfsMagicOffset2          = 4
+	xfsMagic                 = "XFSB"
+	swapMagicSignature       = "SWAPSPACE2"
+)
+
 type Disk struct {
 	Device  string
 	SectorS uint
@@ -423,13 +445,13 @@ func DetectFileSystemType(part *gpt.Partition, d *disk.Disk) (string, error) {
 	buf = buf[:n]
 
 	// ext2/3/4: magic at offset 1080
-	if len(buf) > 1125 && buf[1080] == 0x53 && buf[1081] == 0xEF {
+	if len(buf) > 1125 && buf[extMagicOffset1] == extMagic1 && buf[extMagicOffset2] == extMagic2 {
 		// Check for ext4: extents feature (bit 0x40) in feature_incompat at 1124
-		if buf[1124]&0x40 != 0 {
+		if buf[ext4ExtentFeatureOffset]&0x40 != 0 {
 			return "ext4", nil
 		}
 		// Check for ext3: has_journal feature (bit 0x4) in feature_compat at 1084
-		if buf[1084]&0x4 != 0 {
+		if buf[ext3JournalFeatureOffset]&0x4 != 0 {
 			return "ext3", nil
 		}
 		// Otherwise, assume ext2
@@ -437,22 +459,22 @@ func DetectFileSystemType(part *gpt.Partition, d *disk.Disk) (string, error) {
 	}
 
 	// FAT: "FAT" at offset 54 (FAT12/16) or "FAT32   " at offset 82 (FAT32, 8 bytes with spaces)
-	if len(buf) > 89 && (string(buf[54:57]) == "FAT" || strings.Contains(string(buf[82:90]), "FAT32")) {
+	if len(buf) > 89 && (string(buf[fat16MagicOffset1:fat16MagicOffset2]) == fat16Magic || strings.Contains(string(buf[fat32MagicOffset1:fat32MagicOffset2]), fat32Magic)) {
 		return "fat", nil
 	}
 
 	// btrfs: "_BHRfS_M" at offset 0x40
-	if len(buf) > 0x47 && string(buf[0x40:0x48]) == "_BHRfS_M" {
+	if len(buf) > 0x47 && string(buf[btrfsMagicOffset1:btrfsMagicOffset2]) == btrfsMagic {
 		return "btrfs", nil
 	}
 
 	// xfs: "XFSB" at offset 0
-	if len(buf) > 4 && string(buf[0:4]) == "XFSB" {
+	if len(buf) > 4 && string(buf[xfsMagicOffset1:xfsMagicOffset2]) == xfsMagic {
 		return "xfs", nil
 	}
 
 	// swap: "SWAPSPACE2" at end of partition
-	swapSig := []byte("SWAPSPACE2")
+	swapSig := []byte(swapMagicSignature)
 	endOffset := int64((part.End+1)*uint64(sectorSize)) - int64(len(swapSig))
 	swapBuf := make([]byte, len(swapSig))
 	_, err = d.Backend.ReadAt(swapBuf, endOffset)

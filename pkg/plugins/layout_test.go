@@ -151,12 +151,13 @@ var _ = Describe("Layout", Label("layout"), func() {
 			}, fs, testConsole)
 			Expect(err).Should(BeNil())
 		})
-		It("Fails to add a partition of 2G, there are only 1024MiB available", func() {
+		It("Fails to add a partition of 1025MiB, there are only 1024MiB available", func() {
 			testConsole := console.New()
+			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 -L %s %s", label, devicePath)})
 			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
 					Device: &schema.Device{Path: devicePath},
-					Parts:  []schema.Partition{{FSLabel: label, Size: 2048}},
+					Parts:  []schema.Partition{{FSLabel: label, Size: 1025}},
 				},
 			}, fs, testConsole)
 			Expect(err).To(HaveOccurred())
@@ -259,6 +260,51 @@ var _ = Describe("Layout", Label("layout"), func() {
 			Expect(table2.Partitions[0].Size).To(Equal(uint64(1024 * 1024 * 1024)))
 
 		})
+		It("Expands last partition to take all space", func() {
+			testConsole := console.New()
+			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 %s", devicePath)})
+			err := Layout(l, schema.Stage{
+				Layout: schema.Layout{
+					Device: &schema.Device{Path: devicePath},
+					Parts:  []schema.Partition{{PLabel: label, Size: 512}},
+				},
+			}, fs, testConsole)
+			Expect(err).Should(BeNil())
+
+			// check that indeed its 512MiB
+			disk1, err := fileBackend.OpenFromPath(rawDevicePath, true)
+			defer disk1.Close()
+			table1, err := gpt.Read(disk1, int(diskfs.SectorSize512), int(diskfs.SectorSize512))
+			Expect(err).ToNot(HaveOccurred())
+			// check that its type GPT
+			Expect(table1.Type()).To(Equal("gpt"))
+			Expect(table1.Partitions).To(HaveLen(1))
+			deviceLabel = table1.Partitions[0].Name
+			Expect(deviceLabel).To(Equal("FAKELABEL"))
+			Expect(table1.Partitions[0].Size).To(Equal(uint64(512 * 1024 * 1024)))
+
+			// Now expand it
+			err = Layout(l, schema.Stage{
+				Layout: schema.Layout{
+					Device: &schema.Device{Path: devicePath},
+					Expand: &schema.Expand{},
+				},
+			}, fs, testConsole)
+			Expect(err).Should(BeNil())
+
+			// Now check if the partition size is now 1024MiB
+			disk2, err := fileBackend.OpenFromPath(rawDevicePath, true)
+			defer disk2.Close()
+			table2, err := gpt.Read(disk2, int(diskfs.SectorSize512), int(diskfs.SectorSize512))
+			Expect(err).ToNot(HaveOccurred())
+			// check that its type GPT
+			Expect(table2.Type()).To(Equal("gpt"))
+			Expect(table2.Partitions).To(HaveLen(1))
+			deviceLabel = table2.Partitions[0].Name
+			Expect(deviceLabel).To(Equal("FAKELABEL"))
+			Expect(table2.Partitions[0].Size).To(Equal(uint64(1024 * 1024 * 1024)))
+
+		})
 		It("Expands last partition after creating the partitions", func() {
 			testConsole := console.New()
 			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 %s", devicePath)})
@@ -337,7 +383,7 @@ var _ = Describe("Layout", Label("layout"), func() {
 				},
 			}, fs, testConsole)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("cannot have a label longer than 12 chars"))
+			Expect(err.Error()).To(ContainSubstring("cannot be longer than 12 chars"))
 		})
 		It("Works on an non-xfs fs with a label longer than 12 chars", func() {
 			label = "LABEL_TOO_LONG_FOR_XFS"
