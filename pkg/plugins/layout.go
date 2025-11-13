@@ -462,9 +462,13 @@ func DetectFileSystemType(part *gpt.Partition, d *disk.Disk) (string, error) {
 		return "ext2", nil
 	}
 
-	// FAT: "FAT" at offset 54 (FAT12/16) or "FAT32   " at offset 82 (FAT32, 8 bytes with spaces)
+	// FAT16: "FAT" at offset 54 (FAT12/16)
+	if len(buf) > fat16MagicOffset2 && bytes.Equal(buf[fat16MagicOffset1:fat16MagicOffset2], []byte(fat16Magic)) {
+		return "fat", nil
+	}
+	// FAT32: "FAT32   " at offset 82 (FAT32, 8 bytes with spaces)
 	// Be more lax with FAT32 detection due to variations in the magic string or extra characters
-	if len(buf) > 89 && (bytes.Equal(buf[fat16MagicOffset1:fat16MagicOffset2], []byte(fat16Magic)) || strings.Contains(string(buf[fat32MagicOffset1:fat32MagicOffset2]), fat32Magic)) {
+	if len(buf) > fat32MagicOffset2 && strings.Contains(string(buf[fat32MagicOffset1:fat32MagicOffset2]), fat32Magic) {
 		return "fat", nil
 	}
 
