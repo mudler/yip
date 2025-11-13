@@ -2,7 +2,7 @@ package plugins_test
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 
 	"github.com/diskfs/go-diskfs"
 	fileBackend "github.com/diskfs/go-diskfs/backend/file"
@@ -62,7 +62,7 @@ var _ = Describe("Layout", Label("layout"), func() {
 
 		l := logrus.New()
 		l.SetLevel(logrus.DebugLevel)
-		l.SetOutput(ioutil.Discard)
+		l.SetOutput(io.Discard)
 
 		It("Fails to find device by path", func() {
 			testConsole := console.New()
