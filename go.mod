@@ -43,6 +43,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/Microsoft/hcsshim v0.12.9 // indirect
 	github.com/ProtonMail/go-crypto v1.1.5 // indirect
+	github.com/alecthomas/assert/v2 v2.6.0 // indirect
 	github.com/cloudflare/circl v1.6.0 // indirect
 	github.com/containerd/cgroups/v3 v3.0.5 // indirect
 	github.com/containerd/continuity v0.4.5 // indirect
