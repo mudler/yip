@@ -124,7 +124,6 @@ last:x:999:999:Test user for uid:/:/usr/bin/nologin
 			testConsole.Reset()
 		})
 		It("change user password", func() {
-			Skip("")
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/etc/passwd": existingPasswd,
 				"/etc/shadow": "",
 				"/etc/group":  "",

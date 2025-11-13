@@ -29,7 +29,7 @@ const (
 	fat32MagicOffset1        = 82
 	fat32MagicOffset2        = 90
 	fat16Magic               = "FAT"
-	fat32Magic               = "FAT32   "
+	fat32Magic               = "FAT32"
 	btrfsMagicOffset1        = 0x40
 	btrfsMagicOffset2        = 0x48
 	btrfsMagic               = "_BHRfS_M"
@@ -37,6 +37,7 @@ const (
 	xfsMagicOffset2          = 4
 	xfsMagic                 = "XFSB"
 	swapMagicSignature       = "SWAPSPACE2"
+	OneMiBInBytes            = 1024 * 1024
 )
 
 type Disk struct {
@@ -219,7 +220,7 @@ func (dev *Disk) computeFreeSpace() uint {
 		lastPart := dev.Parts[len(dev.Parts)-1]
 		return dev.LastS - (lastPart.StartS + lastPart.SizeS - 1)
 	}
-	return dev.LastS - (1024*1024/dev.SectorS - 1)
+	return dev.LastS - (OneMiBInBytes/dev.SectorS - 1)
 }
 
 func (dev *Disk) AddPartition(size uint, label, fsLabel, filesystem string, console Console) (string, error) {
@@ -239,7 +240,7 @@ func (dev *Disk) AddPartition(size uint, label, fsLabel, filesystem string, cons
 	}
 	sizeS := MiBToSectors(size, dev.SectorS)
 	if startS+sizeS > dev.LastS {
-		availableMiB := ((dev.LastS - startS) * dev.SectorS) / (1024 * 1024)
+		availableMiB := ((dev.LastS - startS) * dev.SectorS) / OneMiBInBytes
 		return "", fmt.Errorf("not enough free space in disk: required %d MiB, available %d MiB", size, availableMiB)
 	}
 
@@ -321,7 +322,7 @@ func (dev *Disk) ExpandLastPartition(size uint) error {
 	// Check if there is enough space to expand in the disk
 	availableSpace := uint64(dev.LastS) - part.End - 1
 	if requestedSize-currentSize > availableSpace {
-		availableMiB := (availableSpace * uint64(dev.SectorS)) / (1024 * 1024)
+		availableMiB := (availableSpace * uint64(dev.SectorS)) / OneMiBInBytes
 		return fmt.Errorf("not enough space to expand the partition (Available: %d MiB)", availableMiB)
 	}
 	if size == 0 {
@@ -468,7 +469,7 @@ func DetectFileSystemType(part *gpt.Partition, d *disk.Disk) (string, error) {
 	}
 	// FAT32: "FAT32   " at offset 82 (FAT32, 8 bytes with spaces)
 	// Be more lax with FAT32 detection due to variations in the magic string or extra characters
-	if len(buf) > fat32MagicOffset2 && strings.Contains(string(buf[fat32MagicOffset1:fat32MagicOffset2]), fat32Magic) {
+	if len(buf) > fat32MagicOffset2 && bytes.Contains(buf[fat32MagicOffset1:fat32MagicOffset2], []byte(fat32Magic)) {
 		return "fat", nil
 	}
 
