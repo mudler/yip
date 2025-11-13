@@ -239,7 +239,8 @@ func (dev *Disk) AddPartition(size uint, label, fsLabel, filesystem string, cons
 	}
 	sizeS := MiBToSectors(size, dev.SectorS)
 	if startS+sizeS > dev.LastS {
-		return "", fmt.Errorf("not enough free space in disk")
+		availableMiB := ((dev.LastS - startS) * dev.SectorS) / (1024 * 1024)
+		return "", fmt.Errorf("not enough free space in disk: required %d MiB, available %d MiB", size, availableMiB)
 	}
 
 	var fsType gpt.Type
