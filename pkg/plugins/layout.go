@@ -1,6 +1,7 @@
 package plugins
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -28,7 +29,7 @@ const (
 	fat32MagicOffset1        = 82
 	fat32MagicOffset2        = 90
 	fat16Magic               = "FAT"
-	fat32Magic               = "FAT32"
+	fat32Magic               = "FAT32   "
 	btrfsMagicOffset1        = 0x40
 	btrfsMagicOffset2        = 0x48
 	btrfsMagic               = "_BHRfS_M"
@@ -459,17 +460,18 @@ func DetectFileSystemType(part *gpt.Partition, d *disk.Disk) (string, error) {
 	}
 
 	// FAT: "FAT" at offset 54 (FAT12/16) or "FAT32   " at offset 82 (FAT32, 8 bytes with spaces)
-	if len(buf) > 89 && (string(buf[fat16MagicOffset1:fat16MagicOffset2]) == fat16Magic || strings.Contains(string(buf[fat32MagicOffset1:fat32MagicOffset2]), fat32Magic)) {
+	// Be more lax with FAT32 detection due to variations in the magic string or extra characters
+	if len(buf) > 89 && (bytes.Equal(buf[fat16MagicOffset1:fat16MagicOffset2], []byte(fat16Magic)) || strings.Contains(string(buf[fat32MagicOffset1:fat32MagicOffset2]), fat32Magic)) {
 		return "fat", nil
 	}
 
 	// btrfs: "_BHRfS_M" at offset 0x40
-	if len(buf) > 0x47 && string(buf[btrfsMagicOffset1:btrfsMagicOffset2]) == btrfsMagic {
+	if len(buf) > 0x47 && bytes.Equal(buf[btrfsMagicOffset1:btrfsMagicOffset2], []byte(btrfsMagic)) {
 		return "btrfs", nil
 	}
 
 	// xfs: "XFSB" at offset 0
-	if len(buf) > 4 && string(buf[xfsMagicOffset1:xfsMagicOffset2]) == xfsMagic {
+	if len(buf) > 4 && bytes.Equal(buf[xfsMagicOffset1:xfsMagicOffset2], []byte(xfsMagic)) {
 		return "xfs", nil
 	}
 
@@ -478,7 +480,7 @@ func DetectFileSystemType(part *gpt.Partition, d *disk.Disk) (string, error) {
 	endOffset := int64((part.End+1)*uint64(sectorSize)) - int64(len(swapSig))
 	swapBuf := make([]byte, len(swapSig))
 	_, err = d.Backend.ReadAt(swapBuf, endOffset)
-	if err == nil && string(swapBuf) == string(swapSig) {
+	if err == nil && bytes.Equal(swapBuf, swapSig) {
 		return "swap", nil
 	}
 	return "", errors.New("unknown filesystem")
