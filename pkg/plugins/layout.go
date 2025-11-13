@@ -266,7 +266,9 @@ func (dev *Disk) AddPartition(size uint, label, fsLabel, filesystem string, cons
 	if err != nil {
 		return "", err
 	}
-	dev.Reload()
+	if err := dev.Reload(); err != nil {
+		return "", err
+	}
 
 	mkfsPart := Partition{
 		FileSystem: filesystem,
