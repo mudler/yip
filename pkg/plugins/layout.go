@@ -87,9 +87,7 @@ func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) erro
 			l.Debugf("Disk initialization failed: %s", err)
 			return err
 		}
-		defer func() {
-			_ = d.Close()
-		}()
+		// Do not defer the disk close, we want to close it before returning from this block as other things will open the disk as well.
 
 		var diskName string
 		if s.Layout.Device.DiskName != "" {
@@ -109,10 +107,12 @@ func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) erro
 		err = d.Partition(table)
 		if err != nil {
 			l.Debugf("Disk initialization failed during partitioning: %s", err)
+			_ = d.Close()
 			return err
 		}
 		l.Debugf("Initialized disk with path %s", s.Layout.Device.Path)
 		syscall.Sync()
+		_ = d.Close()
 	}
 
 	var dev Disk
