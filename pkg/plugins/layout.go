@@ -8,10 +8,12 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 
 	"github.com/diskfs/go-diskfs"
 	"github.com/diskfs/go-diskfs/disk"
 	"github.com/diskfs/go-diskfs/partition/gpt"
+	"github.com/gofrs/uuid"
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/twpayne/go-vfs/v4"
@@ -67,6 +69,50 @@ func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) erro
 	if s.Layout.Device == nil {
 		l.Debug("Device field empty, skipping layout plugin")
 		return nil
+	}
+
+	if s.Layout.Device.InitDisk && s.Layout.Device.Path == "" {
+		return fmt.Errorf("in order to initialize a disk, a valid device path must be provided")
+	}
+	if s.Layout.Device.InitDisk && s.Layout.Device.Label != "" {
+		return fmt.Errorf("cannot initialize a disk when both path and label are provided, please provide only the device path")
+	}
+	if s.Layout.Device.InitDisk {
+		if _, ok := fs.Stat(s.Layout.Device.Path); ok != nil {
+			return fmt.Errorf("cannot initialize disk, path %s does not exist", s.Layout.Device.Path)
+		}
+		l.Debugf("Initializing disk with path %s", s.Layout.Device.InitDisk, s.Layout.Device.Path)
+		d, err := diskfs.Open(s.Layout.Device.Path)
+		if err != nil {
+			l.Debugf("Disk initialization failed: %s", err)
+			return err
+		}
+		defer func() {
+			_ = d.Close()
+		}()
+
+		var diskName string
+		if s.Layout.Device.DiskName != "" {
+			diskName = s.Layout.Device.DiskName
+		} else {
+			diskName = "YIP_DISK"
+		}
+		// Generate a deterministic GUID based on the disk name
+		diskGUID := uuid.NewV5(uuid.NamespaceURL, diskName).String()
+
+		table := &gpt.Table{
+			ProtectiveMBR:      true,
+			GUID:               diskGUID,
+			LogicalSectorSize:  int(d.LogicalBlocksize),
+			PhysicalSectorSize: int(d.PhysicalBlocksize),
+		}
+		err = d.Partition(table)
+		if err != nil {
+			l.Debugf("Disk initialization failed during partitioning: %s", err)
+			return err
+		}
+		l.Debugf("Initialized disk with path %s", s.Layout.Device.Path)
+		syscall.Sync()
 	}
 
 	var dev Disk

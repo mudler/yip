@@ -644,8 +644,18 @@ stages:
            # or partition label (filesystem label matches first) or the device
            # provided in 'path'. The label check has precedence over path when
            # both are provided.
+           # init_disk set to true is used to initialize the disk partition table with an empty GPT table. This
+           # is useful when we want to initialize the disk from scratch to add our own partitions.
+           # WARNING: This will destroy all data in the disk! So only run it when you are dealing with a new disk or
+           # you are sure you want to wipe out all data in the disk.
+           # disk_name is optional and used to set deterministic GUID disk name when init_disk is true. This allows for
+           # reproducible disk GUIDs across multiple runs and easy identification of disk by GUID.
+           # The GUID generated is a V5 UUID based on the disk_name provided under the DNS namespace.
+           # Not setting it will default to a GUID based on the YIP_DISK name
            label: COS_RECOVERY
            path: /dev/sda
+           init_disk: true
+           disk_name: "MYDISK""
          # Only last partition can be expanded and it happens before any other
          # partition is added.
          expand_partition:

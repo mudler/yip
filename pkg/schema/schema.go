@@ -114,8 +114,10 @@ type Layout struct {
 }
 
 type Device struct {
-	Label string `yaml:"label,omitempty"`
-	Path  string `yaml:"path,omitempty"`
+	InitDisk bool   `yaml:"init_disk,omitempty"`
+	DiskName string `yaml:"disk_name,omitempty"`
+	Label    string `yaml:"label,omitempty"`
+	Path     string `yaml:"path,omitempty"`
 }
 
 type Expand struct {
