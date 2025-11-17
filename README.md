@@ -661,14 +661,15 @@ stages:
          expand_partition:
            size: 4096 #  size: 0 means all available free space
          # List of partitions to add.
-         # The only obligatory fields is the size
+         # The only obligatory field is the size.
          # Filesystem will default to ext2 if omitted
-         # Partition label is optional
-         # Filesystem label is optional
+         # fsLabel is optional, its the filesystem label.
+         # pLabel is optional, its the partition label. If a partition with the same label exists, it will be skipped.
          # Bootable flag is optional and defaults to false
          # Use bootable: true to set the bootable flag on the partition and set the proper partition GUID type
          # Size is in MiB. Setting the size to 0 means all available free space.
          # For a good use, we recommend setting all the fields when possible to have a deterministic layout.
+         # We especially recommend setting pLabel to avoid recreating partitions if they already exist as all data will be lost on them.
          add_partitions:
            - fsLabel: COS_STATE
              size: 8192

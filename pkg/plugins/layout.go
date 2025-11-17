@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/diskfs/go-diskfs"
 	"github.com/diskfs/go-diskfs/disk"
+	"github.com/diskfs/go-diskfs/partition"
 	"github.com/diskfs/go-diskfs/partition/gpt"
 	"github.com/gofrs/uuid"
 	"github.com/mudler/yip/pkg/logger"
@@ -194,10 +196,15 @@ func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) erro
 		l.Debugf("Extended last partition")
 	}
 	l.Debugf("All done with layout plugin for device %s", dev.Device)
+	os.Exit(1)
 	return nil
 }
 
 func (dev *Disk) AddPartitions(parts []schema.Partition, l logger.Interface, console Console) error {
+	if len(parts) == 0 {
+		l.Debug("No partitions to add, skipping")
+		return nil
+	}
 	// Open disk
 	d, err := diskfs.Open(dev.Device)
 	if err != nil {
@@ -218,10 +225,12 @@ func (dev *Disk) AddPartitions(parts []schema.Partition, l logger.Interface, con
 	table, err := d.GetPartitionTable()
 	if err != nil {
 		_ = d.Close()
-		return err
+		return fmt.Errorf("could not get partition table: %w. Maybe the disk is not initialized or doesnt not contain a GPT table", err)
 	}
-	gptTable, ok := table.(*gpt.Table)
-	if !ok {
+	// Recover here as this will panic if the partition table is not GPT
+	gptTable, err := safeTypeAssertion(table)
+
+	if err != nil {
 		_ = d.Close()
 		return errors.New("only GPT partition tables are supported")
 	}
@@ -230,14 +239,7 @@ func (dev *Disk) AddPartitions(parts []schema.Partition, l logger.Interface, con
 
 	// Now go over the parts
 	for index, p := range parts {
-		// For each partition, check if it exists and skip it if so
-		if p.FSLabel != "" {
-			l.Debugf("Checking if partition with FSLabel: %s exists on device %s", p.FSLabel, dev.Device)
-			if dev.MatchPartitionFSLabel(p.FSLabel) {
-				l.Warnf("Partition with FSLabel: %s already exists, ignoring", p.FSLabel)
-				continue
-			}
-		}
+		// For each partition, check if it exists by the partition labeland skip it if so
 		if p.PLabel != "" {
 			l.Debugf("Checking if partition with PLabel: %s exists on device %s", p.PLabel, dev.Device)
 			if dev.MatchPartitionPLabel(p.PLabel) {
@@ -350,22 +352,46 @@ func (dev *Disk) AddPartitions(parts []schema.Partition, l logger.Interface, con
 		_ = d.Close()
 		return err
 	}
+
+	// Re-read partition table so kernel sees new partitions
+	err = d.ReReadPartitionTable()
+	if err != nil {
+		_ = d.Close()
+		return fmt.Errorf("failed to reread partition table: %w", err)
+	}
+
 	// Close the disk to flush changes
 	err = d.Close()
 	if err != nil {
 		return err
 	}
 
+	syscall.Sync()
+	_, _ = console.Run("udevadm trigger &&  udevadm settle")
 	// Now format the partitions
 	for _, part := range partitionsToFormat {
 		l.Debugf("Formatting partition %s on device %s", part.FSLabel, dev.Device)
-		_, err = formatPartition(part, dev.Device, console)
+		out, err := formatPartition(part, dev.Device, console)
 		if err != nil {
+			l.Errorf("Error formatting partition %s: %s", part.FSLabel, out)
 			return err
 		}
 	}
 
 	return nil
+}
+
+func safeTypeAssertion(partitionTable partition.Table) (gptTable *gpt.Table, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("the table of the disk does not seem to be a GPT table")
+		}
+	}()
+	gptTable, ok := partitionTable.(*gpt.Table)
+	if !ok {
+		return nil, fmt.Errorf("the table of the disk does not seem to be a GPT table")
+	}
+	return
 }
 
 func FindDiskFromPath(path string, fs vfs.FS) (Disk, error) {
@@ -431,17 +457,14 @@ func (dev *Disk) computeFreeSpace() uint64 {
 // It expects the disk to be already partitioned.
 // It expects the disk to not be open by any other process.
 func formatPartition(part Partition, basedevice string, console Console) (string, error) {
-	device := fmt.Sprintf("%s%d", basedevice, part.PartNumber)
-	// Handle cases like /dev/sda1 or /dev/nvme0n1p1
-	if strings.HasPrefix(basedevice, "/dev/") {
-		base := filepath.Base(basedevice)
-		dir := filepath.Dir(basedevice)
-		if strings.HasPrefix(base, "nvme") {
-			device = fmt.Sprintf("%sp%d", filepath.Join(dir, base), part.PartNumber)
-		} else {
-			device = fmt.Sprintf("%s%d", filepath.Join(dir, base), part.PartNumber)
-		}
+	var device string
+	// NVMe devices have a different partition naming scheme
+	if strings.Contains(basedevice, "nvme") {
+		device = fmt.Sprintf("%sp%d", basedevice, part.PartNumber)
+	} else {
+		device = fmt.Sprintf("%s%d", basedevice, part.PartNumber)
 	}
+
 	mkfs := MkfsCall{part: part, customOpts: []string{}, dev: device}
 	return mkfs.Apply(console)
 }
