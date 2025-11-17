@@ -603,8 +603,9 @@ func GetParts(d *disk.Disk) []Partition {
 			fs = "unknown"
 		}
 		parts = append(parts, Partition{
-			Start:      uint64(p.GetStart()),
-			Size:       uint64(p.GetSize()),
+			Start:      part.Start,
+			Size:       part.Size,
+			End:        part.End,
 			PLabel:     part.Name,
 			FileSystem: fs,
 			PartNumber: index + 1,
