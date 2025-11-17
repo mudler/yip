@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -188,7 +189,7 @@ func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) erro
 		} else {
 			l.Debugf("Extending last partition to %d MiB", s.Layout.Expand.Size)
 		}
-		err := dev.ExpandLastPartition(s.Layout.Expand.Size)
+		err := dev.ExpandLastPartition(s.Layout.Expand.Size, console)
 		if err != nil {
 			l.Error(err.Error())
 			return err
@@ -469,7 +470,7 @@ func formatPartition(part Partition, basedevice string, console Console) (string
 	return mkfs.Apply(console)
 }
 
-func (dev *Disk) ExpandLastPartition(size uint64) error {
+func (dev *Disk) ExpandLastPartition(size uint64, console Console) error {
 	if len(dev.Parts) == 0 {
 		return errors.New("no partition to expand")
 	}
@@ -478,46 +479,65 @@ func (dev *Disk) ExpandLastPartition(size uint64) error {
 	if err != nil {
 		return err
 	}
-	defer func() {
+
+	// Close it manually at the end before doing the filesystem resize
+
+	err = d.ReReadPartitionTable()
+	if err != nil {
 		_ = d.Close()
-	}()
+		return err
+	}
+
 	table, err := d.GetPartitionTable()
 	if err != nil {
+		_ = d.Close()
 		return err
 	}
 	gptTable, ok := table.(*gpt.Table)
 	if !ok {
+		_ = d.Close()
 		return errors.New("only GPT partition tables are supported")
 	}
 	lastIdx := len(gptTable.Partitions) - 1
 	if lastIdx < 0 {
+		_ = d.Close()
 		return errors.New("no partition to expand")
 	}
 	part := gptTable.Partitions[lastIdx]
 	if part == nil {
+		_ = d.Close()
 		return errors.New("last partition is nil")
 	}
 	// Check if the partition is swap as we cannot expand swap partitions
 	if part.Type == gpt.LinuxSwap {
+		_ = d.Close()
 		return errors.New("swap resizing is not supported")
 	}
-	// Check if requested size is less than actual size
-	currentSize := part.End - part.Start + 1
-	var requestedSize uint64
-	// Setting Size to 0 tells the GPT library to recalculate the partition size based on Start and End.
-	if size == 0 {
-		requestedSize = dev.LastS - part.Start
-	} else {
-		requestedSize = MiBToSectors(size, dev.SectorS)
-	}
-	if requestedSize <= currentSize {
-		return errors.New("requested size is less than or equal to current partition size")
+
+	// Check if partition has fat as we cannot expand fat partitions
+	if part.Type == gpt.MicrosoftBasicData || part.Type == gpt.EFISystemPartition {
+		_ = d.Close()
+		return errors.New("FAT partition resizing is not supported")
 	}
 
+	// Check if requested size is less than actual size
+	// size in Mib to bytes
+	requestedSize := size * 1024 * 1024
+	// part size comes in bytes already
+	currentSize := part.Size
+	if size == 0 {
+		requestedSize = uint64(d.Size/d.LogicalBlocksize) - part.Start
+	}
+	if requestedSize <= currentSize {
+		_ = d.Close()
+		return fmt.Errorf("requested size is less than or equal to current partition size (requested %d sectors, current %d sectors)", requestedSize, currentSize)
+	}
+	// Total free disk size in sectors
 	// Check if there is enough space to expand in the disk
 	availableSpace := dev.LastS - part.End - 1
 	if requestedSize-currentSize > availableSpace {
 		availableMiB := (availableSpace * dev.SectorS) / OneMiBInBytes
+		_ = d.Close()
 		return fmt.Errorf("not enough space to expand the partition (Available: %d MiB)", availableMiB)
 	}
 	if size == 0 {
@@ -529,9 +549,37 @@ func (dev *Disk) ExpandLastPartition(size uint64) error {
 	part.Size = 0
 	err = d.Partition(gptTable)
 	if err != nil {
+		_ = d.Close()
 		return err
 	}
-	return nil
+	// Now re-read partition table so kernel sees new partitions
+	err = d.ReReadPartitionTable()
+	if err != nil {
+		_ = d.Close()
+		return fmt.Errorf("failed to reread partition table: %w", err)
+	}
+	syscall.Sync()
+	_, _ = console.Run("udevadm trigger &&  udevadm settle")
+
+	// Now resize the underlying filesystem
+	fs, err := DetectFileSystemType(part, d)
+	fmt.Print("Starting resize of filesystem type ", fs, "\n")
+	if err != nil {
+		_ = d.Close()
+		return fmt.Errorf("could not detect filesystem type: %w", err)
+	}
+
+	var device string
+	partNumber := len(gptTable.Partitions)
+	// NVMe devices have a different partition naming scheme
+	if strings.Contains(dev.Device, "nvme") {
+		device = fmt.Sprintf("%sp%d", dev.Device, partNumber)
+	} else {
+		device = fmt.Sprintf("%s%d", dev.Device, partNumber)
+	}
+	_ = d.Close()
+
+	return GrowFSToMax(device, fs)
 }
 
 func (dev *Disk) MatchPartitionFSLabel(label string) bool {
@@ -601,7 +649,10 @@ func (mkfs MkfsCall) Apply(console Console) (string, error) {
 	} else {
 		tool = fmt.Sprintf("mkfs.%s", mkfs.part.FileSystem)
 	}
-
+	_, err = exec.LookPath(tool)
+	if err != nil {
+		return "", fmt.Errorf("mkfs tool %s not found in PATH", tool)
+	}
 	command := fmt.Sprintf("%s %s", tool, strings.Join(opts[:], " "))
 	return console.Run(command)
 }

@@ -658,8 +658,9 @@ stages:
            disk_name: "MYDISK""
          # Only last partition can be expanded and it happens before any other
          # partition is added.
+         # Only grows the partition, cannot shrink it.
          expand_partition:
-           size: 4096 #  size: 0 means all available free space
+           size: 4096 #  size: 0 means all available free space, in MiB
          # List of partitions to add.
          # The only obligatory field is the size.
          # Filesystem will default to ext2 if omitted
