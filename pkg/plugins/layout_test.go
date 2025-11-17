@@ -86,7 +86,11 @@ var _ = Describe("Layout", Label("layout"), func() {
 		})
 		It("Adds a new partition by path", func() {
 			testConsole := console.New()
-			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 %s", devicePath)})
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
+			// Note that the mkfs.ext2 call goes to device + partition number, but since we mock it,
+			// we just check that the call is made, so we use devicePath directly with a 1 at the end to mock it
+			// even if this is a image file
+			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 %s1", devicePath)})
 			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
 					Device: &schema.Device{Path: devicePath},
@@ -108,6 +112,7 @@ var _ = Describe("Layout", Label("layout"), func() {
 		})
 		It("Adds a new partition by path with fsLabel", func() {
 			testConsole := console.New()
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
 			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 -L FSLABEL %s", devicePath)})
 			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
@@ -130,6 +135,7 @@ var _ = Describe("Layout", Label("layout"), func() {
 		It("Adds a new partition by label", func() {
 			Expect(fs.Symlink(devicePath, "/dev/disk/by-label/SOMELABEL")).Should(BeNil())
 			testConsole := console.New()
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
 			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 /dev/disk/by-label/SOMELABEL")})
 			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
@@ -142,6 +148,7 @@ var _ = Describe("Layout", Label("layout"), func() {
 		It("Adds a new partition by label with fsLabel", func() {
 			Expect(fs.Symlink(devicePath, "/dev/disk/by-label/SOMELABEL")).Should(BeNil())
 			testConsole := console.New()
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
 			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 -L MYLABEL /dev/disk/by-label/SOMELABEL")})
 			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
@@ -153,6 +160,7 @@ var _ = Describe("Layout", Label("layout"), func() {
 		})
 		It("Fails to add a partition of 1025MiB, there are only 1024MiB available", func() {
 			testConsole := console.New()
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
 			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 -L %s %s", label, devicePath)})
 			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
@@ -164,6 +172,7 @@ var _ = Describe("Layout", Label("layout"), func() {
 		})
 		It("Ignores an already existing partition", func() {
 			testConsole := console.New()
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
 			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 %s", devicePath)})
 			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 %s", devicePath)})
 			err := Layout(l, schema.Stage{
@@ -197,6 +206,7 @@ var _ = Describe("Layout", Label("layout"), func() {
 		})
 		It("Fails to expand last partition, it can't shrink a partition", func() {
 			testConsole := console.New()
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
 			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 %s", devicePath)})
 			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
@@ -217,6 +227,7 @@ var _ = Describe("Layout", Label("layout"), func() {
 		})
 		It("Expands last partition", func() {
 			testConsole := console.New()
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
 			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 %s", devicePath)})
 			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
@@ -262,6 +273,7 @@ var _ = Describe("Layout", Label("layout"), func() {
 		})
 		It("Expands last partition to take all space", func() {
 			testConsole := console.New()
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
 			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 %s", devicePath)})
 			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
@@ -307,6 +319,7 @@ var _ = Describe("Layout", Label("layout"), func() {
 		})
 		It("Expands last partition after creating the partitions", func() {
 			testConsole := console.New()
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
 			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 %s", devicePath)})
 			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
@@ -332,6 +345,7 @@ var _ = Describe("Layout", Label("layout"), func() {
 		})
 		It("Expands last partition with XFS fs", func() {
 			testConsole := console.New()
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
 			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.xfs %s", devicePath)})
 			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
@@ -357,6 +371,7 @@ var _ = Describe("Layout", Label("layout"), func() {
 		})
 		It("Fails to expand last partition, if there is not enough space left", func() {
 			testConsole := console.New()
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
 			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 %s", devicePath)})
 			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
@@ -388,6 +403,7 @@ var _ = Describe("Layout", Label("layout"), func() {
 		It("Works on an non-xfs fs with a label longer than 12 chars", func() {
 			label = "LABEL_TOO_LONG_FOR_XFS"
 			testConsole := console.New()
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
 			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext4 %s", devicePath)})
 			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
@@ -399,6 +415,7 @@ var _ = Describe("Layout", Label("layout"), func() {
 		})
 		It("Adds a swap partition and fails expanding it", func() {
 			testConsole := console.New()
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
 			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkswap -L MYLABEL %s", devicePath)})
 
 			err := Layout(l, schema.Stage{

@@ -177,7 +177,7 @@ func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) erro
 	}
 
 	l.Debugf("Going over the partition layout to create partitions on device %s", dev.Device)
-	err = dev.AddPartitions(s.Layout.Parts, l, console)
+	err = dev.AddPartitions(fs, s.Layout.Parts, l, console)
 	if err != nil {
 		return err
 	}
@@ -201,13 +201,18 @@ func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) erro
 	return nil
 }
 
-func (dev *Disk) AddPartitions(parts []schema.Partition, l logger.Interface, console Console) error {
+func (dev *Disk) AddPartitions(fs vfs.FS, parts []schema.Partition, l logger.Interface, console Console) error {
 	if len(parts) == 0 {
 		l.Debug("No partitions to add, skipping")
 		return nil
 	}
 	// Open disk
-	d, err := diskfs.Open(dev.Device)
+	// Use fs.rawpath
+	rawPath, err := fs.RawPath(dev.Device)
+	if err != nil {
+		return fmt.Errorf("could not resolve raw path: %w", err)
+	}
+	d, err := diskfs.Open(rawPath)
 	if err != nil {
 		return err
 	}
@@ -368,7 +373,7 @@ func (dev *Disk) AddPartitions(parts []schema.Partition, l logger.Interface, con
 	}
 
 	syscall.Sync()
-	_, _ = console.Run("udevadm trigger &&  udevadm settle")
+	_, _ = console.Run("udevadm trigger && udevadm settle")
 	// Now format the partitions
 	for _, part := range partitionsToFormat {
 		l.Debugf("Formatting partition %s on device %s", part.FSLabel, dev.Device)
