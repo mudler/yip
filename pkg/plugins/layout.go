@@ -44,18 +44,19 @@ const (
 
 type Disk struct {
 	Device  string
-	SectorS uint
-	LastS   uint
+	SectorS uint64
+	LastS   uint64
 	Parts   []Partition
-	disk    *disk.Disk
 }
 
 type Partition struct {
-	StartS     uint
-	SizeS      uint
+	Start      uint64
+	End        uint64
+	Size       uint64
 	PLabel     string
 	FileSystem string
 	FSLabel    string
+	PartNumber int
 }
 
 type MkfsCall struct {
@@ -81,7 +82,7 @@ func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) erro
 		if _, ok := fs.Stat(s.Layout.Device.Path); ok != nil {
 			return fmt.Errorf("cannot initialize disk, path %s does not exist", s.Layout.Device.Path)
 		}
-		l.Debugf("Initializing disk with path %s", s.Layout.Device.InitDisk, s.Layout.Device.Path)
+		l.Debugf("Initializing disk with path %s", s.Layout.Device.Path)
 		d, err := diskfs.Open(s.Layout.Device.Path)
 		if err != nil {
 			l.Debugf("Disk initialization failed: %s", err)
@@ -110,9 +111,19 @@ func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) erro
 			_ = d.Close()
 			return err
 		}
+		err = d.ReReadPartitionTable()
+		if err != nil {
+			l.Debugf("Disk initialization failed during reread of partition table: %s", err)
+			_ = d.Close()
+			return err
+		}
 		l.Debugf("Initialized disk with path %s", s.Layout.Device.Path)
 		syscall.Sync()
-		_ = d.Close()
+		err = d.Close()
+		if err != nil {
+			l.Debugf("Disk close failed after initialization: %s", err)
+			return err
+		}
 	}
 
 	var dev Disk
@@ -145,45 +156,27 @@ func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) erro
 		return nil
 	}
 
-	changed := false
 	l.Debugf("Checking for free space on device %s", dev.Device)
 	if !dev.CheckDiskFreeSpaceMiB(32) {
 		l.Warnf("Not enough unpartitioned space in disk to operate")
 		return nil
 	}
 
-	l.Debugf("Going over the partition layout to create partitions on device %s", dev.Device)
+	l.Debugf("Checking if more than a partition is marked as bootable on device %s", dev.Device)
+	bootableCount := 0
 	for _, part := range s.Layout.Parts {
-		if part.FSLabel != "" {
-			l.Debugf("Checking if partition with FSLabel: %s exists on device %s", part.FSLabel, dev.Device)
-			if dev.MatchPartitionFSLabel(part.FSLabel) {
-				l.Warnf("Partition with FSLabel: %s already exists, ignoring", part.FSLabel)
-				continue
-			}
+		if part.Bootable {
+			bootableCount++
 		}
-		if part.PLabel != "" {
-			l.Debugf("Checking if partition with PLabel: %s exists on device %s", part.PLabel, dev.Device)
-			if dev.MatchPartitionPLabel(part.PLabel) {
-				l.Warnf("Partition with PLabel: %s already exists, ignoring", part.PLabel)
-				continue
-			}
-		}
+	}
+	if bootableCount > 1 {
+		l.Warnf("More than one partition is marked as bootable, only one bootable partition is allowed")
+	}
 
-		if part.FileSystem == "" {
-			part.FileSystem = "ext2"
-		}
-
-		l.Debugf("Creating partition with label %s, fslabel %s and fs %s on device %s", part.PLabel, part.FSLabel, part.FileSystem, dev.Device)
-		output, err := dev.AddPartition(part.Size, part.PLabel, part.FSLabel, part.FileSystem, console)
-		if err != nil {
-			if output != "" {
-				l.Debugf("Output from mkfs command: %s", output)
-			}
-			l.Error(err.Error())
-			return err
-		}
-		changed = true
-		l.Debugf("Created partition with label %s on device %s", part.FSLabel, dev.Device)
+	l.Debugf("Going over the partition layout to create partitions on device %s", dev.Device)
+	err = dev.AddPartitions(s.Layout.Parts, l, console)
+	if err != nil {
+		return err
 	}
 
 	l.Debugf("Checking for layout expansion on device %s", dev.Device)
@@ -199,15 +192,179 @@ func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) erro
 			return err
 		}
 		l.Debugf("Extended last partition")
-		changed = true
 	}
-	l.Debugf("Checking if we need to reload partition table on device %s: %v", dev.Device, changed)
-	if changed {
-		if err := dev.Reload(); err != nil {
+	l.Debugf("All done with layout plugin for device %s", dev.Device)
+	return nil
+}
+
+func (dev *Disk) AddPartitions(parts []schema.Partition, l logger.Interface, console Console) error {
+	// Open disk
+	d, err := diskfs.Open(dev.Device)
+	if err != nil {
+		return err
+	}
+	// We cant defer the close here as we need to close it after writing the partition table so the disk is not in use when formatting partitions
+
+	err = d.ReReadPartitionTable()
+	if err != nil {
+		_ = d.Close()
+		return err
+	}
+
+	// Reload the dev.parts with a fresh read
+	dev.Parts = GetParts(d)
+
+	// Now get the partition table, once time
+	table, err := d.GetPartitionTable()
+	if err != nil {
+		_ = d.Close()
+		return err
+	}
+	gptTable, ok := table.(*gpt.Table)
+	if !ok {
+		_ = d.Close()
+		return errors.New("only GPT partition tables are supported")
+	}
+
+	partitionsToFormat := make([]Partition, 0)
+
+	// Now go over the parts
+	for index, p := range parts {
+		// For each partition, check if it exists and skip it if so
+		if p.FSLabel != "" {
+			l.Debugf("Checking if partition with FSLabel: %s exists on device %s", p.FSLabel, dev.Device)
+			if dev.MatchPartitionFSLabel(p.FSLabel) {
+				l.Warnf("Partition with FSLabel: %s already exists, ignoring", p.FSLabel)
+				continue
+			}
+		}
+		if p.PLabel != "" {
+			l.Debugf("Checking if partition with PLabel: %s exists on device %s", p.PLabel, dev.Device)
+			if dev.MatchPartitionPLabel(p.PLabel) {
+				l.Warnf("Partition with PLabel: %s already exists, ignoring", p.PLabel)
+				continue
+			}
+		}
+
+		// Calculate the start, end and size in sectors
+		var start uint64
+		var end uint64
+		var size uint64
+		if len(dev.Parts) == 0 {
+			// first partition, align to 1Mb
+			start = OneMiBInBytes / uint64(dev.SectorS)
+		} else {
+			// get latest partition end, sum 1
+			start = dev.Parts[len(dev.Parts)-1].End + 1
+		}
+
+		// part.Size 0 means take over whats left on the disk
+		if p.Size == 0 {
+			// Remember to add the 1Mb alignment to total size
+			// This will be on bytes already no need to transform it
+			var sizeUsed = uint64(1024 * 1024)
+			for _, partSum := range dev.Parts {
+				sizeUsed = sizeUsed + partSum.Size
+			}
+			// leave 1Mb at the end for backup GPT header
+			size = uint64(d.Size) - sizeUsed - uint64(1024*1024)
+		} else {
+			// Change it to bytes
+			// If its the last partition to do, leave 1 Mb at the end for backup GPT header
+			if index == len(parts)-1 {
+				size = (p.Size * 1024 * 1024) - uint64(1024*1024)
+			} else {
+				size = p.Size * 1024 * 1024
+			}
+
+		}
+
+		end = (size / dev.SectorS) + start - 1
+
+		// Check if there is enough space
+		sizeS := MiBToSectors(p.Size, dev.SectorS)
+		if start+sizeS > dev.LastS {
+			availableMiB := ((dev.LastS - start) * dev.SectorS) / OneMiBInBytes
+			_ = d.Close()
+			return fmt.Errorf("not enough free space in disk: required %d MiB, available %d MiB", p.Size, availableMiB)
+		}
+
+		// default to ext2 if no filesystem provided
+		if p.FileSystem == "" {
+			p.FileSystem = "ext2"
+		}
+
+		var fsType gpt.Type
+		var attributes uint64
+		switch p.FileSystem {
+		case "ext2", "ext3", "ext4", "xfs", "btrfs":
+			fsType = gpt.LinuxFilesystem
+			// If we identify a COS_GRUB label or bios partition, set it to BIOS boot
+			if p.Bootable {
+				l.Debugf("Setting bootable attribute for partition %d", len(gptTable.Partitions)+1)
+				fsType = gpt.BIOSBoot
+				attributes = 0x4 // Set the legacy BIOS bootable attribute
+			}
+		case "fat16", "fat32", "vfat", "fat":
+			fsType = gpt.MicrosoftBasicData
+			// If we identify an efi partition, set the required attribute
+			if p.Bootable {
+				l.Debugf("Setting bootable attribute for partition %d", len(gptTable.Partitions)+1)
+				fsType = gpt.EFISystemPartition
+				attributes = 0x1 // Set the EFI system partition attribute
+			}
+		case "swap":
+			fsType = gpt.LinuxSwap
+		default:
+			_ = d.Close()
+			return fmt.Errorf("unsupported filesystem type: %s", p.FileSystem)
+		}
+
+		part := &gpt.Partition{
+			Start:      start,
+			End:        end,
+			Name:       p.FSLabel,
+			Type:       fsType,
+			Attributes: attributes,
+		}
+		gptTable.Partitions = append(gptTable.Partitions, part)
+		// Now add it to the partitions to format list
+		addPart := Partition{
+			Start:      start,
+			End:        end,
+			Size:       size,
+			FileSystem: p.FileSystem,
+			PLabel:     p.PLabel,
+			FSLabel:    p.FSLabel,
+			PartNumber: len(gptTable.Partitions), // 1-indexed
+		}
+		partitionsToFormat = append(partitionsToFormat, addPart)
+		// Update dev.Parts to reflect the new partition so we can continue calculating the proper sizes
+		dev.Parts = append(dev.Parts, addPart)
+		l.Debugf("Added partition %s of size %d MiB on device %s", p.FSLabel, size/(1024*1024), dev.Device)
+	}
+
+	// Now write the partition table back
+	err = d.Partition(gptTable)
+	if err != nil {
+		_ = d.Close()
+		return err
+	}
+	// Close the disk to flush changes
+	err = d.Close()
+	if err != nil {
+		return err
+	}
+
+	// Now format the partitions
+	for _, part := range partitionsToFormat {
+		l.Debugf("Formatting partition %s on device %s", part.FSLabel, dev.Device)
+		_, err = formatPartition(part, dev.Device, console)
+		if err != nil {
 			return err
 		}
 	}
-	l.Debugf("All done with layout plugin for device %s", dev.Device)
+
 	return nil
 }
 
@@ -220,13 +377,16 @@ func FindDiskFromPath(path string, fs vfs.FS) (Disk, error) {
 	if err != nil {
 		return Disk{}, fmt.Errorf("could not open disk: %w", err)
 	}
+	// close the disk when done
+	defer func() {
+		_ = d.Close()
+	}()
 
 	// Use d.LogicalBlocksize and d.Size directly
 	return Disk{
 		Device:  path,
-		SectorS: uint(d.LogicalBlocksize),
-		LastS:   uint(d.Size / d.LogicalBlocksize),
-		disk:    d,
+		SectorS: uint64(d.LogicalBlocksize),
+		LastS:   uint64(d.Size / d.LogicalBlocksize),
 		Parts:   GetParts(d),
 	}, nil
 }
@@ -240,99 +400,65 @@ func FindDiskFromLabel(label string, fs vfs.FS) (Disk, error) {
 	if err != nil {
 		return Disk{}, fmt.Errorf("could not open disk: %w", err)
 	}
+	// close the disk when done
+	defer func() {
+		_ = d.Close()
+	}()
 	// Use d.LogicalBlocksize and d.Size directly
 	return Disk{
 		Device:  filepath.Join("/dev/disk/by-label", label),
-		SectorS: uint(d.LogicalBlocksize),
-		LastS:   uint(d.Size / d.LogicalBlocksize),
-		disk:    d,
+		SectorS: uint64(d.LogicalBlocksize),
+		LastS:   uint64(d.Size / d.LogicalBlocksize),
 		Parts:   GetParts(d),
 	}, nil
 }
 
-func (dev *Disk) Reload() error {
-	dev.Parts = GetParts(dev.disk)
-	return nil
-}
-
-func (dev *Disk) CheckDiskFreeSpaceMiB(minSpace uint) bool {
+func (dev *Disk) CheckDiskFreeSpaceMiB(minSpace uint64) bool {
 	freeS := dev.computeFreeSpace()
 	minSec := MiBToSectors(minSpace, dev.SectorS)
 	return freeS >= minSec
 }
 
-func (dev *Disk) computeFreeSpace() uint {
+func (dev *Disk) computeFreeSpace() uint64 {
 	if len(dev.Parts) > 0 {
 		lastPart := dev.Parts[len(dev.Parts)-1]
-		return dev.LastS - (lastPart.StartS + lastPart.SizeS - 1)
+		return dev.LastS - (lastPart.Start + lastPart.Size - 1)
 	}
 	return dev.LastS - (OneMiBInBytes/dev.SectorS - 1)
 }
 
-func (dev *Disk) AddPartition(size uint, label, fsLabel, filesystem string, console Console) (string, error) {
-	table, err := dev.disk.GetPartitionTable()
-	if err != nil {
-		return "", err
+// formatPartition formats the given partition using mkfs commands.
+// It expects the disk to be already partitioned.
+// It expects the disk to not be open by any other process.
+func formatPartition(part Partition, basedevice string, console Console) (string, error) {
+	device := fmt.Sprintf("%s%d", basedevice, part.PartNumber)
+	// Handle cases like /dev/sda1 or /dev/nvme0n1p1
+	if strings.HasPrefix(basedevice, "/dev/") {
+		base := filepath.Base(basedevice)
+		dir := filepath.Dir(basedevice)
+		if strings.HasPrefix(base, "nvme") {
+			device = fmt.Sprintf("%sp%d", filepath.Join(dir, base), part.PartNumber)
+		} else {
+			device = fmt.Sprintf("%s%d", filepath.Join(dir, base), part.PartNumber)
+		}
 	}
-	gptTable, ok := table.(*gpt.Table)
-	if !ok {
-		return "", errors.New("only GPT partition tables are supported")
-	}
-
-	var startS uint
-	if len(dev.Parts) > 0 {
-		last := dev.Parts[len(dev.Parts)-1]
-		startS = last.StartS + last.SizeS
-	}
-	sizeS := MiBToSectors(size, dev.SectorS)
-	if startS+sizeS > dev.LastS {
-		availableMiB := ((dev.LastS - startS) * dev.SectorS) / OneMiBInBytes
-		return "", fmt.Errorf("not enough free space in disk: required %d MiB, available %d MiB", size, availableMiB)
-	}
-
-	var fsType gpt.Type
-	switch filesystem {
-	case "ext2", "ext3", "ext4", "xfs", "btrfs":
-		fsType = gpt.LinuxFilesystem
-	case "fat16", "fat32", "vfat", "fat":
-		fsType = gpt.EFISystemPartition
-	case "swap":
-		fsType = gpt.LinuxSwap
-	default:
-		return "", fmt.Errorf("unsupported filesystem type: %s", filesystem)
-	}
-
-	part := &gpt.Partition{
-		Start: uint64(startS),
-		End:   uint64(startS + sizeS - 1),
-		Name:  label,
-		Type:  fsType,
-	}
-	gptTable.Partitions = append(gptTable.Partitions, part)
-	err = dev.disk.Partition(gptTable)
-	if err != nil {
-		return "", err
-	}
-	if err := dev.Reload(); err != nil {
-		return "", err
-	}
-
-	mkfsPart := Partition{
-		FileSystem: filesystem,
-		PLabel:     label,
-		FSLabel:    fsLabel,
-	}
-
-	mkfs := MkfsCall{part: mkfsPart, customOpts: []string{}, dev: dev.Device}
+	mkfs := MkfsCall{part: part, customOpts: []string{}, dev: device}
 	return mkfs.Apply(console)
-
 }
 
-func (dev *Disk) ExpandLastPartition(size uint) error {
+func (dev *Disk) ExpandLastPartition(size uint64) error {
 	if len(dev.Parts) == 0 {
 		return errors.New("no partition to expand")
 	}
-	table, err := dev.disk.GetPartitionTable()
+	// Open disk and close it when we finish
+	d, err := diskfs.Open(dev.Device)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = d.Close()
+	}()
+	table, err := d.GetPartitionTable()
 	if err != nil {
 		return err
 	}
@@ -357,31 +483,32 @@ func (dev *Disk) ExpandLastPartition(size uint) error {
 	var requestedSize uint64
 	// Setting Size to 0 tells the GPT library to recalculate the partition size based on Start and End.
 	if size == 0 {
-		requestedSize = uint64(dev.LastS) - part.Start
+		requestedSize = dev.LastS - part.Start
 	} else {
-		requestedSize = uint64(MiBToSectors(size, dev.SectorS))
+		requestedSize = MiBToSectors(size, dev.SectorS)
 	}
 	if requestedSize <= currentSize {
 		return errors.New("requested size is less than or equal to current partition size")
 	}
 
 	// Check if there is enough space to expand in the disk
-	availableSpace := uint64(dev.LastS) - part.End - 1
+	availableSpace := dev.LastS - part.End - 1
 	if requestedSize-currentSize > availableSpace {
-		availableMiB := (availableSpace * uint64(dev.SectorS)) / OneMiBInBytes
+		availableMiB := (availableSpace * dev.SectorS) / OneMiBInBytes
 		return fmt.Errorf("not enough space to expand the partition (Available: %d MiB)", availableMiB)
 	}
 	if size == 0 {
-		part.End = uint64(dev.LastS - 1)
+		part.End = dev.LastS - 1
 	} else {
-		part.End = part.Start + uint64(MiBToSectors(size, dev.SectorS)) - 1
+		part.End = part.Start + MiBToSectors(size, dev.SectorS) - 1
 	}
+	// We have to set Size to 0 so the GPT library recalculates it
 	part.Size = 0
-	err = dev.disk.Partition(gptTable)
+	err = d.Partition(gptTable)
 	if err != nil {
 		return err
 	}
-	return dev.Reload()
+	return nil
 }
 
 func (dev *Disk) MatchPartitionFSLabel(label string) bool {
@@ -446,6 +573,8 @@ func (mkfs MkfsCall) Apply(console Console) (string, error) {
 
 	if mkfs.part.FileSystem == "swap" {
 		tool = "mkswap"
+	} else if mkfs.part.FileSystem == "fat16" || mkfs.part.FileSystem == "fat32" || mkfs.part.FileSystem == "vfat" || mkfs.part.FileSystem == "fat" {
+		tool = "mkfs.fat"
 	} else {
 		tool = fmt.Sprintf("mkfs.%s", mkfs.part.FileSystem)
 	}
@@ -454,7 +583,7 @@ func (mkfs MkfsCall) Apply(console Console) (string, error) {
 	return console.Run(command)
 }
 
-func MiBToSectors(size uint, sectorSize uint) uint {
+func MiBToSectors(size uint64, sectorSize uint64) uint64 {
 	return size * 1048576 / sectorSize
 }
 
@@ -464,7 +593,7 @@ func GetParts(d *disk.Disk) []Partition {
 	if err != nil {
 		return parts
 	}
-	for _, p := range table.GetPartitions() {
+	for index, p := range table.GetPartitions() {
 		if p == nil || p.GetStart() == 0 && p.GetSize() == 0 {
 			continue
 		}
@@ -474,10 +603,11 @@ func GetParts(d *disk.Disk) []Partition {
 			fs = "unknown"
 		}
 		parts = append(parts, Partition{
-			StartS:     uint(p.GetStart()),
-			SizeS:      uint(p.GetSize()),
+			Start:      uint64(p.GetStart()),
+			Size:       uint64(p.GetSize()),
 			PLabel:     part.Name,
 			FileSystem: fs,
+			PartNumber: index + 1,
 		})
 	}
 	return parts

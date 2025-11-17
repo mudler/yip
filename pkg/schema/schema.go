@@ -121,14 +121,15 @@ type Device struct {
 }
 
 type Expand struct {
-	Size uint `yaml:"size,omitempty"`
+	Size uint64 `yaml:"size,omitempty"`
 }
 
 type Partition struct {
 	FSLabel    string `yaml:"fsLabel,omitempty"`
-	Size       uint   `yaml:"size,omitempty"`
+	Size       uint64 `yaml:"size,omitempty"`
 	PLabel     string `yaml:"pLabel,omitempty"`
 	FileSystem string `yaml:"filesystem,omitempty"`
+	Bootable   bool   `yaml:"bootable,omitempty"`
 }
 
 type Dependency struct {
@@ -276,12 +277,12 @@ func FromFile(s string, fs vfs.FS, m Modifier) ([]byte, error) {
 }
 
 // FromUrl loads a yip config from a url
-func FromUrl(s string, fs vfs.FS, m Modifier) ([]byte, error) {
+func FromUrl(s string, _ vfs.FS, m Modifier) ([]byte, error) {
 	resp, err := http.Get(s)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	buf := bytes.NewBuffer([]byte{})
 	_, err = io.Copy(buf, resp.Body)
