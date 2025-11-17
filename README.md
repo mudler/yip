@@ -660,6 +660,15 @@ stages:
          # partition is added.
          expand_partition:
            size: 4096 #  size: 0 means all available free space
+         # List of partitions to add.
+         # The only obligatory fields is the size
+         # Filesystem will default to ext2 if omitted
+         # Partition label is optional
+         # Filesystem label is optional
+         # Bootable flag is optional and defaults to false
+         # Use bootable: true to set the bootable flag on the partition and set the proper partition GUID type
+         # Size is in MiB. Setting the size to 0 means all available free space.
+         # For a good use, we recommend setting all the fields when possible to have a deterministic layout.
          add_partitions:
            - fsLabel: COS_STATE
              size: 8192
@@ -668,6 +677,10 @@ stages:
            - fsLabel: COS_PERSISTENT
              # default filesystem is ext2 if omitted
              filesystem: ext4
+           - fsLabel: COS_GRUB
+             size: 512
+             filesystem: fat32
+             bootable: true  
 ```
 
 ### `stages.<stageID>.[<stepN>].unpack_images`
