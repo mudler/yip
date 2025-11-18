@@ -69,7 +69,7 @@ func (r *RealGrowFsToMax) GrowFSToMax(devicePath, fsType string) error {
 }
 
 // GrowExtFSToMax grows an ext4/ext3/ext2 filesystem on the given block device path
-// to the maximum available space in teh partition
+// to the maximum available space in the partition
 // fstype should generally be ext4 as it also deals with ext3/ext2.
 func growExtFSToMax(devicePath string) error {
 	if devicePath == "" {
