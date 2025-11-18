@@ -644,12 +644,33 @@ stages:
            # or partition label (filesystem label matches first) or the device
            # provided in 'path'. The label check has precedence over path when
            # both are provided.
+           # init_disk set to true is used to initialize the disk partition table with an empty GPT table. This
+           # is useful when we want to initialize the disk from scratch to add our own partitions.
+           # WARNING: This will destroy all data in the disk! So only run it when you are dealing with a new disk or
+           # you are sure you want to wipe out all data in the disk.
+           # disk_name is optional and used to set deterministic GUID disk name when init_disk is true. This allows for
+           # reproducible disk GUIDs across multiple runs and easy identification of disk by GUID.
+           # The GUID generated is a V5 UUID based on the disk_name provided under the DNS namespace.
+           # Not setting it will default to a GUID based on the YIP_DISK name
            label: COS_RECOVERY
            path: /dev/sda
+           init_disk: true
+           disk_name: "MYDISK"
          # Only last partition can be expanded and it happens before any other
          # partition is added.
+         # Only grows the partition, cannot shrink it.
          expand_partition:
-           size: 4096 #  size: 0 means all available free space
+           size: 4096 #  size: 0 means all available free space, in MiB
+         # List of partitions to add.
+         # The only obligatory field is the size.
+         # Filesystem will default to ext2 if omitted
+         # fsLabel is optional, its the filesystem label.
+         # pLabel is optional, its the partition label. If a partition with the same label exists, it will be skipped.
+         # Bootable flag is optional and defaults to false
+         # Use bootable: true to set the bootable flag on the partition and set the proper partition GUID type
+         # Size is in MiB. Setting the size to 0 means all available free space.
+         # For a good use, we recommend setting all the fields when possible to have a deterministic layout.
+         # We especially recommend setting pLabel to avoid recreating partitions if they already exist as all data will be lost on them.
          add_partitions:
            - fsLabel: COS_STATE
              size: 8192
@@ -658,6 +679,10 @@ stages:
            - fsLabel: COS_PERSISTENT
              # default filesystem is ext2 if omitted
              filesystem: ext4
+           - fsLabel: COS_GRUB
+             size: 512
+             filesystem: fat32
+             bootable: true  
 ```
 
 ### `stages.<stageID>.[<stepN>].unpack_images`
