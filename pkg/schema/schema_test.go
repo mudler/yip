@@ -123,7 +123,7 @@ write_files:
 			Expect(yipConfig.Stages["boot"][0].Commands).To(Equal([]string{"foo"}))
 			Expect(yipConfig.Stages["test"][0].Environment["foo"]).To(Equal("bar"))
 			Expect(yipConfig.Stages["boot"][0].Users["bar"].LockPasswd).To(Equal(true))
-			Expect(yipConfig.Stages["boot"][1].Layout.Expand.Size).To(Equal(uint(0)))
+			Expect(yipConfig.Stages["boot"][1].Layout.Expand.Size).To(Equal(uint64(0)))
 			Expect(yipConfig.Stages["boot"][1].Layout.Device.Path).To(Equal("/"))
 		})
 		It("Reads sshkeys to network stage if they require network", func() {
@@ -167,7 +167,7 @@ write_files:
 			Expect(yipConfig.Stages["boot"][0].Commands).To(Equal([]string{"foo"}))
 			Expect(yipConfig.Stages["test"][0].Environment["foo"]).To(Equal("bar"))
 			Expect(yipConfig.Stages["boot"][0].Users["bar"].LockPasswd).To(Equal(true))
-			Expect(yipConfig.Stages["boot"][1].Layout.Expand.Size).To(Equal(uint(0)))
+			Expect(yipConfig.Stages["boot"][1].Layout.Expand.Size).To(Equal(uint64(0)))
 			Expect(yipConfig.Stages["boot"][1].Layout.Device.Path).To(Equal("/"))
 			// if just one key needs network, it should go to the network stage
 			Expect(len(yipConfig.Stages["network"][0].SSHKeys)).To(Equal(1))
