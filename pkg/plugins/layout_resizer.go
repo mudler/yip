@@ -41,10 +41,21 @@ type btrfsIoctlVolArgs struct {
 	Name [4096 - 8]byte // 4088 bytes
 }
 
+// GrowFsToMaxInterface defines an interface for growing filesystems to max size.
+type GrowFsToMaxInterface interface {
+	GrowFSToMax(device string, filesystem string) error
+}
+
+// RealGrowFsToMax is the real implementation of GrowFsToMaxInterface.
+type RealGrowFsToMax struct{}
+
+// DefaultGrowFsToMax is the default instance of GrowFsToMaxInterface.
+var DefaultGrowFsToMax GrowFsToMaxInterface = &RealGrowFsToMax{}
+
 // GrowFSToMax grows the filesystem on the given block device path
 // to the maximum available space in the partition.
 // fsType: "ext4" (works for ext3/ext2 via ext4 driver), "xfs", "btrfs".
-func GrowFSToMax(devicePath, fsType string) error {
+func (r *RealGrowFsToMax) GrowFSToMax(devicePath, fsType string) error {
 	switch fsType {
 	case "ext4", "ext3", "ext2":
 		return growExtFSToMax(devicePath)

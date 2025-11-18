@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -67,6 +66,72 @@ type MkfsCall struct {
 	customOpts []string
 	dev        string
 }
+
+// FilesystemDetector allows mocking filesystem detection in tests.
+type FilesystemDetector interface {
+	DetectFileSystemType(part *gpt.Partition, d *disk.Disk) (string, error)
+}
+
+// RealFilesystemDetector implements FilesystemDetector using real detection logic.
+type RealFilesystemDetector struct{}
+
+func (RealFilesystemDetector) DetectFileSystemType(part *gpt.Partition, d *disk.Disk) (string, error) {
+	sectorSize := d.LogicalBlocksize
+	startOffset := int64(part.Start * uint64(sectorSize))
+	// Read first 4KiB from the partition
+	buf := make([]byte, 4096)
+	n, err := d.Backend.ReadAt(buf, startOffset)
+	if err != nil && err != io.EOF {
+		return "", err
+	}
+	buf = buf[:n]
+
+	// ext2/3/4: magic at offset 1080
+	if len(buf) > 1125 && buf[extMagicOffset1] == extMagic1 && buf[extMagicOffset2] == extMagic2 {
+		// Check for ext4: extents feature (bit 0x40) in feature_incompat at 1124
+		if buf[ext4ExtentFeatureOffset]&0x40 != 0 {
+			return "ext4", nil
+		}
+		// Check for ext3: has_journal feature (bit 0x4) in feature_compat at 1084
+		if buf[ext3JournalFeatureOffset]&0x4 != 0 {
+			return "ext3", nil
+		}
+		// Otherwise, assume ext2
+		return "ext2", nil
+	}
+
+	// FAT16: "FAT" at offset 54 (FAT12/16)
+	if len(buf) > fat16MagicOffset2 && bytes.Equal(buf[fat16MagicOffset1:fat16MagicOffset2], []byte(fat16Magic)) {
+		return "fat", nil
+	}
+	// FAT32: "FAT32   " at offset 82 (FAT32, 8 bytes with spaces)
+	// Be more lax with FAT32 detection due to variations in the magic string or extra characters
+	if len(buf) > fat32MagicOffset2 && bytes.Contains(buf[fat32MagicOffset1:fat32MagicOffset2], []byte(fat32Magic)) {
+		return "fat", nil
+	}
+
+	// btrfs: "_BHRfS_M" at offset 0x40
+	if len(buf) > 0x47 && bytes.Equal(buf[btrfsMagicOffset1:btrfsMagicOffset2], []byte(btrfsMagic)) {
+		return "btrfs", nil
+	}
+
+	// xfs: "XFSB" at offset 0
+	if len(buf) > 4 && bytes.Equal(buf[xfsMagicOffset1:xfsMagicOffset2], []byte(xfsMagic)) {
+		return "xfs", nil
+	}
+
+	// swap: "SWAPSPACE2" at end of partition
+	swapSig := []byte(swapMagicSignature)
+	endOffset := int64((part.End+1)*uint64(sectorSize)) - int64(len(swapSig))
+	swapBuf := make([]byte, len(swapSig))
+	_, err = d.Backend.ReadAt(swapBuf, endOffset)
+	if err == nil && bytes.Equal(swapBuf, swapSig) {
+		return "swap", nil
+	}
+	return "", errors.New("unknown filesystem")
+}
+
+var DefaultFilesystemDetector FilesystemDetector = RealFilesystemDetector{}
 
 func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 	l.Info("Running layout plugin")
@@ -189,7 +254,7 @@ func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) erro
 		} else {
 			l.Debugf("Extending last partition to %d MiB", s.Layout.Expand.Size)
 		}
-		err := dev.ExpandLastPartition(s.Layout.Expand.Size, console)
+		err := dev.ExpandLastPartition(fs, s.Layout.Expand.Size, console)
 		if err != nil {
 			l.Error(err.Error())
 			return err
@@ -197,7 +262,6 @@ func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) erro
 		l.Debugf("Extended last partition")
 	}
 	l.Debugf("All done with layout plugin for device %s", dev.Device)
-	os.Exit(1)
 	return nil
 }
 
@@ -331,7 +395,7 @@ func (dev *Disk) AddPartitions(fs vfs.FS, parts []schema.Partition, l logger.Int
 		part := &gpt.Partition{
 			Start:      start,
 			End:        end,
-			Name:       p.FSLabel,
+			Name:       p.PLabel,
 			Type:       fsType,
 			Attributes: attributes,
 		}
@@ -349,7 +413,14 @@ func (dev *Disk) AddPartitions(fs vfs.FS, parts []schema.Partition, l logger.Int
 		partitionsToFormat = append(partitionsToFormat, addPart)
 		// Update dev.Parts to reflect the new partition so we can continue calculating the proper sizes
 		dev.Parts = append(dev.Parts, addPart)
-		l.Debugf("Added partition %s of size %d MiB on device %s", p.FSLabel, size/(1024*1024), dev.Device)
+		if p.FSLabel != "" {
+			l.Debugf("Added partition (fslabel: %s) of size %d MiB on device %s", p.FSLabel, size/(1024*1024), dev.Device)
+		} else if p.PLabel != "" {
+			l.Debugf("Added partition (label: %s) of size %d MiB on device %s", p.PLabel, size/(1024*1024), dev.Device)
+		} else {
+			l.Debugf("Added partition %d of size %d MiB on device %s", len(gptTable.Partitions), size/(1024*1024), dev.Device)
+		}
+
 	}
 
 	// Now write the partition table back
@@ -470,17 +541,25 @@ func formatPartition(part Partition, basedevice string, console Console) (string
 	} else {
 		device = fmt.Sprintf("%s%d", basedevice, part.PartNumber)
 	}
+	// We could be also getting here a /dev/disk/by-whatever path, in that case, dont touch it, pass it directly
+	if strings.Contains(basedevice, "/dev/disk/") && strings.Contains(basedevice, "/by-") {
+		device = basedevice
+	}
 
 	mkfs := MkfsCall{part: part, customOpts: []string{}, dev: device}
 	return mkfs.Apply(console)
 }
 
-func (dev *Disk) ExpandLastPartition(size uint64, console Console) error {
+func (dev *Disk) ExpandLastPartition(fs vfs.FS, size uint64, console Console) error {
 	if len(dev.Parts) == 0 {
 		return errors.New("no partition to expand")
 	}
 	// Open disk and close it when we finish
-	d, err := diskfs.Open(dev.Device)
+	rawPath, err := fs.RawPath(dev.Device)
+	if err != nil {
+		return fmt.Errorf("could not resolve raw path: %w", err)
+	}
+	d, err := diskfs.Open(rawPath)
 	if err != nil {
 		return err
 	}
@@ -531,20 +610,28 @@ func (dev *Disk) ExpandLastPartition(size uint64, console Console) error {
 	// part size comes in bytes already
 	currentSize := part.Size
 	if size == 0 {
-		requestedSize = uint64(d.Size/d.LogicalBlocksize) - part.Start
+		// requested size is max, so calculate it
+		// requested size is total disk size minus partition size
+		// Also take into account the 2048 bytes for GPT backup header
+		requestedSize = uint64(d.Size) - part.Start - (2048 * dev.SectorS)
 	}
 	if requestedSize <= currentSize {
 		_ = d.Close()
 		return fmt.Errorf("requested size is less than or equal to current partition size (requested %d sectors, current %d sectors)", requestedSize, currentSize)
 	}
-	// Total free disk size in sectors
-	// Check if there is enough space to expand in the disk
-	availableSpace := dev.LastS - part.End - 1
-	if requestedSize-currentSize > availableSpace {
-		availableMiB := (availableSpace * dev.SectorS) / OneMiBInBytes
+
+	// Calculate how many sectors we need to expand
+	// expandSectors is the needed sectors to expand the disk
+	// We need to take into account that its the size minus the partition current size, so only what we need to expand
+	expandSectors := (requestedSize - currentSize) / dev.SectorS
+	// Free size in the disk in sectors. We get the total size, then minus the end of the last partition
+	freeSectorsInDisk := (uint64(d.Size)/dev.SectorS - part.End) - 1 // leave 1 sector at the end for backup GPT header
+	// Check if there is enough space. Remember that all disks have a backup GPT header at the end, so we need to leave at least 1MiB free at the end + 1MiB alignment at the start
+	if expandSectors > freeSectorsInDisk {
 		_ = d.Close()
-		return fmt.Errorf("not enough space to expand the partition (Available: %d MiB)", availableMiB)
+		return fmt.Errorf("not enough free space in disk: need %d MiB, available %d MiB", expandSectors*dev.SectorS/OneMiBInBytes, freeSectorsInDisk*dev.SectorS/OneMiBInBytes)
 	}
+
 	if size == 0 {
 		part.End = dev.LastS - 1
 	} else {
@@ -564,11 +651,11 @@ func (dev *Disk) ExpandLastPartition(size uint64, console Console) error {
 		return fmt.Errorf("failed to reread partition table: %w", err)
 	}
 	syscall.Sync()
-	_, _ = console.Run("udevadm trigger &&  udevadm settle")
+	_, _ = console.Run("udevadm trigger && udevadm settle")
 
 	// Now resize the underlying filesystem
-	fs, err := DetectFileSystemType(part, d)
-	fmt.Print("Starting resize of filesystem type ", fs, "\n")
+	filesystem, err := DefaultFilesystemDetector.DetectFileSystemType(part, d)
+
 	if err != nil {
 		_ = d.Close()
 		return fmt.Errorf("could not detect filesystem type: %w", err)
@@ -582,9 +669,10 @@ func (dev *Disk) ExpandLastPartition(size uint64, console Console) error {
 	} else {
 		device = fmt.Sprintf("%s%d", dev.Device, partNumber)
 	}
+
 	_ = d.Close()
 
-	return GrowFSToMax(device, fs)
+	return DefaultGrowFsToMax.GrowFSToMax(device, filesystem)
 }
 
 func (dev *Disk) MatchPartitionFSLabel(label string) bool {
@@ -677,7 +765,7 @@ func GetParts(d *disk.Disk) []Partition {
 			continue
 		}
 		part := p.(*gpt.Partition)
-		fs, err := DetectFileSystemType(part, d)
+		fs, err := DefaultFilesystemDetector.DetectFileSystemType(part, d)
 		if err != nil {
 			fs = "unknown"
 		}
@@ -691,61 +779,4 @@ func GetParts(d *disk.Disk) []Partition {
 		})
 	}
 	return parts
-}
-
-// DetectFileSystemType tries to identify the filesystem by reading magic numbers.
-func DetectFileSystemType(part *gpt.Partition, d *disk.Disk) (string, error) {
-	sectorSize := d.LogicalBlocksize
-	startOffset := int64(part.Start * uint64(sectorSize))
-	// Read first 4KiB from the partition
-	buf := make([]byte, 4096)
-	n, err := d.Backend.ReadAt(buf, startOffset)
-	if err != nil && err != io.EOF {
-		return "", err
-	}
-	buf = buf[:n]
-
-	// ext2/3/4: magic at offset 1080
-	if len(buf) > 1125 && buf[extMagicOffset1] == extMagic1 && buf[extMagicOffset2] == extMagic2 {
-		// Check for ext4: extents feature (bit 0x40) in feature_incompat at 1124
-		if buf[ext4ExtentFeatureOffset]&0x40 != 0 {
-			return "ext4", nil
-		}
-		// Check for ext3: has_journal feature (bit 0x4) in feature_compat at 1084
-		if buf[ext3JournalFeatureOffset]&0x4 != 0 {
-			return "ext3", nil
-		}
-		// Otherwise, assume ext2
-		return "ext2", nil
-	}
-
-	// FAT16: "FAT" at offset 54 (FAT12/16)
-	if len(buf) > fat16MagicOffset2 && bytes.Equal(buf[fat16MagicOffset1:fat16MagicOffset2], []byte(fat16Magic)) {
-		return "fat", nil
-	}
-	// FAT32: "FAT32   " at offset 82 (FAT32, 8 bytes with spaces)
-	// Be more lax with FAT32 detection due to variations in the magic string or extra characters
-	if len(buf) > fat32MagicOffset2 && bytes.Contains(buf[fat32MagicOffset1:fat32MagicOffset2], []byte(fat32Magic)) {
-		return "fat", nil
-	}
-
-	// btrfs: "_BHRfS_M" at offset 0x40
-	if len(buf) > 0x47 && bytes.Equal(buf[btrfsMagicOffset1:btrfsMagicOffset2], []byte(btrfsMagic)) {
-		return "btrfs", nil
-	}
-
-	// xfs: "XFSB" at offset 0
-	if len(buf) > 4 && bytes.Equal(buf[xfsMagicOffset1:xfsMagicOffset2], []byte(xfsMagic)) {
-		return "xfs", nil
-	}
-
-	// swap: "SWAPSPACE2" at end of partition
-	swapSig := []byte(swapMagicSignature)
-	endOffset := int64((part.End+1)*uint64(sectorSize)) - int64(len(swapSig))
-	swapBuf := make([]byte, len(swapSig))
-	_, err = d.Backend.ReadAt(swapBuf, endOffset)
-	if err == nil && bytes.Equal(swapBuf, swapSig) {
-		return "swap", nil
-	}
-	return "", errors.New("unknown filesystem")
 }

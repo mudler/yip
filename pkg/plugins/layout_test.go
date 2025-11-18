@@ -6,22 +6,53 @@ import (
 
 	"github.com/diskfs/go-diskfs"
 	fileBackend "github.com/diskfs/go-diskfs/backend/file"
+	"github.com/diskfs/go-diskfs/disk"
 	"github.com/diskfs/go-diskfs/partition/gpt"
 	. "github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
 	console "github.com/mudler/yip/tests/console"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/sanity-io/litter"
 	"github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs/v4"
 	"github.com/twpayne/go-vfs/v4/vfst"
 )
 
+// This are the reserved sectors in a GPT partition table (2048 sectors of 512 bytes)
+const reservedSectorsInBytes = uint64(2048 * diskfs.SectorSize512)
+
 // This tests run against a real disk image file created in a temp folder
 // The mkfs calls are the ones mocked as we cannot run mkfs against a file image partition without
 // having to mount it into a loop device and so on, but on a real device these calls would run as expected
 
-var _ = Describe("Layout", Label("layout"), func() {
+// MockFilesystemDetector implements FilesystemDetector for testing.
+type MockFilesystemDetector struct {
+	DetectFunc func(part *gpt.Partition, d *disk.Disk) (string, error)
+}
+
+func (m MockFilesystemDetector) DetectFileSystemType(part *gpt.Partition, d *disk.Disk) (string, error) {
+	if m.DetectFunc != nil {
+		return m.DetectFunc(part, d)
+	}
+	fmt.Print("MockFilesystemDetector called\n")
+	return "mockfs", nil
+}
+
+// MockGrowFSToMax implements GrowFSToMax for testing.
+type MockGrowFSToMax struct {
+	GrowFunc func(device string, filesystem string) error
+}
+
+func (m MockGrowFSToMax) GrowFSToMax(device string, filesystem string) error {
+	if m.GrowFunc != nil {
+		return m.GrowFunc(device, filesystem)
+	}
+	fmt.Print("MockGrowFSToMax called\n")
+	return nil
+}
+
+var _ = Describe("Layout", Label("layout"), Focus, func() {
 	var deviceLabel string
 	var devicePath = "/test.img"
 	var rawDevicePath string
@@ -39,9 +70,9 @@ var _ = Describe("Layout", Label("layout"), func() {
 		// Create a temp disk image
 		rawDevicePath, err = fs.RawPath("/test.img")
 		Expect(err).Should(BeNil())
-		disk, err := fileBackend.CreateFromPath(rawDevicePath, 1*1024*1024*1024)
+		fileDisk, err := fileBackend.CreateFromPath(rawDevicePath, 1*1024*1024*1024+int64(reservedSectorsInBytes)) // 1GiB + reserved sectors at the start
 		Expect(err).To(BeNil())
-		Expect(disk.Close()).ToNot(HaveOccurred())
+		Expect(fileDisk.Close()).ToNot(HaveOccurred())
 		// create initial gpt table with empty partitions
 		d, err := diskfs.Open(rawDevicePath)
 		Expect(err).To(BeNil())
@@ -53,6 +84,12 @@ var _ = Describe("Layout", Label("layout"), func() {
 		err = d.Partition(table)
 		Expect(err).To(BeNil())
 		Expect(d.Close()).ToNot(HaveOccurred())
+		DefaultFilesystemDetector = MockFilesystemDetector{func(part *gpt.Partition, d *disk.Disk) (string, error) {
+			return "ext4", nil
+		}}
+		DefaultGrowFsToMax = MockGrowFSToMax{func(device string, filesystem string) error {
+			return nil
+		}}
 	})
 	AfterEach(func() {
 		// clean up
@@ -107,13 +144,13 @@ var _ = Describe("Layout", Label("layout"), func() {
 			Expect(table.Type()).To(Equal("gpt"))
 			Expect(table.Partitions).To(HaveLen(1))
 			deviceLabel = table.Partitions[0].Name
-			Expect(deviceLabel).To(Equal("FAKELABEL"))
-			Expect(table.Partitions[0].Size).To(Equal(uint64(100 * 1024 * 1024)))
+			Expect(deviceLabel).To(Equal("FAKELABEL"), litter.Sdump(table.Partitions))
+			Expect(table.Partitions[0].Size).To(Equal(uint64(100*1024*1024)-reservedSectorsInBytes), litter.Sdump(table))
 		})
 		It("Adds a new partition by path with fsLabel", func() {
 			testConsole := console.New()
 			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
-			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 -L FSLABEL %s", devicePath)})
+			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 -L FSLABEL %s1", devicePath)})
 			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
 					Device: &schema.Device{Path: devicePath},
@@ -130,7 +167,7 @@ var _ = Describe("Layout", Label("layout"), func() {
 			Expect(table.Partitions).To(HaveLen(1))
 			deviceLabel = table.Partitions[0].Name
 			Expect(deviceLabel).To(Equal("FAKELABEL"))
-			Expect(table.Partitions[0].Size).To(Equal(uint64(100 * 1024 * 1024)))
+			Expect(table.Partitions[0].Size).To(Equal(uint64(100*1024*1024) - reservedSectorsInBytes))
 		})
 		It("Adds a new partition by label", func() {
 			Expect(fs.Symlink(devicePath, "/dev/disk/by-label/SOMELABEL")).Should(BeNil())
@@ -173,8 +210,9 @@ var _ = Describe("Layout", Label("layout"), func() {
 		It("Ignores an already existing partition", func() {
 			testConsole := console.New()
 			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
-			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 %s", devicePath)})
-			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 %s", devicePath)})
+			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 %s1", devicePath)})
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
+			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 %s1", devicePath)})
 			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
 					Device: &schema.Device{Path: devicePath},
@@ -201,13 +239,13 @@ var _ = Describe("Layout", Label("layout"), func() {
 			Expect(table.Partitions).To(HaveLen(1))
 			deviceLabel = table.Partitions[0].Name
 			Expect(deviceLabel).To(Equal("FAKELABEL"))
-			Expect(table.Partitions[0].Size).To(Equal(uint64(100 * 1024 * 1024)))
+			Expect(table.Partitions[0].Size).To(Equal(uint64(100*1024*1024) - reservedSectorsInBytes))
 
 		})
 		It("Fails to expand last partition, it can't shrink a partition", func() {
 			testConsole := console.New()
 			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
-			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 %s", devicePath)})
+			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 %s1", devicePath)})
 			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
 					Device: &schema.Device{Path: devicePath},
@@ -228,7 +266,9 @@ var _ = Describe("Layout", Label("layout"), func() {
 		It("Expands last partition", func() {
 			testConsole := console.New()
 			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
-			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 %s", devicePath)})
+			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 %s1", devicePath)})
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
+			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 %s1", devicePath)})
 			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
 					Device: &schema.Device{Path: devicePath},
@@ -247,8 +287,7 @@ var _ = Describe("Layout", Label("layout"), func() {
 			Expect(table1.Partitions).To(HaveLen(1))
 			deviceLabel = table1.Partitions[0].Name
 			Expect(deviceLabel).To(Equal("FAKELABEL"))
-			Expect(table1.Partitions[0].Size).To(Equal(uint64(512 * 1024 * 1024)))
-
+			Expect(table1.Partitions[0].Size).To(Equal(uint64(512*1024*1024) - reservedSectorsInBytes))
 			// Now expand it
 			err = Layout(l, schema.Stage{
 				Layout: schema.Layout{
@@ -257,7 +296,6 @@ var _ = Describe("Layout", Label("layout"), func() {
 				},
 			}, fs, testConsole)
 			Expect(err).Should(BeNil())
-
 			// Now check if the partition size is now 1024MiB
 			disk2, err := fileBackend.OpenFromPath(rawDevicePath, true)
 			defer disk2.Close()
@@ -272,9 +310,16 @@ var _ = Describe("Layout", Label("layout"), func() {
 
 		})
 		It("Expands last partition to take all space", func() {
+			DefaultFilesystemDetector = MockFilesystemDetector{func(part *gpt.Partition, d *disk.Disk) (string, error) {
+				return "ext4", nil
+			}}
+			DefaultGrowFsToMax = MockGrowFSToMax{func(device string, filesystem string) error {
+				return nil
+			}}
 			testConsole := console.New()
 			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
-			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 %s", devicePath)})
+			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 %s1", devicePath)})
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
 			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
 					Device: &schema.Device{Path: devicePath},
@@ -293,9 +338,10 @@ var _ = Describe("Layout", Label("layout"), func() {
 			Expect(table1.Partitions).To(HaveLen(1))
 			deviceLabel = table1.Partitions[0].Name
 			Expect(deviceLabel).To(Equal("FAKELABEL"))
-			Expect(table1.Partitions[0].Size).To(Equal(uint64(512 * 1024 * 1024)))
+			Expect(table1.Partitions[0].Size).To(Equal(uint64(512*1024*1024) - reservedSectorsInBytes))
 
 			// Now expand it
+			By("expanding to max size")
 			err = Layout(l, schema.Stage{
 				Layout: schema.Layout{
 					Device: &schema.Device{Path: devicePath},
@@ -320,7 +366,8 @@ var _ = Describe("Layout", Label("layout"), func() {
 		It("Expands last partition after creating the partitions", func() {
 			testConsole := console.New()
 			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
-			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 %s", devicePath)})
+			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 %s1", devicePath)})
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
 			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
 					Device: &schema.Device{Path: devicePath},
@@ -346,7 +393,8 @@ var _ = Describe("Layout", Label("layout"), func() {
 		It("Expands last partition with XFS fs", func() {
 			testConsole := console.New()
 			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
-			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.xfs %s", devicePath)})
+			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.xfs %s1", devicePath)})
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
 			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
 					Device: &schema.Device{Path: devicePath},
@@ -372,7 +420,8 @@ var _ = Describe("Layout", Label("layout"), func() {
 		It("Fails to expand last partition, if there is not enough space left", func() {
 			testConsole := console.New()
 			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
-			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 %s", devicePath)})
+			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 %s1", devicePath)})
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
 			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
 					Device: &schema.Device{Path: devicePath},
@@ -404,7 +453,8 @@ var _ = Describe("Layout", Label("layout"), func() {
 			label = "LABEL_TOO_LONG_FOR_XFS"
 			testConsole := console.New()
 			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
-			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext4 %s", devicePath)})
+			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext4 %s1", devicePath)})
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
 			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
 					Device: &schema.Device{Path: devicePath},
@@ -416,7 +466,7 @@ var _ = Describe("Layout", Label("layout"), func() {
 		It("Adds a swap partition and fails expanding it", func() {
 			testConsole := console.New()
 			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
-			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkswap -L MYLABEL %s", devicePath)})
+			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkswap -L MYLABEL %s1", devicePath)})
 
 			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
