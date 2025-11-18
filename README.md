@@ -655,7 +655,7 @@ stages:
            label: COS_RECOVERY
            path: /dev/sda
            init_disk: true
-           disk_name: "MYDISK""
+           disk_name: "MYDISK"
          # Only last partition can be expanded and it happens before any other
          # partition is added.
          # Only grows the partition, cannot shrink it.
