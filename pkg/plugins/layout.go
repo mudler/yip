@@ -27,7 +27,9 @@ const (
 	extMagic1                = 0x53
 	extMagic2                = 0xEF
 	ext4ExtentFeatureOffset  = 1124
+	ext4ExtentFeatureBit     = 0x40
 	ext3JournalFeatureOffset = 1084
+	ext3JournalFeatureBit    = 0x4
 	fat16MagicOffset1        = 54
 	fat16MagicOffset2        = 57
 	fat32MagicOffset1        = 82
@@ -42,6 +44,16 @@ const (
 	xfsMagic                 = "XFSB"
 	swapMagicSignature       = "SWAPSPACE2"
 	OneMiBInBytes            = 1024 * 1024
+	Ext4                     = "ext4"
+	Ext3                     = "ext3"
+	Ext2                     = "ext2"
+	Fat                      = "fat"
+	Vfat                     = "vfat"
+	Fat32                    = "fat32"
+	Fat16                    = "fat16"
+	Xfs                      = "xfs"
+	Btrfs                    = "btrfs"
+	Swap                     = "swap"
 )
 
 type Disk struct {
@@ -89,35 +101,35 @@ func (RealFilesystemDetector) DetectFileSystemType(part *gpt.Partition, d *disk.
 	// ext2/3/4: magic at offset 1080
 	if len(buf) > 1125 && buf[extMagicOffset1] == extMagic1 && buf[extMagicOffset2] == extMagic2 {
 		// Check for ext4: extents feature (bit 0x40) in feature_incompat at 1124
-		if buf[ext4ExtentFeatureOffset]&0x40 != 0 {
-			return "ext4", nil
+		if buf[ext4ExtentFeatureOffset]&ext4ExtentFeatureBit != 0 {
+			return Ext4, nil
 		}
 		// Check for ext3: has_journal feature (bit 0x4) in feature_compat at 1084
-		if buf[ext3JournalFeatureOffset]&0x4 != 0 {
-			return "ext3", nil
+		if buf[ext3JournalFeatureOffset]&ext3JournalFeatureBit != 0 {
+			return Ext3, nil
 		}
 		// Otherwise, assume ext2
-		return "ext2", nil
+		return Ext2, nil
 	}
 
 	// FAT16: "FAT" at offset 54 (FAT12/16)
 	if len(buf) > fat16MagicOffset2 && bytes.Equal(buf[fat16MagicOffset1:fat16MagicOffset2], []byte(fat16Magic)) {
-		return "fat", nil
+		return Fat, nil
 	}
 	// FAT32: "FAT32   " at offset 82 (FAT32, 8 bytes with spaces)
 	// Be more lax with FAT32 detection due to variations in the magic string or extra characters
 	if len(buf) > fat32MagicOffset2 && bytes.Contains(buf[fat32MagicOffset1:fat32MagicOffset2], []byte(fat32Magic)) {
-		return "fat", nil
+		return Fat, nil
 	}
 
 	// btrfs: "_BHRfS_M" at offset 0x40
 	if len(buf) > 0x47 && bytes.Equal(buf[btrfsMagicOffset1:btrfsMagicOffset2], []byte(btrfsMagic)) {
-		return "btrfs", nil
+		return Btrfs, nil
 	}
 
 	// xfs: "XFSB" at offset 0
 	if len(buf) > 4 && bytes.Equal(buf[xfsMagicOffset1:xfsMagicOffset2], []byte(xfsMagic)) {
-		return "xfs", nil
+		return Xfs, nil
 	}
 
 	// swap: "SWAPSPACE2" at end of partition
@@ -126,7 +138,7 @@ func (RealFilesystemDetector) DetectFileSystemType(part *gpt.Partition, d *disk.
 	swapBuf := make([]byte, len(swapSig))
 	_, err = d.Backend.ReadAt(swapBuf, endOffset)
 	if err == nil && bytes.Equal(swapBuf, swapSig) {
-		return "swap", nil
+		return Swap, nil
 	}
 	return "", errors.New("unknown filesystem")
 }
@@ -369,7 +381,7 @@ func (dev *Disk) AddPartitions(fs vfs.FS, parts []schema.Partition, l logger.Int
 		var fsType gpt.Type
 		var attributes uint64
 		switch p.FileSystem {
-		case "ext2", "ext3", "ext4", "xfs", "btrfs":
+		case Ext2, Ext3, Ext4, Xfs, Btrfs:
 			fsType = gpt.LinuxFilesystem
 			// If we identify a COS_GRUB label or bios partition, set it to BIOS boot
 			if p.Bootable {
@@ -377,7 +389,7 @@ func (dev *Disk) AddPartitions(fs vfs.FS, parts []schema.Partition, l logger.Int
 				fsType = gpt.BIOSBoot
 				attributes = 0x4 // Set the legacy BIOS bootable attribute
 			}
-		case "fat16", "fat32", "vfat", "fat":
+		case Fat16, Fat32, Vfat, Fat:
 			fsType = gpt.MicrosoftBasicData
 			// If we identify an efi partition, set the required attribute
 			if p.Bootable {
@@ -385,7 +397,7 @@ func (dev *Disk) AddPartitions(fs vfs.FS, parts []schema.Partition, l logger.Int
 				fsType = gpt.EFISystemPartition
 				attributes = 0x1 // Set the EFI system partition attribute
 			}
-		case "swap":
+		case Swap:
 			fsType = gpt.LinuxSwap
 		default:
 			_ = d.Close()
@@ -705,7 +717,7 @@ func (mkfs MkfsCall) buildOptions() ([]string, error) {
 			opts = append(opts, "-L")
 			opts = append(opts, mkfs.part.FSLabel)
 		}
-		if mkfs.part.FileSystem == "btrfs" {
+		if mkfs.part.FileSystem == Btrfs {
 			opts = append(opts, "-f")
 		}
 		if len(mkfs.customOpts) > 0 {

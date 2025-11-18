@@ -57,11 +57,11 @@ var DefaultGrowFsToMax GrowFsToMaxInterface = &RealGrowFsToMax{}
 // fsType: "ext4" (works for ext3/ext2 via ext4 driver), "xfs", "btrfs".
 func (r *RealGrowFsToMax) GrowFSToMax(devicePath, fsType string) error {
 	switch fsType {
-	case "ext4", "ext3", "ext2":
+	case Ext4, Ext3, Ext2:
 		return growExtFSToMax(devicePath)
-	case "xfs":
+	case Xfs:
 		return growXfsToMax(devicePath)
-	case "btrfs":
+	case Btrfs:
 		return growBtrfsToMax(devicePath)
 	default:
 		return fmt.Errorf("unsupported fsType %q; expected ext4/xfs/btrfs", fsType)
@@ -92,7 +92,9 @@ func growExtFSToMax(devicePath string) error {
 	}
 
 	// Ephemeral mount so ioctl hits the filesystem
-	mp, cleanup, err := ephemeralMount(devicePath, "ext4")
+	// we dont care if its ext3/ext2 as ext4 driver handles them too
+	// in fact there is been years since ext3/ext2 had their own drivers in the kernel
+	mp, cleanup, err := ephemeralMount(devicePath, Ext4)
 	if err != nil {
 		return fmt.Errorf("mount ext4: %w", err)
 	}
@@ -146,7 +148,7 @@ func growXfsToMax(devicePath string) error {
 		return fmt.Errorf("device reports 0 bytes")
 	}
 
-	mp, cleanup, err := ephemeralMount(devicePath, "xfs")
+	mp, cleanup, err := ephemeralMount(devicePath, Xfs)
 	if err != nil {
 		return fmt.Errorf("mount xfs: %w", err)
 	}
@@ -194,7 +196,7 @@ func growBtrfsToMax(devicePath string) error {
 	}
 	_ = dev.Close()
 
-	mp, cleanup, err := ephemeralMount(devicePath, "btrfs")
+	mp, cleanup, err := ephemeralMount(devicePath, Btrfs)
 	if err != nil {
 		return fmt.Errorf("mount btrfs: %w", err)
 	}
