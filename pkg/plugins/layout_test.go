@@ -52,7 +52,7 @@ func (m MockGrowFSToMax) GrowFSToMax(device string, filesystem string) error {
 	return nil
 }
 
-var _ = Describe("Layout", Label("layout"), Focus, func() {
+var _ = Describe("Layout", Label("layout"), func() {
 	var deviceLabel string
 	var devicePath = "/test.img"
 	var rawDevicePath string
