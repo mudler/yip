@@ -26,7 +26,7 @@ require (
 	github.com/sirupsen/logrus v1.9.4-0.20230606125235-dd1b4c2e81af
 	github.com/spectrocloud-labs/herd v0.4.2
 	github.com/spf13/cobra v1.9.1
-	github.com/twpayne/go-vfs/v4 v4.3.0
+	github.com/twpayne/go-vfs/v5 v5.0.5
 	github.com/vmware/vmw-guestinfo v0.0.0-20220317130741-510905f0efa3
 	github.com/zcalusic/sysinfo v1.1.3
 	golang.org/x/crypto v0.36.0
