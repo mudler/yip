@@ -8,7 +8,7 @@ require (
 	github.com/cavaliergopher/grab v2.0.0+incompatible
 	github.com/containerd/containerd v1.7.27
 	github.com/denisbrodbeck/machineid v1.0.1
-	github.com/diskfs/go-diskfs v1.5.2
+	github.com/diskfs/go-diskfs v1.7.0
 	github.com/go-git/go-git/v5 v5.14.0
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/google/go-containerregistry v0.20.3
