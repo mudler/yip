@@ -3,6 +3,8 @@
 package plugins_test
 
 import (
+	"io"
+
 	"github.com/mudler/yip/pkg/schema"
 	consoletests "github.com/mudler/yip/tests/console"
 	"github.com/sirupsen/logrus"
