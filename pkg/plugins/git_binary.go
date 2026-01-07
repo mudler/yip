@@ -19,6 +19,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
@@ -70,18 +71,19 @@ func Git(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 		// Escape credentials for shell by wrapping in single quotes and escaping any single quotes
 		escapeShellString := func(s string) string {
 			// Replace ' with '\'' to properly escape single quotes in shell
-			escaped := ""
+			var escaped strings.Builder
+			escaped.Grow(len(s) + 10) // Pre-allocate with some extra space for quotes
 			for _, c := range s {
 				if c == '\'' {
-					escaped += `'\''`
+					escaped.WriteString(`'\''`)
 				} else {
-					escaped += string(c)
+					escaped.WriteRune(c)
 				}
 			}
-			return "'" + escaped + "'"
+			return "'" + escaped.String() + "'"
 		}
 		
-		credHelperScript := "#!/bin/sh\necho username=" + escapeShellString(s.Git.Auth.Username) + "\necho password=" + escapeShellString(s.Git.Auth.Password) + "\n"
+		credHelperScript := "#!/bin/sh\nprintf 'username=%s\\n' " + escapeShellString(s.Git.Auth.Username) + "\nprintf 'password=%s\\n' " + escapeShellString(s.Git.Auth.Password) + "\n"
 		f, err := utils.WriteTempFile([]byte(credHelperScript), "yip_git_cred_")
 		if err != nil {
 			return err
