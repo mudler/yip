@@ -9,7 +9,7 @@ jobs:
         tags: [
           "gitbinary",
           "nogit",
-          "default",   # Arbitrary tag to exercise the default git build (no special git tag)
+          "none",      # Arbitrary tag used to exercise the default git build (no special git tag)
         ]
     runs-on: ${{ matrix.platform }}
     steps:
