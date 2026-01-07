@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"os"
 
@@ -37,4 +39,24 @@ func Exists(s string) bool {
 		return false
 	}
 	return true
+}
+
+func WriteTempFile(data []byte, prefix string) (string, error) {
+	dir := os.TempDir()
+	randBytes := make([]byte, 8)
+	_, err := rand.Read(randBytes)
+	if err != nil {
+		return "", err
+	}
+	name := prefix + hex.EncodeToString(randBytes)
+	path := dir + string(os.PathSeparator) + name
+	err = os.WriteFile(path, data, 0600)
+	if err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+func RemoveFile(path string) error {
+	return os.Remove(path)
 }
