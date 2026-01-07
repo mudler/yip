@@ -64,9 +64,24 @@ func Git(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 	// Prepare authentication
 	var env []string
 	var keyFile string
+	var credHelperFile string
 	if s.Git.Auth.Username != "" && s.Git.Auth.Password != "" {
-		// Use username/password
-		env = append(env, "GIT_ASKPASS=true", "GIT_USERNAME="+s.Git.Auth.Username, "GIT_PASSWORD="+s.Git.Auth.Password)
+		// Create a temporary credential helper script
+		credHelperScript := "#!/bin/sh\necho username=" + s.Git.Auth.Username + "\necho password=" + s.Git.Auth.Password + "\n"
+		f, err := utils.WriteTempFile([]byte(credHelperScript), "yip_git_cred_")
+		if err != nil {
+			return err
+		}
+		credHelperFile = f
+		defer func() {
+			_ = utils.RemoveFile(credHelperFile)
+		}()
+		// Make the script executable
+		if err := os.Chmod(credHelperFile, 0700); err != nil {
+			return err
+		}
+		// Configure git to use our credential helper
+		env = append(env, "GIT_ASKPASS="+credHelperFile)
 	}
 	if s.Git.Auth.PrivateKey != "" {
 		// Write private key to temp file
