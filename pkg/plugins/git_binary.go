@@ -83,7 +83,9 @@ func Git(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 			return "'" + escaped.String() + "'"
 		}
 		
-		credHelperScript := "#!/bin/sh\nprintf 'username=%s\\n' " + escapeShellString(s.Git.Auth.Username) + "\nprintf 'password=%s\\n' " + escapeShellString(s.Git.Auth.Password) + "\n"
+		// Git credential helper expects: username=value\npassword=value
+		// We use printf with escaped values as shell variables to avoid injection
+		credHelperScript := "#!/bin/sh\nprintf 'username=%s\\npassword=%s\\n' " + escapeShellString(s.Git.Auth.Username) + " " + escapeShellString(s.Git.Auth.Password) + "\n"
 		f, err := utils.WriteTempFile([]byte(credHelperScript), "yip_git_cred_")
 		if err != nil {
 			return err
