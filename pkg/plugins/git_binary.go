@@ -19,6 +19,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
@@ -64,9 +65,41 @@ func Git(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 	// Prepare authentication
 	var env []string
 	var keyFile string
+	var credHelperFile string
 	if s.Git.Auth.Username != "" && s.Git.Auth.Password != "" {
-		// Use username/password
-		env = append(env, "GIT_ASKPASS=true", "GIT_USERNAME="+s.Git.Auth.Username, "GIT_PASSWORD="+s.Git.Auth.Password)
+		// Create a temporary credential helper script
+		// Escape credentials for shell by wrapping in single quotes and escaping any single quotes
+		escapeShellString := func(s string) string {
+			// Replace ' with '\'' to properly escape single quotes in shell
+			var escaped strings.Builder
+			escaped.Grow(len(s) + 10) // Pre-allocate with some extra space for quotes
+			for _, c := range s {
+				if c == '\'' {
+					escaped.WriteString(`'\''`)
+				} else {
+					escaped.WriteRune(c)
+				}
+			}
+			return "'" + escaped.String() + "'"
+		}
+		
+		// Git credential helper expects: username=value\npassword=value
+		// We use printf with escaped values as shell variables to avoid injection
+		credHelperScript := "#!/bin/sh\nprintf 'username=%s\\npassword=%s\\n' " + escapeShellString(s.Git.Auth.Username) + " " + escapeShellString(s.Git.Auth.Password) + "\n"
+		f, err := utils.WriteTempFile([]byte(credHelperScript), "yip_git_cred_")
+		if err != nil {
+			return err
+		}
+		credHelperFile = f
+		defer func() {
+			_ = utils.RemoveFile(credHelperFile)
+		}()
+		// Make the script executable (WriteTempFile already creates with 0600)
+		if err := os.Chmod(credHelperFile, 0700); err != nil {
+			return err
+		}
+		// Configure git to use our credential helper
+		env = append(env, "GIT_ASKPASS="+credHelperFile)
 	}
 	if s.Git.Auth.PrivateKey != "" {
 		// Write private key to temp file
