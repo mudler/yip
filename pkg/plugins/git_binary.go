@@ -78,10 +78,11 @@ func Git(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 		defer func() {
 			_ = utils.RemoveFile(keyFile)
 		}()
-		env = append(env, "GIT_SSH_COMMAND=ssh -i "+keyFile)
+		sshCmd := "ssh -i " + keyFile
 		if s.Git.Auth.Insecure {
-			env = append(env, "GIT_SSH_COMMAND=ssh -o StrictHostKeyChecking=no -i "+keyFile)
+			sshCmd = "ssh -o StrictHostKeyChecking=no -i " + keyFile
 		}
+		env = append(env, "GIT_SSH_COMMAND="+sshCmd)
 	}
 
 	if utils.Exists(filepath.Join(path, ".git")) {
