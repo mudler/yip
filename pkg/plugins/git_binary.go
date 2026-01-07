@@ -87,26 +87,17 @@ func Git(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 
 	if utils.Exists(filepath.Join(path, ".git")) {
 		l.Info("Repository already exists, updating it")
-		// git fetch and reset
-		// Move to the repo path so commands are executed in there
-		currentDir, err := os.Getwd()
-		if err != nil {
-			return err
-		}
-		if err := os.Chdir(path); err != nil {
-			return err
-		}
-		defer os.Chdir(currentDir)
-		cmd := buildGitCmd("fetch", "origin", branch)
+		// git fetch and reset in the existing repo using -C to avoid changing process working directory
+		cmd := buildGitCmd("-C", path, "fetch", "origin", branch)
 		if err := runCmd(cmd, env); err != nil {
 			return err
 		}
-		cmd = buildGitCmd("reset", "--hard", "origin/"+branch)
+		cmd = buildGitCmd("-C", path, "reset", "--hard", "origin/"+branch)
 		if err := runCmd(cmd, env); err != nil {
 			return err
 		}
 		if s.Git.BranchOnly {
-			cmd = buildGitCmd("checkout", branch)
+			cmd = buildGitCmd("-C", path, "checkout", branch)
 			if err := runCmd(cmd, env); err != nil {
 				return err
 			}
