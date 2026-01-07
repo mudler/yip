@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"os"
+	"path/filepath"
 
 	"github.com/twpayne/go-vfs/v4"
 )
@@ -49,7 +50,7 @@ func WriteTempFile(data []byte, prefix string) (string, error) {
 		return "", err
 	}
 	name := prefix + hex.EncodeToString(randBytes)
-	path := dir + string(os.PathSeparator) + name
+	path := filepath.Join(dir, name)
 	err = os.WriteFile(path, data, 0600)
 	if err != nil {
 		return "", err
