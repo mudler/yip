@@ -67,7 +67,21 @@ func Git(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 	var credHelperFile string
 	if s.Git.Auth.Username != "" && s.Git.Auth.Password != "" {
 		// Create a temporary credential helper script
-		credHelperScript := "#!/bin/sh\necho username=" + s.Git.Auth.Username + "\necho password=" + s.Git.Auth.Password + "\n"
+		// Escape credentials for shell by wrapping in single quotes and escaping any single quotes
+		escapeShellString := func(s string) string {
+			// Replace ' with '\'' to properly escape single quotes in shell
+			escaped := ""
+			for _, c := range s {
+				if c == '\'' {
+					escaped += `'\''`
+				} else {
+					escaped += string(c)
+				}
+			}
+			return "'" + escaped + "'"
+		}
+		
+		credHelperScript := "#!/bin/sh\necho username=" + escapeShellString(s.Git.Auth.Username) + "\necho password=" + escapeShellString(s.Git.Auth.Password) + "\n"
 		f, err := utils.WriteTempFile([]byte(credHelperScript), "yip_git_cred_")
 		if err != nil {
 			return err
@@ -76,7 +90,7 @@ func Git(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 		defer func() {
 			_ = utils.RemoveFile(credHelperFile)
 		}()
-		// Make the script executable
+		// Make the script executable (WriteTempFile already creates with 0600)
 		if err := os.Chmod(credHelperFile, 0700); err != nil {
 			return err
 		}
