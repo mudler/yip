@@ -127,7 +127,7 @@ func Git(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 		}
 		return nil
 	}
-	l.Infof("Cloning git repo '%s' to %s", branch, path)
+	l.Infof("Cloning git repo '%s' to %s", s.Git.URL, path)
 	cmd := buildGitCmd("clone", "--branch", branch)
 	if s.Git.BranchOnly {
 		cmd = append(cmd, "--single-branch")
