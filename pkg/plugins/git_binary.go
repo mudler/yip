@@ -82,7 +82,7 @@ func Git(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 			}
 			return "'" + escaped.String() + "'"
 		}
-		
+
 		// Git credential helper expects: username=value\npassword=value
 		// We use printf with escaped values as shell variables to avoid injection
 		credHelperScript := "#!/bin/sh\nprintf 'username=%s\\npassword=%s\\n' " + escapeShellString(s.Git.Auth.Username) + " " + escapeShellString(s.Git.Auth.Password) + "\n"
@@ -92,10 +92,10 @@ func Git(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 		}
 		credHelperFile = f
 		defer func() {
-			_ = utils.RemoveFile(credHelperFile)
+			_ = os.Remove(credHelperFile)
 		}()
 		// Make the script executable (WriteTempFile already creates with 0600)
-		if err := os.Chmod(credHelperFile, 0700); err != nil {
+		if err := fs.Chmod(credHelperFile, 0700); err != nil {
 			return err
 		}
 		// Configure git to use our credential helper
@@ -109,7 +109,7 @@ func Git(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 		}
 		keyFile = f
 		defer func() {
-			_ = utils.RemoveFile(keyFile)
+			_ = os.Remove(keyFile)
 		}()
 		sshCmd := "ssh -i " + keyFile
 		if s.Git.Auth.Insecure {

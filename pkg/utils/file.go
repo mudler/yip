@@ -1,11 +1,8 @@
 package utils
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"os"
-	"path/filepath"
 
 	"github.com/twpayne/go-vfs/v4"
 )
@@ -43,21 +40,14 @@ func Exists(s string) bool {
 }
 
 func WriteTempFile(data []byte, prefix string) (string, error) {
-	dir := os.TempDir()
-	randBytes := make([]byte, 8)
-	_, err := rand.Read(randBytes)
+	temp, err := os.CreateTemp(os.TempDir(), prefix)
 	if err != nil {
 		return "", err
 	}
-	name := prefix + hex.EncodeToString(randBytes)
-	path := filepath.Join(dir, name)
-	err = os.WriteFile(path, data, 0600)
+	defer temp.Close()
+	_, err = temp.Write(data)
 	if err != nil {
 		return "", err
 	}
-	return path, nil
-}
-
-func RemoveFile(path string) error {
-	return os.Remove(path)
+	return temp.Name(), nil
 }
