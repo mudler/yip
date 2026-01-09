@@ -1,8 +1,15 @@
+//go:build !nounpack
+
 package plugins
 
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"os"
+	"runtime"
+	"syscall"
+
 	"github.com/containerd/containerd/archive"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -15,10 +22,6 @@ import (
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/twpayne/go-vfs/v4"
-	"net/http"
-	"os"
-	"runtime"
-	"syscall"
 )
 
 func UnpackImage(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
