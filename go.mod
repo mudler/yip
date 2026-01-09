@@ -17,7 +17,7 @@ require (
 	github.com/itchyny/gojq v0.12.17
 	github.com/joho/godotenv v1.5.1
 	github.com/mauromorales/xpasswd v0.4.1
-	github.com/mudler/entities v0.8.2
+	github.com/mudler/entities v0.8.3-0.20260109121712-af3b96567af9
 	github.com/onsi/ginkgo/v2 v2.23.0
 	github.com/onsi/gomega v1.36.2
 	github.com/pkg/errors v0.9.1
@@ -32,7 +32,6 @@ require (
 	golang.org/x/crypto v0.36.0
 	golang.org/x/sys v0.31.0
 	gopkg.in/ini.v1 v1.67.0
-	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	pault.ag/go/modprobe v0.2.0
 )
