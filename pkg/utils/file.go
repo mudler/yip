@@ -38,3 +38,16 @@ func Exists(s string) bool {
 	}
 	return true
 }
+
+func WriteTempFile(data []byte, prefix string) (string, error) {
+	temp, err := os.CreateTemp(os.TempDir(), prefix)
+	if err != nil {
+		return "", err
+	}
+	defer temp.Close()
+	_, err = temp.Write(data)
+	if err != nil {
+		return "", err
+	}
+	return temp.Name(), nil
+}
