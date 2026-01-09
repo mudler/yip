@@ -1,7 +1,11 @@
+//go:build !nounpack
+
 package plugins_test
 
 import (
 	"debug/elf"
+	"os"
+
 	. "github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"
 	consoletests "github.com/mudler/yip/tests/console"
@@ -9,7 +13,6 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs/v4"
-	"os"
 )
 
 var _ = Describe("UnpackImage", Label("unpack_image"), func() {
