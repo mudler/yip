@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"syscall"
+	"unsafe"
 
 	"github.com/diskfs/go-diskfs"
 	"github.com/diskfs/go-diskfs/disk"
@@ -19,6 +21,7 @@ import (
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/twpayne/go-vfs/v4"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -77,6 +80,33 @@ type MkfsCall struct {
 	part       Partition
 	customOpts []string
 	dev        string
+}
+
+// blkpg_ioctl_arg mirrors struct blkpg_ioctl_arg in <linux/blkpg.h>
+type blkpg_ioctl_arg struct {
+	Op      int32
+	Flags   int32
+	Datalen int32
+	Data    uintptr // void*
+}
+
+// linux/uapi/linux/blkpg.h
+type blkpg_partition struct {
+	Start   int64 // bytes
+	Length  int64 // bytes
+	Pno     int32 // partition number (1..)
+	_       int32 // padding
+	Devname [64]byte
+	Volname [64]byte
+}
+
+// ItsImageFileError is returned when the given path is an image file, not a block device.
+// Its done to identify image files when resolving parent disks from partitions.
+// So we dont runs the rawPath method twice on image files and get a broken path.
+type ItsImageFileError struct{}
+
+func (e ItsImageFileError) Error() string {
+	return "the given path is an image file, not a block device"
 }
 
 // FilesystemDetector allows mocking filesystem detection in tests.
@@ -191,12 +221,8 @@ func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) erro
 			_ = d.Close()
 			return err
 		}
-		err = d.ReReadPartitionTable()
-		if err != nil {
-			l.Debugf("Disk initialization failed during reread of partition table: %s", err)
-			_ = d.Close()
-			return err
-		}
+		_ = d.ReReadPartitionTable()
+
 		l.Debugf("Initialized disk with path %s", s.Layout.Device.Path)
 		syscall.Sync()
 		err = d.Close()
@@ -253,8 +279,11 @@ func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) erro
 		l.Warnf("More than one partition is marked as bootable, only one bootable partition is allowed")
 	}
 
+	l.Debugf("Verifying and repairing headers on device %s", dev.Device)
+	dev.VerifyAndRepairHeaders(l)
+
 	l.Debugf("Going over the partition layout to create partitions on device %s", dev.Device)
-	err = dev.AddPartitions(fs, s.Layout.Parts, l, console)
+	err = dev.AddPartitions(s.Layout.Parts, l, console)
 	if err != nil {
 		return err
 	}
@@ -266,7 +295,7 @@ func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) erro
 		} else {
 			l.Debugf("Extending last partition to %d MiB", s.Layout.Expand.Size)
 		}
-		err := dev.ExpandLastPartition(fs, s.Layout.Expand.Size, console)
+		err := dev.ExpandLastPartition(s.Layout.Expand.Size, console)
 		if err != nil {
 			l.Error(err.Error())
 			return err
@@ -277,28 +306,23 @@ func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) erro
 	return nil
 }
 
-func (dev *Disk) AddPartitions(fs vfs.FS, parts []schema.Partition, l logger.Interface, console Console) error {
+// AddPartitions adds partitions to the disk based on the provided schema.Partition definitions.
+func (dev *Disk) AddPartitions(parts []schema.Partition, l logger.Interface, console Console) error {
+	var d *disk.Disk
+	var err error
+	var fd uintptr
+	var osFile *os.File
+
 	if len(parts) == 0 {
 		l.Debug("No partitions to add, skipping")
 		return nil
 	}
 	// Open disk
-	// Use fs.rawpath
-	rawPath, err := fs.RawPath(dev.Device)
-	if err != nil {
-		return fmt.Errorf("could not resolve raw path: %w", err)
-	}
-	d, err := diskfs.Open(rawPath)
+	d, err = diskfs.Open(dev.Device, diskfs.WithOpenMode(diskfs.ReadWrite))
 	if err != nil {
 		return err
 	}
 	// We cant defer the close here as we need to close it after writing the partition table so the disk is not in use when formatting partitions
-
-	err = d.ReReadPartitionTable()
-	if err != nil {
-		_ = d.Close()
-		return err
-	}
 
 	// Reload the dev.parts with a fresh read
 	dev.Parts = GetParts(d)
@@ -346,19 +370,19 @@ func (dev *Disk) AddPartitions(fs vfs.FS, parts []schema.Partition, l logger.Int
 		if p.Size == 0 {
 			// Remember to add the 1Mb alignment to total size
 			// This will be on bytes already no need to transform it
-			var sizeUsed = uint64(1024 * 1024)
+			var sizeUsed = uint64(OneMiBInBytes)
 			for _, partSum := range dev.Parts {
 				sizeUsed = sizeUsed + partSum.Size
 			}
 			// leave 1Mb at the end for backup GPT header
-			size = uint64(d.Size) - sizeUsed - uint64(1024*1024)
+			size = uint64(d.Size) - sizeUsed - uint64(OneMiBInBytes)
 		} else {
 			// Change it to bytes
 			// If its the last partition to do, leave 1 Mb at the end for backup GPT header
 			if index == len(parts)-1 {
-				size = (p.Size * 1024 * 1024) - uint64(1024*1024)
+				size = (p.Size * OneMiBInBytes) - uint64(OneMiBInBytes)
 			} else {
-				size = p.Size * 1024 * 1024
+				size = p.Size * OneMiBInBytes
 			}
 
 		}
@@ -436,26 +460,56 @@ func (dev *Disk) AddPartitions(fs vfs.FS, parts []schema.Partition, l logger.Int
 	}
 
 	// Now write the partition table back
-	err = d.Partition(gptTable)
+	err = writePartitionTable(d, gptTable)
 	if err != nil {
 		_ = d.Close()
+		l.Errorf("Error writing partition table: %s", err)
 		return err
 	}
 
-	// Re-read partition table so kernel sees new partitions
-	err = d.ReReadPartitionTable()
+	osFile, err = d.Backend.Sys()
 	if err != nil {
-		_ = d.Close()
-		return fmt.Errorf("failed to reread partition table: %w", err)
+		return err
 	}
-
-	// Close the disk to flush changes
+	fd = osFile.Fd()
+	// fsync the disk to ensure all changes are written
+	if err := unix.Fsync(int(fd)); err != nil {
+		return fmt.Errorf("fsync %s failed: %w", dev.Device, err)
+	}
+	// Now close the disk
 	err = d.Close()
 	if err != nil {
 		return err
 	}
 
-	syscall.Sync()
+	// Now inform the kernel of the new partitions
+	// Open the disk again
+	d, err = diskfs.Open(dev.Device, diskfs.WithOpenMode(diskfs.ReadWrite))
+	if err != nil {
+		return err
+	}
+	// Get the disk file descriptor
+	devInfo, err := d.Backend.Stat()
+	if err != nil {
+		return err
+	}
+
+	// Only do this if the backend is a device
+	if devInfo.Mode()&os.ModeDevice != 0 {
+		err = kernelAddPartitions(l, d, partitionsToFormat)
+		if err != nil {
+			l.Warnf("Could not inform kernel of new partitions via BLKPG ioctl: %s", err)
+			_ = d.Close()
+			return err
+		}
+	}
+
+	// Now close the disk
+	err = d.Close()
+	if err != nil {
+		return err
+	}
+
 	_, _ = console.Run("udevadm trigger && udevadm settle")
 	// Now format the partitions
 	for _, part := range partitionsToFormat {
@@ -488,7 +542,7 @@ func FindDiskFromPath(path string, fs vfs.FS) (Disk, error) {
 	if err != nil {
 		return Disk{}, fmt.Errorf("could not resolve raw path: %w", err)
 	}
-	d, err := diskfs.Open(rawPath)
+	d, err := diskfs.Open(rawPath, diskfs.WithOpenMode(diskfs.ReadOnly))
 	if err != nil {
 		return Disk{}, fmt.Errorf("could not open disk: %w", err)
 	}
@@ -497,6 +551,55 @@ func FindDiskFromPath(path string, fs vfs.FS) (Disk, error) {
 		_ = d.Close()
 	}()
 
+	// Use d.LogicalBlocksize and d.Size directly
+	return Disk{
+		Device:  rawPath,
+		SectorS: uint64(d.LogicalBlocksize),
+		LastS:   uint64(d.Size / d.LogicalBlocksize),
+		Parts:   GetParts(d),
+	}, nil
+}
+
+func FindDiskFromLabel(label string, fs vfs.FS) (Disk, error) {
+	var path string
+	var err error
+
+	path, err = fs.RawPath(filepath.Join("/dev/disk/by-label", label))
+	if err != nil {
+		return Disk{}, fmt.Errorf("could not resolve raw path for label %q: %w", label, err)
+	}
+	// Resolve label to actual full disk path as we can have a partition given to us instead of the disk
+	// so the label can be pointing to /dev/sda1 instead of /dev/sda and we want to have sda instead as we want to manage the whole disk
+	partDev, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return Disk{}, fmt.Errorf("resolve label %q: %w", label, err)
+	}
+
+	// Map partition -> parent disk via sysfs directory structure
+	diskDev, err := parentDiskFromBlockDev(partDev)
+
+	if err != nil && !errors.Is(err, ItsImageFileError{}) {
+		return Disk{}, err
+	}
+	if errors.Is(err, ItsImageFileError{}) {
+		// Its an image file, use partDev as is
+		path = diskDev
+	} else {
+		path, err = fs.RawPath(diskDev)
+		if err != nil {
+			return Disk{}, fmt.Errorf("could not resolve raw path: %w", err)
+		}
+	}
+
+	// Read only as we only need the info
+	d, err := diskfs.Open(path, diskfs.WithOpenMode(diskfs.ReadOnly))
+	if err != nil {
+		return Disk{}, fmt.Errorf("could not open disk: %w", err)
+	}
+	// close the disk when done
+	defer func() {
+		_ = d.Close()
+	}()
 	// Use d.LogicalBlocksize and d.Size directly
 	return Disk{
 		Device:  path,
@@ -506,26 +609,37 @@ func FindDiskFromPath(path string, fs vfs.FS) (Disk, error) {
 	}, nil
 }
 
-func FindDiskFromLabel(label string, fs vfs.FS) (Disk, error) {
-	path, err := fs.RawPath(filepath.Join("/dev/disk/by-label", label))
-	if err != nil {
-		return Disk{}, fmt.Errorf("could not resolve disk by label: %w", err)
+func parentDiskFromBlockDev(devPath string) (string, error) {
+	// First check if its some kind of image file instead of a block device
+	// naively check if the path contains /dev/
+	if !strings.HasPrefix(devPath, "/dev/") {
+		// Assume its an image file, return as is
+		return devPath, ItsImageFileError{}
 	}
-	d, err := diskfs.Open(path)
+
+	// Get the base name of the device
+	name := filepath.Base(devPath) // "sda3", "nvme0n1p3", "mmcblk0p2", ...
+	fmt.Printf("Deriving parent disk for block device %s\n", devPath)
+	sysClass := filepath.Join("/sys/class/block", name)
+	fmt.Printf("Deriving parent disk for block device %s\n", sysClass)
+
+	// Read where it points to only if its a symlink
+	realSys, err := filepath.EvalSymlinks(sysClass)
 	if err != nil {
-		return Disk{}, fmt.Errorf("could not open disk: %w", err)
+		return "", fmt.Errorf("sysfs for %s: %w", devPath, err)
 	}
-	// close the disk when done
-	defer func() {
-		_ = d.Close()
-	}()
-	// Use d.LogicalBlocksize and d.Size directly
-	return Disk{
-		Device:  filepath.Join("/dev/disk/by-label", label),
-		SectorS: uint64(d.LogicalBlocksize),
-		LastS:   uint64(d.Size / d.LogicalBlocksize),
-		Parts:   GetParts(d),
-	}, nil
+
+	// For partitions, realSys ends with ".../block/<disk>/<partition>"
+	// So parent directory basename is "<disk>"
+	parentDir := filepath.Dir(realSys)
+	parentName := filepath.Base(parentDir)
+
+	// Sanity check: parent should exist in /sys/class/block
+	if _, err := os.Stat(filepath.Join("/sys/class/block", parentName)); err != nil {
+		return "", fmt.Errorf("derive parent disk for %s (got %s): %w", devPath, parentName, err)
+	}
+
+	return filepath.Join("/dev", parentName), nil
 }
 
 func (dev *Disk) CheckDiskFreeSpaceMiB(minSpace uint64) bool {
@@ -562,27 +676,20 @@ func formatPartition(part Partition, basedevice string, console Console) (string
 	return mkfs.Apply(console)
 }
 
-func (dev *Disk) ExpandLastPartition(fs vfs.FS, size uint64, console Console) error {
+func (dev *Disk) ExpandLastPartition(size uint64, console Console) error {
 	if len(dev.Parts) == 0 {
 		return errors.New("no partition to expand")
 	}
 	// Open disk and close it when we finish
-	rawPath, err := fs.RawPath(dev.Device)
-	if err != nil {
-		return fmt.Errorf("could not resolve raw path: %w", err)
-	}
-	d, err := diskfs.Open(rawPath)
+	d, err := diskfs.Open(dev.Device, diskfs.WithOpenMode(diskfs.ReadWrite))
 	if err != nil {
 		return err
 	}
-
 	// Close it manually at the end before doing the filesystem resize
 
-	err = d.ReReadPartitionTable()
-	if err != nil {
-		_ = d.Close()
-		return err
-	}
+	// Now try to re-read partition table so kernel sees new partitions
+	// This is on a best effort basis, as if the partition is in use, it will fail
+	_ = d.ReReadPartitionTable()
 
 	table, err := d.GetPartitionTable()
 	if err != nil {
@@ -656,12 +763,9 @@ func (dev *Disk) ExpandLastPartition(fs vfs.FS, size uint64, console Console) er
 		_ = d.Close()
 		return err
 	}
-	// Now re-read partition table so kernel sees new partitions
-	err = d.ReReadPartitionTable()
-	if err != nil {
-		_ = d.Close()
-		return fmt.Errorf("failed to reread partition table: %w", err)
-	}
+	// Now try to re-read partition table so kernel sees new partitions
+	// This is on a best effort basis, as if the partition is in use, it will fail
+	_ = d.ReReadPartitionTable()
 	syscall.Sync()
 	_, _ = console.Run("udevadm trigger && udevadm settle")
 
@@ -703,6 +807,53 @@ func (dev *Disk) MatchPartitionPLabel(label string) bool {
 		}
 	}
 	return false
+}
+
+// VerifyAndRepairHeaders VerifyHeaders verifies the GPT headers of the disk and repairs them if needed.
+// Useful when the disk has been created beforehand with a size and then resized (like in cloud images)
+// and the backup GPT header is not at the end of the disk.
+func (dev *Disk) VerifyAndRepairHeaders(l logger.Interface) {
+	d, err := diskfs.Open(dev.Device, diskfs.WithOpenMode(diskfs.ReadWrite))
+	if err != nil {
+		l.Errorf("Could not open disk %s to verify headers: %s", dev.Device, err)
+		return
+	}
+
+	table, err := d.GetPartitionTable()
+	if err != nil {
+		l.Errorf("Could not get partition table from disk %s: %s", dev.Device, err)
+		_ = d.Close()
+		return
+	}
+	gptTable, ok := table.(*gpt.Table)
+	if !ok {
+		l.Errorf("Could not get GPT table from disk %s: %s", dev.Device, err)
+		_ = d.Close()
+		return
+	}
+	rwBackingFile, err := d.Backend.Writable()
+	if err != nil {
+		l.Errorf("Could not get backing file from disk %s: %s", dev.Device, err)
+		_ = d.Close()
+		return
+	}
+	err = gptTable.Verify(rwBackingFile, uint64(d.Size))
+	if err != nil {
+		l.Errorf("Could not verify headers for %s: %s", dev.Device, err)
+		// Try to rewrite the partition table
+		err = gptTable.Repair(uint64(d.Size))
+		if err != nil {
+			l.Errorf("Could not repair GPT table for %s: %s", dev.Device, err)
+			_ = d.Close()
+			return
+		}
+		err = writePartitionTable(d, gptTable)
+		if err != nil {
+			l.Errorf("Could not repair headers for %s: %s", dev.Device, err)
+		}
+		l.Debugf("Repaired GPT headers for %s", dev.Device)
+	}
+	_ = d.Close()
 }
 
 func (mkfs MkfsCall) buildOptions() ([]string, error) {
@@ -791,4 +942,97 @@ func GetParts(d *disk.Disk) []Partition {
 		})
 	}
 	return parts
+}
+
+// writePartitionTable writes the given partition table to the disk and updates the disk's Table field.
+// This is a copy of diskfs's internal function to force a rewrite of the partition table.
+// As the ReReadPartitionTable can fail if the disk is in use, we ignore the resulting error.
+func writePartitionTable(d *disk.Disk, table partition.Table) error {
+	rwBackingFile, err := d.Backend.Writable()
+	if err != nil {
+		return err
+	}
+
+	// fill in the uuid
+	err = table.Write(rwBackingFile, d.Size)
+	if err != nil {
+		return fmt.Errorf("failed to write partition table: %v", err)
+	}
+	d.Table = table
+	_ = d.ReReadPartitionTable()
+	return nil
+}
+
+// kernelAddPartitions informs the kernel about new partitions via BLKPG ioctl calls.
+// follows the same behaviour as partx from util-linux
+func kernelAddPartitions(l logger.Interface, d *disk.Disk, partitionsToFormat []Partition) error {
+	if len(partitionsToFormat) == 0 {
+		l.Debug("No partitions to inform kernel about, skipping")
+		return nil
+	}
+	osFile, err := d.Backend.Sys()
+	if err != nil {
+		return err
+	}
+	fd := osFile.Fd()
+
+	// First flush the buffer and re-read the partition table
+	// Best effort, ignore errors
+	_ = unix.IoctlSetInt(int(fd), unix.BLKFLSBUF, 0)
+	_ = unix.IoctlSetInt(int(fd), unix.BLKRRPART, 0)
+
+	// Now inform the kernel about the new partitions
+	lbs := d.LogicalBlocksize
+	for _, part := range partitionsToFormat {
+		p := blkpg_partition{
+			Pno:    int32(part.PartNumber),
+			Start:  int64(part.Start) * lbs,              // bytes
+			Length: int64((part.End-part.Start)+1) * lbs, // bytes
+		}
+
+		// Match util-linux partx -u behavior:
+		// DEL -> if ENXIO ignore; if EBUSY try RESIZE -> then ADD.
+		if err := blkpgIoctl(int(fd), int32(unix.BLKPG_DEL_PARTITION), &p); err != nil {
+			if errors.Is(err, unix.EBUSY) {
+				// try resize
+				if rerr := blkpgIoctl(int(fd), int32(unix.BLKPG_RESIZE_PARTITION), &p); rerr == nil {
+					continue
+				}
+			}
+		}
+		// add
+		if err := blkpgIoctl(int(fd), int32(unix.BLKPG_ADD_PARTITION), &p); err != nil {
+			if errors.Is(err, unix.EBUSY) {
+				l.Warnf("Kernel refused to update partition p%d live (device busy). You may need partx -u or reboot.",
+					part.PartNumber)
+				continue
+			}
+		}
+	}
+	// fsync the disk to ensure all changes are written
+	if err := unix.Fsync(int(fd)); err != nil {
+		return fmt.Errorf("fsync failed: %w", err)
+	}
+	return nil
+}
+
+// blkpgIoctl performs a BLKPG ioctl operation on the given file descriptor.
+func blkpgIoctl(fd int, op int32, p *blkpg_partition) error {
+	arg := blkpg_ioctl_arg{
+		Op:      op,
+		Flags:   0,
+		Datalen: int32(unsafe.Sizeof(*p)),
+		Data:    uintptr(unsafe.Pointer(p)),
+	}
+
+	_, _, errno := unix.Syscall(
+		unix.SYS_IOCTL,
+		uintptr(fd),
+		uintptr(unix.BLKPG),
+		uintptr(unsafe.Pointer(&arg)),
+	)
+	if errno != 0 {
+		return errno
+	}
+	return nil
 }
