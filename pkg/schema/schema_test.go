@@ -21,6 +21,11 @@ import (
 	"github.com/twpayne/go-vfs/v4/vfst"
 )
 
+const fileContent = `
+Line1
+Line2
+Line3`
+
 func loadstdYip(s string) *YipConfig {
 	fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/yip.yaml": s, "/etc/passwd": ""})
 	Expect(err).Should(BeNil())
@@ -81,7 +86,6 @@ var _ = Describe("Schema", func() {
 			Expect(yipConfig.Stages["foo"][0].Name).To(Equal("bar"))
 		})
 	})
-
 	Context("Loading CloudConfig", func() {
 		It("Reads cloudconfig to boot stage", func() {
 			yipConfig := loadstdYip(`#cloud-config
@@ -174,4 +178,33 @@ write_files:
 			Expect(yipConfig.Stages["network"][0].SSHKeys).To(Equal(map[string][]string{"bar": {"gitlab:test"}}))
 		})
 	})
+	Context("YipConfig", Label("schema"), func() {
+        // Making sure we bypass this issue:
+        // https://github.com/mudler/yip/pull/250/changes#diff-e112952d4a4e1398163b57958ef00de86d89f769005526d7d7d1728de6e75ca0R226
+		It("Dumps YipConfig to string and loads it with no issues", func() {
+			yipConfig := &YipConfig{
+				Stages: map[string][]Stage{
+					"test": {
+						{
+							Name: "Test Stage",
+							Files: []File{
+								{
+									Path:        "/tmp/test.cfg",
+									Permissions: 0644,
+									Owner:       0,
+									Group:       0,
+									Content:     fileContent,
+								},
+							},
+						},
+					},
+				},
+			}
+			dumped := yipConfig.ToString()
+
+			// Load it back to confirm that dumping it produces a valid yip config
+			_ = loadstdYip(dumped)
+		})
+	})
+
 })
