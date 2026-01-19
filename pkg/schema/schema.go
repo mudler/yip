@@ -23,7 +23,6 @@ import (
 	"strings"
 
 	"github.com/google/shlex"
-
 	config "github.com/mudler/yip/pkg/schema/cloudinit"
 	"github.com/pkg/errors"
 
@@ -223,12 +222,18 @@ type YipConfig struct {
 }
 
 // ToString returns the yaml representation of the YipConfig
+// Setting the indent to 2 spaces fixes an underlying bug in the yaml library
+// https://github.com/go-yaml/yaml/issues/1071
+// Wont be fixed until v4 for sure: https://github.com/yaml/go-yaml
 func (y *YipConfig) ToString() string {
-	s, err := yaml.Marshal(y)
+	buf := new(bytes.Buffer)
+	enc := yaml.NewEncoder(buf)
+	enc.SetIndent(2)
+	err := enc.Encode(y)
 	if err != nil {
 		return ""
 	}
-	return string(s)
+	return buf.String()
 }
 
 type Loader func(s string, fs vfs.FS, m Modifier) ([]byte, error)
