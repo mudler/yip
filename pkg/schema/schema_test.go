@@ -179,6 +179,8 @@ write_files:
 		})
 	})
 	Context("YipConfig", Label("schema"), func() {
+        // Making sure we bypass this issue:
+        // https://github.com/mudler/yip/pull/250/changes#diff-e112952d4a4e1398163b57958ef00de86d89f769005526d7d7d1728de6e75ca0R226
 		It("Dumps YipConfig to string and loads it with no issues", func() {
 			yipConfig := &YipConfig{
 				Stages: map[string][]Stage{
