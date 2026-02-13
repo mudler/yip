@@ -155,6 +155,7 @@ type Stage struct {
 	Systemctl       Systemctl           `yaml:"systemctl,omitempty"`
 	Environment     map[string]string   `yaml:"environment,omitempty"`
 	EnvironmentFile string              `yaml:"environment_file,omitempty"`
+	PackagePins     map[string]string   `yaml:"package_pins,omitempty"`
 	Packages        Packages            `yaml:"packages,omitempty"`
 	UnpackImages    []UnpackImageConf   `yaml:"unpack_images,omitempty"`
 
