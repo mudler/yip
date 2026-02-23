@@ -177,6 +177,16 @@ write_files:
 			Expect(len(yipConfig.Stages["network"][0].SSHKeys)).To(Equal(1))
 			Expect(yipConfig.Stages["network"][0].SSHKeys).To(Equal(map[string][]string{"bar": {"gitlab:test"}}))
 		})
+
+		It("Reads cloudconfig with a jinja header", func() {
+			yipConfig := loadstdYip(`## template: jinja
+#cloud-config
+users:
+- name: "bar"
+`)
+			Expect(len(yipConfig.Stages)).To(Equal(3))
+			Expect(yipConfig.Stages["boot"][0].Users["bar"].Name).To(Equal("bar"))
+		})
 	})
 	Context("YipConfig", Label("schema"), func() {
         // Making sure we bypass this issue:

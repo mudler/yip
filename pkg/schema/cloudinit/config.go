@@ -20,12 +20,28 @@ func NewCloudConfig(contents string) (*CloudConfig, error) {
 }
 
 func IsCloudConfig(userdata string) bool {
-	header := strings.SplitN(userdata, "\n", 2)[0]
+	headers := strings.SplitN(userdata, "\n", 10)
 
-	// Trim trailing whitespaces
-	header = strings.TrimRightFunc(header, unicode.IsSpace)
+	for _, line := range headers {
+		// Trim trailing whitespaces
+		header := strings.TrimRightFunc(line, unicode.IsSpace)
 
-	return (header == "#cloud-config")
+		if header == "#cloud-config" {
+			return true
+		}
+
+		if header == "" {
+			continue
+		}
+
+		if strings.HasPrefix(header, "#") {
+			continue
+		}
+
+		return false
+	}
+
+	return false
 }
 
 // CloudConfig encapsulates the entire cloud-config configuration file and maps
