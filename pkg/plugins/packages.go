@@ -36,6 +36,7 @@ const (
 	RedHat             Distro = "rhel"
 	CentOS             Distro = "centos"
 	RockyLinux         Distro = "rocky"
+	OracleLinux        Distro = "ol"
 	AlmaLinux          Distro = "almalinux"
 	Fedora             Distro = "fedora"
 	Arch               Distro = "arch"
@@ -180,7 +181,7 @@ func identifyInstaller(fsys vfs.FS) Installer {
 	switch Distro(val["ID"]) {
 	case Debian, Ubuntu:
 		identifiedInstaller = APTInstaller
-	case Fedora, RockyLinux, AlmaLinux, RedHat, CentOS, OpenEuler:
+	case Fedora, RockyLinux, OracleLinux, AlmaLinux, RedHat, CentOS, OpenEuler:
 		identifiedInstaller = DNFInstaller
 	case Arch:
 		identifiedInstaller = PacmanInstaller

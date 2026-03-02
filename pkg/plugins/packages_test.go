@@ -81,6 +81,10 @@ var _ = Describe("Commands", Label("packages"), func() {
 					expected:  []string{"dnf makecache", "dnf update -y", "dnf install -y --setopt=install_weak_deps=False foo bar", "dnf remove -y baz qux"},
 				},
 				{
+					osRelease: "ID=ol\nVERSION=8.7\n",
+					expected:  []string{"dnf makecache", "dnf update -y", "dnf install -y --setopt=install_weak_deps=False foo bar", "dnf remove -y baz qux"},
+				},
+				{
 					osRelease: "ID=alpine\nVERSION=3.14\n",
 					expected:  []string{"apk update", "apk upgrade --no-cache", "apk add --no-cache foo bar", "apk del --no-cache baz qux"},
 				},
