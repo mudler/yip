@@ -51,6 +51,100 @@ func (m MockGrowFSToMax) GrowFSToMax(device string, filesystem string) error {
 	return nil
 }
 
+var _ = Describe("computeFreeSpace and CheckDiskFreeSpaceMiB", Label("layout"), func() {
+	// These tests exercise the Disk helper methods directly (no disk image needed)
+	// to verify that sector / byte units are handled consistently.
+	// go-diskfs gpt.Partition uses: Start=sectors, End=sectors, Size=bytes.
+
+	It("computes correct free space with one partition", func() {
+		// 10 GiB disk, 512-byte sectors
+		const sectorSize = uint64(512)
+		const diskBytes = uint64(10 * 1024 * 1024 * 1024) // 10 GiB
+		totalSectors := diskBytes / sectorSize              // 20971520
+
+		// Partition starting at 1 MiB, spanning 4 GiB
+		partStartSectors := uint64(1024 * 1024 / sectorSize) // 2048
+		partSizeBytes := uint64(4 * 1024 * 1024 * 1024)       // 4 GiB in bytes
+		partEndSectors := partStartSectors + (partSizeBytes / sectorSize) - 1
+
+		dev := Disk{
+			SectorS: sectorSize,
+			LastS:   totalSectors,
+			Parts: []Partition{{
+				Start: partStartSectors,
+				End:   partEndSectors,
+				Size:  partSizeBytes,
+			}},
+		}
+
+		Expect(dev.CheckDiskFreeSpaceMiB(32)).To(BeTrue())
+
+		// Expected free: totalSectors - partEnd - 1
+		expectedFree := totalSectors - partEndSectors - 1
+		expectedFreeMiB := expectedFree * sectorSize / (1024 * 1024)
+		// Should be roughly 6 GiB (~6143 MiB) — NOT a wrapped uint64
+		Expect(expectedFreeMiB > 6000).To(BeTrue(), "expected ~6 GiB free")
+		Expect(expectedFreeMiB < 7000).To(BeTrue(), "expected ~6 GiB free")
+
+		// Must return false for a threshold above the actual free space.
+		// Under the old buggy code, uint64 wraparound would make this incorrectly return true.
+		Expect(dev.CheckDiskFreeSpaceMiB(7000)).To(BeFalse())
+	})
+
+	It("computes correct free space with multiple partitions", func() {
+		const sectorSize = uint64(512)
+		const diskBytes = uint64(100 * 1024 * 1024 * 1024) // 100 GiB
+		totalSectors := diskBytes / sectorSize
+
+		// Two partitions: 20 GiB and 30 GiB
+		p1Start := uint64(2048)
+		p1Size := uint64(20 * 1024 * 1024 * 1024)
+		p1End := p1Start + (p1Size / sectorSize) - 1
+
+		p2Start := p1End + 1
+		p2Size := uint64(30 * 1024 * 1024 * 1024)
+		p2End := p2Start + (p2Size / sectorSize) - 1
+
+		dev := Disk{
+			SectorS: sectorSize,
+			LastS:   totalSectors,
+			Parts: []Partition{
+				{Start: p1Start, End: p1End, Size: p1Size},
+				{Start: p2Start, End: p2End, Size: p2Size},
+			},
+		}
+
+		// ~50 GiB free, so 32 MiB check should pass
+		Expect(dev.CheckDiskFreeSpaceMiB(32)).To(BeTrue())
+		// But 60 GiB check should fail
+		Expect(dev.CheckDiskFreeSpaceMiB(60 * 1024)).To(BeFalse())
+	})
+
+	It("returns false when disk is nearly full", func() {
+		const sectorSize = uint64(512)
+		const diskBytes = uint64(1 * 1024 * 1024 * 1024) // 1 GiB
+		totalSectors := diskBytes / sectorSize
+
+		// Partition uses almost the entire disk
+		partStart := uint64(2048)
+		partSize := diskBytes - (4 * 1024 * 1024) // with 1 MiB start offset, leaves ~3 MiB free at disk end
+		partEnd := partStart + (partSize / sectorSize) - 1
+
+		dev := Disk{
+			SectorS: sectorSize,
+			LastS:   totalSectors,
+			Parts: []Partition{{
+				Start: partStart,
+				End:   partEnd,
+				Size:  partSize,
+			}},
+		}
+
+		// Only ~4 MiB free, so 32 MiB check should fail
+		Expect(dev.CheckDiskFreeSpaceMiB(32)).To(BeFalse())
+	})
+})
+
 var _ = Describe("Layout", Label("layout"), func() {
 	var deviceLabel string
 	var devicePath = "/test.img"
