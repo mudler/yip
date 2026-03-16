@@ -263,7 +263,7 @@ func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) erro
 	}
 
 	l.Debugf("Checking for free space on device %s", dev.Device)
-	if !dev.CheckDiskFreeSpaceMiB(32) {
+	if len(s.Layout.Parts) > 0 && !dev.CheckDiskFreeSpaceMiB(32) {
 		l.Warnf("Not enough unpartitioned space in disk to operate")
 		return nil
 	}
