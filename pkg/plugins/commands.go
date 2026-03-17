@@ -15,7 +15,11 @@ func Commands(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) er
 	for _, cmd := range s.Commands {
 		out, err := console.Run(templateSysData(l, cmd))
 		if err != nil {
-			errs = multierror.Append(errs, err)
+			if strings.TrimSpace(out) != "" {
+				errs = multierror.Append(errs, fmt.Errorf("%w\ncommand output:\n%s", err, out))
+			} else {
+				errs = multierror.Append(errs, err)
+			}
 			continue
 		}
 		if strings.TrimSpace(out) != "" {
