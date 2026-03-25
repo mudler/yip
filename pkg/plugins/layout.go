@@ -263,7 +263,7 @@ func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) erro
 	}
 
 	l.Debugf("Checking for free space on device %s", dev.Device)
-	if !dev.CheckDiskFreeSpaceMiB(32) {
+	if len(s.Layout.Parts) > 0 && !dev.CheckDiskFreeSpaceMiB(32) {
 		l.Warnf("Not enough unpartitioned space in disk to operate")
 		return nil
 	}
@@ -651,7 +651,9 @@ func (dev *Disk) CheckDiskFreeSpaceMiB(minSpace uint64) bool {
 func (dev *Disk) computeFreeSpace() uint64 {
 	if len(dev.Parts) > 0 {
 		lastPart := dev.Parts[len(dev.Parts)-1]
-		return dev.LastS - (lastPart.Start + lastPart.Size - 1)
+		// lastPart.End is in sectors (like dev.LastS), whereas lastPart.Size
+		// is in bytes (go-diskfs convention).  Using End avoids a unit mismatch.
+		return dev.LastS - lastPart.End - 1
 	}
 	return dev.LastS - (OneMiBInBytes/dev.SectorS - 1)
 }
@@ -730,9 +732,10 @@ func (dev *Disk) ExpandLastPartition(size uint64, console Console) error {
 	currentSize := part.Size
 	if size == 0 {
 		// requested size is max, so calculate it
-		// requested size is total disk size minus partition size
-		// Also take into account the 2048 bytes for GPT backup header
-		requestedSize = uint64(d.Size) - part.Start - (2048 * dev.SectorS)
+		// requested size is total disk size minus partition start offset minus reserved tail space
+		// part.Start is in sectors (go-diskfs convention), so multiply by sector size to get bytes
+		// 2048 sectors are reserved at the end for alignment and secondary GPT structures
+		requestedSize = uint64(d.Size) - (part.Start * dev.SectorS) - (2048 * dev.SectorS)
 	}
 	if requestedSize <= currentSize {
 		_ = d.Close()
