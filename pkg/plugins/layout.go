@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 	"syscall"
+	"unicode"
 	"unsafe"
 
 	"github.com/diskfs/go-diskfs"
@@ -658,17 +659,22 @@ func (dev *Disk) computeFreeSpace() uint64 {
 	return dev.LastS - (OneMiBInBytes/dev.SectorS - 1)
 }
 
+// partitionDevicePath constructs the full device path for a partition.
+// Devices whose names end in a digit (e.g. mmcblk0, nvme0n1, loop0)
+// require a "p" separator before the partition number, while devices
+// ending in a letter (e.g. sda, vda) do not.
+func partitionDevicePath(basedevice string, partNum int) string {
+	if len(basedevice) > 0 && unicode.IsDigit(rune(basedevice[len(basedevice)-1])) {
+		return fmt.Sprintf("%sp%d", basedevice, partNum)
+	}
+	return fmt.Sprintf("%s%d", basedevice, partNum)
+}
+
 // formatPartition formats the given partition using mkfs commands.
 // It expects the disk to be already partitioned.
 // It expects the disk to not be open by any other process.
 func formatPartition(part Partition, basedevice string, console Console) (string, error) {
-	var device string
-	// NVMe devices have a different partition naming scheme
-	if strings.Contains(basedevice, "nvme") {
-		device = fmt.Sprintf("%sp%d", basedevice, part.PartNumber)
-	} else {
-		device = fmt.Sprintf("%s%d", basedevice, part.PartNumber)
-	}
+	device := partitionDevicePath(basedevice, int(part.PartNumber))
 	// We could be also getting here a /dev/disk/by-whatever path, in that case, dont touch it, pass it directly
 	if strings.Contains(basedevice, "/dev/disk/") && strings.Contains(basedevice, "/by-") {
 		device = basedevice
@@ -780,14 +786,8 @@ func (dev *Disk) ExpandLastPartition(size uint64, console Console) error {
 		return fmt.Errorf("could not detect filesystem type: %w", err)
 	}
 
-	var device string
 	partNumber := len(gptTable.Partitions)
-	// NVMe devices have a different partition naming scheme
-	if strings.Contains(dev.Device, "nvme") {
-		device = fmt.Sprintf("%sp%d", dev.Device, partNumber)
-	} else {
-		device = fmt.Sprintf("%s%d", dev.Device, partNumber)
-	}
+	device := partitionDevicePath(dev.Device, partNumber)
 
 	_ = d.Close()
 
