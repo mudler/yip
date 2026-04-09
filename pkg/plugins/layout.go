@@ -672,7 +672,7 @@ func partitionDevicePath(basedevice string, partNum int) string {
 // It expects the disk to be already partitioned.
 // It expects the disk to not be open by any other process.
 func formatPartition(part Partition, basedevice string, console Console) (string, error) {
-	device := partitionDevicePath(basedevice, int(part.PartNumber))
+	device := partitionDevicePath(basedevice, part.PartNumber)
 	// We could be also getting here a /dev/disk/by-whatever path, in that case, dont touch it, pass it directly
 	if strings.Contains(basedevice, "/dev/disk/") && strings.Contains(basedevice, "/by-") {
 		device = basedevice
@@ -784,8 +784,14 @@ func (dev *Disk) ExpandLastPartition(size uint64, console Console) error {
 	}
 
 	partNumber := len(gptTable.Partitions)
-	device := partitionDevicePath(dev.Device, partNumber)
 
+	resolvedDevPath, err := filepath.EvalSymlinks(dev.Device)
+	if err != nil {
+		// If resolving symlinks fails, fall back to the original device path
+		resolvedDevPath = dev.Device
+	}
+
+	device := partitionDevicePath(resolvedDevPath, partNumber)
 	_ = d.Close()
 
 	return DefaultGrowFsToMax.GrowFSToMax(device, filesystem)
