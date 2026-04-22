@@ -5,14 +5,14 @@ import (
 	"os"
 	"time"
 
-	"github.com/cavaliergopher/grab"
+	"github.com/cavaliergopher/grab/v3"
 	"github.com/hashicorp/go-multierror"
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/mudler/yip/pkg/utils"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"github.com/twpayne/go-vfs/v4"
+	"github.com/twpayne/go-vfs/v5"
 )
 
 func grabClient(timeout int) *grab.Client {

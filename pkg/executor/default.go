@@ -29,7 +29,7 @@ import (
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/mudler/yip/pkg/utils"
 	"github.com/spectrocloud-labs/herd"
-	"github.com/twpayne/go-vfs/v4"
+	"github.com/twpayne/go-vfs/v5"
 )
 
 // DefaultExecutor is the default yip Executor.

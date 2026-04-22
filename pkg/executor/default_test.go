@@ -24,7 +24,7 @@ import (
 	"path/filepath"
 
 	"github.com/sanity-io/litter"
-	"github.com/twpayne/go-vfs/v4"
+	"github.com/twpayne/go-vfs/v5"
 
 	"github.com/mudler/yip/pkg/console"
 	"github.com/sirupsen/logrus"
@@ -32,7 +32,7 @@ import (
 	. "github.com/mudler/yip/pkg/executor"
 	"github.com/mudler/yip/pkg/schema"
 	consoletests "github.com/mudler/yip/tests/console"
-	"github.com/twpayne/go-vfs/v4/vfst"
+	"github.com/twpayne/go-vfs/v5/vfst"
 	"github.com/zcalusic/sysinfo"
 
 	. "github.com/onsi/ginkgo/v2"
