@@ -1,11 +1,13 @@
 package plugins
 
 import (
+	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/twpayne/go-vfs/v4"
-	"strings"
 )
 
 const SkipOnlyServiceManager = "service manager doesn't match %s"
@@ -17,7 +19,7 @@ const SkipNotSupportedServiceManager = "service manager %s is not supported"
 func IfServiceManager(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 	if s.OnlyIfServiceManager != "" {
 		if strings.ToLower(s.OnlyIfServiceManager) != "systemd" && strings.ToLower(s.OnlyIfServiceManager) != "openrc" {
-			return fmt.Errorf(fmt.Sprintf(SkipNotSupportedServiceManager, s.OnlyIfServiceManager))
+			return fmt.Errorf(SkipNotSupportedServiceManager, s.OnlyIfServiceManager)
 		}
 
 		var isSystemd, isOpenRC bool
@@ -39,7 +41,7 @@ func IfServiceManager(l logger.Interface, s schema.Stage, fs vfs.FS, console Con
 		}
 
 		if isSystemd && isOpenRC {
-			return fmt.Errorf(SkipBothServices)
+			return errors.New(SkipBothServices)
 		}
 
 		if strings.ToLower(s.OnlyIfServiceManager) == "systemd" && isSystemd {
@@ -49,7 +51,7 @@ func IfServiceManager(l logger.Interface, s schema.Stage, fs vfs.FS, console Con
 			return nil
 		}
 
-		return fmt.Errorf(fmt.Sprintf(SkipOnlyServiceManager, s.OnlyIfServiceManager))
+		return fmt.Errorf(SkipOnlyServiceManager, s.OnlyIfServiceManager)
 
 	}
 	return nil
