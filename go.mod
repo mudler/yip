@@ -14,7 +14,7 @@ require (
 	github.com/google/go-containerregistry v0.21.5
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/itchyny/gojq v0.12.17
+	github.com/itchyny/gojq v0.12.19
 	github.com/joho/godotenv v1.5.1
 	github.com/mauromorales/xpasswd v0.4.1
 	github.com/mudler/entities v0.8.3-0.20260109121712-af3b96567af9
