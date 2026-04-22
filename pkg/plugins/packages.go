@@ -10,7 +10,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
-	"github.com/twpayne/go-vfs/v4"
+	"github.com/twpayne/go-vfs/v5"
 )
 
 type Installer string

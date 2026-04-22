@@ -21,7 +21,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
-	"github.com/twpayne/go-vfs/v4"
+	"github.com/twpayne/go-vfs/v5"
 	"golang.org/x/sys/unix"
 )
 
@@ -430,6 +430,7 @@ func (dev *Disk) AddPartitions(parts []schema.Partition, l logger.Interface, con
 		}
 
 		part := &gpt.Partition{
+			Index:      len(gptTable.Partitions) + 1,
 			Start:      start,
 			End:        end,
 			Name:       p.PLabel,

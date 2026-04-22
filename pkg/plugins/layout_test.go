@@ -15,8 +15,8 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/sanity-io/litter"
 	"github.com/sirupsen/logrus"
-	"github.com/twpayne/go-vfs/v4"
-	"github.com/twpayne/go-vfs/v4/vfst"
+	"github.com/twpayne/go-vfs/v5"
+	"github.com/twpayne/go-vfs/v5/vfst"
 )
 
 // This are the reserved sectors in a GPT partition table (2048 sectors of 512 bytes)

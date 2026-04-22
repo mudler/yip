@@ -11,7 +11,7 @@ import (
 
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
-	"github.com/twpayne/go-vfs/v4"
+	"github.com/twpayne/go-vfs/v5"
 )
 
 // PackagePins applies a best-effort "pin/version lock" policy before package installs.

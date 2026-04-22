@@ -16,7 +16,7 @@ import (
 	entities "github.com/mudler/entities/pkg/entities"
 	"github.com/mudler/yip/pkg/logger"
 	"github.com/mudler/yip/pkg/schema"
-	"github.com/twpayne/go-vfs/v4"
+	"github.com/twpayne/go-vfs/v5"
 )
 
 func createUser(fs vfs.FS, u schema.User, console Console) error {

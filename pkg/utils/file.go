@@ -4,7 +4,7 @@ import (
 	"errors"
 	"os"
 
-	"github.com/twpayne/go-vfs/v4"
+	"github.com/twpayne/go-vfs/v5"
 )
 
 func Touch(s string, perms os.FileMode, fs vfs.FS) error {

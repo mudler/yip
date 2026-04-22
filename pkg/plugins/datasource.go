@@ -16,7 +16,7 @@ import (
 	prv "github.com/mudler/yip/pkg/plugins/datasourceProviders"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/pkg/errors"
-	"github.com/twpayne/go-vfs/v4"
+	"github.com/twpayne/go-vfs/v5"
 )
 
 func unique(stringSlice []string) []string {

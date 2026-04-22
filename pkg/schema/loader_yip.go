@@ -1,7 +1,7 @@
 package schema
 
 import (
-	"github.com/twpayne/go-vfs/v4"
+	"github.com/twpayne/go-vfs/v5"
 	"gopkg.in/yaml.v3"
 )
 
