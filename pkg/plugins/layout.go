@@ -430,6 +430,7 @@ func (dev *Disk) AddPartitions(parts []schema.Partition, l logger.Interface, con
 		}
 
 		part := &gpt.Partition{
+			Index:      len(gptTable.Partitions) + 1,
 			Start:      start,
 			End:        end,
 			Name:       p.PLabel,
