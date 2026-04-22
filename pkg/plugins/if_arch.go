@@ -20,7 +20,7 @@ func IfArch(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) erro
 			return fmt.Errorf("failed to compile regex %s: %w", s.OnlyIfArch, err)
 		}
 		if !re.MatchString(runtime.GOARCH) {
-			return fmt.Errorf(fmt.Sprintf(SkipOnlyArch, runtime.GOARCH, s.OnlyIfArch))
+			return fmt.Errorf(SkipOnlyArch, runtime.GOARCH, s.OnlyIfArch)
 		}
 	}
 	return nil

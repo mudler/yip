@@ -54,7 +54,7 @@ func writePath(l logger.Interface, dir schema.Directory, fs vfs.FS, topLevel boo
 			return writeDirectory(l, dir, fs)
 		} else {
 			//Parent dir needs to be created
-			pDir := schema.Directory{parentDir, dir.Permissions, dir.Owner, dir.Group}
+			pDir := schema.Directory{Path: parentDir, Permissions: dir.Permissions, Owner: dir.Owner, Group: dir.Group}
 			err = writePath(l, pDir, fs, false)
 			if err != nil {
 				return err
