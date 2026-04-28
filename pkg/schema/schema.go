@@ -116,7 +116,12 @@ type Device struct {
 	InitDisk bool   `yaml:"init_disk,omitempty"`
 	DiskName string `yaml:"disk_name,omitempty"`
 	Label    string `yaml:"label,omitempty"`
-	Path     string `yaml:"path,omitempty"`
+	// Path is the block device to operate on (e.g. /dev/sda).
+	// It also accepts a "script://<command>" value: the command is executed and
+	// its stdout (trimmed) is used as the device path. This is useful when the
+	// target device name is not known ahead of time and must be determined at
+	// runtime (e.g. "script:///usr/local/bin/pick-disk.sh").
+	Path string `yaml:"path,omitempty"`
 }
 
 type Expand struct {
