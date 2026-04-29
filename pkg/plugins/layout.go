@@ -183,6 +183,14 @@ func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) erro
 		return nil
 	}
 
+	if s.Layout.Device.Path != "" {
+		resolved, err := ResolveScriptDevice(s.Layout.Device.Path)
+		if err != nil {
+			return fmt.Errorf("failed to resolve device path: %w", err)
+		}
+		s.Layout.Device.Path = resolved
+	}
+
 	if s.Layout.Device.InitDisk && s.Layout.Device.Path == "" {
 		return fmt.Errorf("in order to initialize a disk, a valid device path must be provided")
 	}

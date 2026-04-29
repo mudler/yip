@@ -3,6 +3,7 @@ package plugins_test
 import (
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/diskfs/go-diskfs"
 	fileBackend "github.com/diskfs/go-diskfs/backend/file"
@@ -570,6 +571,72 @@ var _ = Describe("Layout", Label("layout"), func() {
 			}, fs, testConsole)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("swap resizing is not supported"))
+		})
+		It("Resolves device path via script:// and adds a partition", func() {
+			script, err := os.CreateTemp("", "pick-disk-*.sh")
+			Expect(err).ToNot(HaveOccurred())
+			defer os.Remove(script.Name())
+			_, err = script.WriteString(fmt.Sprintf("#!/bin/sh\necho %s\n", devicePath))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(script.Close()).To(Succeed())
+			Expect(os.Chmod(script.Name(), 0755)).To(Succeed())
+
+			testConsole := console.New()
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
+			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 /tmp/go-vfs-.*%s1", devicePath), UseRegexp: true})
+			err = Layout(l, schema.Stage{
+				Layout: schema.Layout{
+					Device: &schema.Device{Path: fmt.Sprintf("script://%s", script.Name())},
+					Parts:  []schema.Partition{{PLabel: label, Size: 100}},
+				},
+			}, fs, testConsole)
+			Expect(err).Should(BeNil())
+
+			d, err := fileBackend.OpenFromPath(rawDevicePath, true)
+			defer d.Close()
+			table, err := gpt.Read(d, int(diskfs.SectorSize512), int(diskfs.SectorSize512))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(table.Type()).To(Equal("gpt"))
+			Expect(table.Partitions).To(HaveLen(1))
+			Expect(table.Partitions[0].Name).To(Equal(label))
+		})
+		It("Returns error when script:// script exits non-zero", func() {
+			script, err := os.CreateTemp("", "fail-disk-*.sh")
+			Expect(err).ToNot(HaveOccurred())
+			defer os.Remove(script.Name())
+			_, err = script.WriteString("#!/bin/sh\necho 'disk not found' >&2\nexit 1\n")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(script.Close()).To(Succeed())
+			Expect(os.Chmod(script.Name(), 0755)).To(Succeed())
+
+			testConsole := console.New()
+			err = Layout(l, schema.Stage{
+				Layout: schema.Layout{
+					Device: &schema.Device{Path: fmt.Sprintf("script://%s", script.Name())},
+					Parts:  []schema.Partition{{PLabel: label, Size: 100}},
+				},
+			}, fs, testConsole)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("disk not found"))
+		})
+		It("Returns error when script:// script produces empty output", func() {
+			script, err := os.CreateTemp("", "silent-disk-*.sh")
+			Expect(err).ToNot(HaveOccurred())
+			defer os.Remove(script.Name())
+			_, err = script.WriteString("#!/bin/sh\nexit 0\n")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(script.Close()).To(Succeed())
+			Expect(os.Chmod(script.Name(), 0755)).To(Succeed())
+
+			testConsole := console.New()
+			err = Layout(l, schema.Stage{
+				Layout: schema.Layout{
+					Device: &schema.Device{Path: fmt.Sprintf("script://%s", script.Name())},
+					Parts:  []schema.Partition{{PLabel: label, Size: 100}},
+				},
+			}, fs, testConsole)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("empty"))
 		})
 	})
 })
