@@ -9,7 +9,7 @@ require (
 	github.com/containerd/containerd v1.7.29
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/diskfs/go-diskfs v1.9.1
-	github.com/go-git/go-git/v5 v5.18.0
+	github.com/go-git/go-git/v5 v5.19.0
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/google/go-containerregistry v0.21.5
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
