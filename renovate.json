@@ -3,9 +3,6 @@
   "extends": [
     "config:recommended"
   ],
-  "constraints": {
-    "go": "1.20"
-  },
   "packageRules": [
     {
       "matchUpdateTypes": [
