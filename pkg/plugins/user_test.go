@@ -267,6 +267,29 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			Expect(string(b)).Should(ContainSubstring("efafeeafea,t,t,pgl3,pbar"))
 		})
 
+		It("preserves password aging fields when editing an existing user password", func() {
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/etc/passwd": existingPasswd,
+				"/etc/shadow": `foo:$6$rfBd56ti$7juhxebonsy.GiErzyxZPkbm.U4lUlv/59D2pvFqlbjVqyJP5f4VgP.EX3FKAeGTAr.GVf0jQmy9BXAZL5mNJ1:18820:1:365:14:30:20000:
+rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtlhizsOxRJLaTfy0bWFZfm2.qYu1:18820::::::`,
+				"/etc/group": "",
+			})
+			Expect(err).Should(BeNil())
+			defer cleanup()
+
+			err = User(l, schema.Stage{
+				Users: map[string]schema.User{"foo": {PasswordHash: `$fkekofe`, Homedir: "/home/foo"}},
+			}, fs, &testConsole)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			shadow, err := fs.ReadFile("/etc/shadow")
+			Expect(err).ShouldNot(HaveOccurred())
+
+			// password is updated
+			Expect(string(shadow)).Should(ContainSubstring("foo:$fkekofe:"))
+			// the minimum/maximum age, warn, inactive and expire fields are preserved
+			Expect(string(shadow)).Should(ContainSubstring(":1:365:14:30:20000:"))
+		})
+
 		It("adds users to group", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/etc/passwd": existingPasswd,
 				"/etc/shadow": ``,
