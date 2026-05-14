@@ -19,16 +19,42 @@ import (
 	"github.com/twpayne/go-vfs/v5"
 )
 
+// shadowWithPreservedAging builds a Shadow entry for username/password while
+// preserving the password-aging fields (minimum age, maximum age, warning days,
+// inactive days, account expiration and the reserved field) from any existing
+// /etc/shadow entry. entities.Shadow.Apply rewrites the whole row, so without
+// this any aging policy set via chage or shipped in the base image would be
+// wiped every time a yip stage updates the user's password.
+func shadowWithPreservedAging(etcshadow, username, password string) *entities.Shadow {
+	userShadow := &entities.Shadow{
+		Username:    username,
+		Password:    password,
+		LastChanged: "now",
+	}
+
+	current, err := entities.ParseShadow(etcshadow)
+	if err != nil {
+		// No existing /etc/shadow (or it can't be parsed): nothing to preserve,
+		// this is a brand-new entry.
+		return userShadow
+	}
+
+	if existing, ok := current[username]; ok {
+		userShadow.MinimumChanged = existing.MinimumChanged
+		userShadow.MaximumChanged = existing.MaximumChanged
+		userShadow.Warn = existing.Warn
+		userShadow.Inactive = existing.Inactive
+		userShadow.Expire = existing.Expire
+		userShadow.Reserved = existing.Reserved
+	}
+
+	return userShadow
+}
+
 func createUser(fs vfs.FS, u schema.User, console Console) error {
 	pass := u.PasswordHash
 	if u.LockPasswd {
 		pass = "!"
-	}
-
-	userShadow := &entities.Shadow{
-		Username:    u.Name,
-		Password:    pass,
-		LastChanged: "now",
 	}
 
 	etcgroup, err := fs.RawPath("/etc/group")
@@ -166,6 +192,7 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 		return err
 	}
 
+	userShadow := shadowWithPreservedAging(etcshadow, u.Name, pass)
 	if err := userShadow.Apply(etcshadow, false); err != nil {
 		return err
 	}
@@ -197,11 +224,7 @@ func setUserPass(fs vfs.FS, username, password string) error {
 	if err != nil {
 		return errors.Wrap(err, "getting rawpath for /etc/shadow")
 	}
-	userShadow := &entities.Shadow{
-		Username:    username,
-		Password:    password,
-		LastChanged: "now",
-	}
+	userShadow := shadowWithPreservedAging(etcshadow, username, password)
 	if err := userShadow.Apply(etcshadow, false); err != nil {
 		return err
 	}
