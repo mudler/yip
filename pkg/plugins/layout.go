@@ -352,6 +352,7 @@ func (dev *Disk) AddPartitions(parts []schema.Partition, l logger.Interface, con
 	}
 
 	partitionsToFormat := make([]Partition, 0)
+	partitionsToInform := make([]Partition, 0)
 
 	// Now go over the parts
 	for index, p := range parts {
@@ -465,6 +466,8 @@ func (dev *Disk) AddPartitions(parts []schema.Partition, l logger.Interface, con
 		default:
 			partitionsToFormat = append(partitionsToFormat, addPart)
 		}
+		// always add to partitionsToInform so partitions show up
+		partitionsToInform = append(partitionsToInform, addPart)
 
 		// Update dev.Parts to reflect the new partition so we can continue calculating the proper sizes
 		dev.Parts = append(dev.Parts, addPart)
@@ -515,7 +518,7 @@ func (dev *Disk) AddPartitions(parts []schema.Partition, l logger.Interface, con
 
 	// Only do this if the backend is a device
 	if devInfo.Mode()&os.ModeDevice != 0 {
-		err = kernelAddPartitions(l, d, partitionsToFormat)
+		err = kernelAddPartitions(l, d, partitionsToInform)
 		if err != nil {
 			l.Warnf("Could not inform kernel of new partitions via BLKPG ioctl: %s", err)
 			_ = d.Close()
