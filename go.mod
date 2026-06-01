@@ -6,7 +6,7 @@ require (
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/apex/log v1.9.0
 	github.com/cavaliergopher/grab/v3 v3.0.1
-	github.com/containerd/containerd v1.7.31
+	github.com/containerd/containerd v1.7.32
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/diskfs/go-diskfs v1.9.3
 	github.com/go-git/go-git/v5 v5.19.1
