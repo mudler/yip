@@ -461,7 +461,7 @@ func (dev *Disk) AddPartitions(parts []schema.Partition, l logger.Interface, con
 		}
 		switch p.FileSystem {
 		case "-", "none", NoFormat:
-			l.Debugf("Skipping formatting for partition %d", len(gptTable.Partitions)+1)
+			l.Debugf("Skipping formatting for partition %d", len(gptTable.Partitions))
 		default:
 			partitionsToFormat = append(partitionsToFormat, addPart)
 		}
