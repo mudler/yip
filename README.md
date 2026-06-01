@@ -671,8 +671,8 @@ stages:
          # Size is in MiB. Setting the size to 0 means all available free space.
          # For a good use, we recommend setting all the fields when possible to have a deterministic layout.
          # We especially recommend setting pLabel to avoid recreating partitions if they already exist as all data will be lost on them.
-         # Supported filesystem values: ext2, ext3, ext4, fat, vfat, fat16, fat32, xfs, btrfs, swap.
-         # To create a partition without formatting it, set filesystem to "noformat", "-", or "none".
+          # Supported filesystem values: ext2, ext3, ext4, fat, vfat, fat16, fat32, xfs, btrfs, swap, noformat.
+          # Use filesystem: noformat (or "-" / "none") to create the partition without formatting it.
          add_partitions:
            - fsLabel: COS_STATE
              size: 8192

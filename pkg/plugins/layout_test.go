@@ -647,7 +647,7 @@ var _ = Describe("Layout", Label("layout"), func() {
 			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
 					Device: &schema.Device{Path: devicePath},
-					Parts:  []schema.Partition{{PLabel: label, Size: 100, FileSystem: "noformat"}},
+					Parts:  []schema.Partition{{PLabel: label, Size: 100, FileSystem: NoFormat}},
 				},
 			}, fs, testConsole)
 			Expect(err).ShouldNot(HaveOccurred())
@@ -710,7 +710,7 @@ var _ = Describe("Layout", Label("layout"), func() {
 				Layout: schema.Layout{
 					Device: &schema.Device{Path: devicePath},
 					Parts: []schema.Partition{
-						{PLabel: "NOFMT", Size: 100, FileSystem: "noformat"},
+						{PLabel: "NOFMT", Size: 100, FileSystem: NoFormat},
 						{PLabel: "DATA", Size: 100, FileSystem: "ext4"},
 					},
 				},
