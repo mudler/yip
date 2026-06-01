@@ -58,6 +58,7 @@ const (
 	Xfs                      = "xfs"
 	Btrfs                    = "btrfs"
 	Swap                     = "swap"
+	NoFormat                 = "noformat"
 )
 
 type Disk struct {
@@ -432,6 +433,8 @@ func (dev *Disk) AddPartitions(parts []schema.Partition, l logger.Interface, con
 			}
 		case Swap:
 			fsType = gpt.LinuxSwap
+		case "-", "none", NoFormat:
+			fsType = gpt.LinuxFilesystem
 		default:
 			_ = d.Close()
 			return fmt.Errorf("unsupported filesystem type: %s", p.FileSystem)
@@ -456,7 +459,13 @@ func (dev *Disk) AddPartitions(parts []schema.Partition, l logger.Interface, con
 			FSLabel:    p.FSLabel,
 			PartNumber: len(gptTable.Partitions), // 1-indexed
 		}
-		partitionsToFormat = append(partitionsToFormat, addPart)
+		switch p.FileSystem {
+		case "-", "none", NoFormat:
+			l.Debugf("Skipping formatting for partition %d", len(gptTable.Partitions)+1)
+		default:
+			partitionsToFormat = append(partitionsToFormat, addPart)
+		}
+
 		// Update dev.Parts to reflect the new partition so we can continue calculating the proper sizes
 		dev.Parts = append(dev.Parts, addPart)
 		if p.FSLabel != "" {
