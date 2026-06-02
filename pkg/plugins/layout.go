@@ -58,6 +58,7 @@ const (
 	Xfs                      = "xfs"
 	Btrfs                    = "btrfs"
 	Swap                     = "swap"
+	NoFormat                 = "noformat"
 )
 
 type Disk struct {
@@ -351,6 +352,7 @@ func (dev *Disk) AddPartitions(parts []schema.Partition, l logger.Interface, con
 	}
 
 	partitionsToFormat := make([]Partition, 0)
+	partitionsToInform := make([]Partition, 0)
 
 	// Now go over the parts
 	for index, p := range parts {
@@ -432,6 +434,8 @@ func (dev *Disk) AddPartitions(parts []schema.Partition, l logger.Interface, con
 			}
 		case Swap:
 			fsType = gpt.LinuxSwap
+		case "-", "none", NoFormat:
+			fsType = gpt.LinuxFilesystem
 		default:
 			_ = d.Close()
 			return fmt.Errorf("unsupported filesystem type: %s", p.FileSystem)
@@ -456,7 +460,15 @@ func (dev *Disk) AddPartitions(parts []schema.Partition, l logger.Interface, con
 			FSLabel:    p.FSLabel,
 			PartNumber: len(gptTable.Partitions), // 1-indexed
 		}
-		partitionsToFormat = append(partitionsToFormat, addPart)
+		switch p.FileSystem {
+		case "-", "none", NoFormat:
+			l.Debugf("Skipping formatting for partition %d", len(gptTable.Partitions))
+		default:
+			partitionsToFormat = append(partitionsToFormat, addPart)
+		}
+		// always add to partitionsToInform so partitions show up
+		partitionsToInform = append(partitionsToInform, addPart)
+
 		// Update dev.Parts to reflect the new partition so we can continue calculating the proper sizes
 		dev.Parts = append(dev.Parts, addPart)
 		if p.FSLabel != "" {
@@ -506,7 +518,7 @@ func (dev *Disk) AddPartitions(parts []schema.Partition, l logger.Interface, con
 
 	// Only do this if the backend is a device
 	if devInfo.Mode()&os.ModeDevice != 0 {
-		err = kernelAddPartitions(l, d, partitionsToFormat)
+		err = kernelAddPartitions(l, d, partitionsToInform)
 		if err != nil {
 			l.Warnf("Could not inform kernel of new partitions via BLKPG ioctl: %s", err)
 			_ = d.Close()

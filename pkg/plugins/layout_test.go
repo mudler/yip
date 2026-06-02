@@ -61,11 +61,11 @@ var _ = Describe("computeFreeSpace and CheckDiskFreeSpaceMiB", Label("layout"), 
 		// 10 GiB disk, 512-byte sectors
 		const sectorSize = uint64(512)
 		const diskBytes = uint64(10 * 1024 * 1024 * 1024) // 10 GiB
-		totalSectors := diskBytes / sectorSize              // 20971520
+		totalSectors := diskBytes / sectorSize            // 20971520
 
 		// Partition starting at 1 MiB, spanning 4 GiB
 		partStartSectors := uint64(1024 * 1024 / sectorSize) // 2048
-		partSizeBytes := uint64(4 * 1024 * 1024 * 1024)       // 4 GiB in bytes
+		partSizeBytes := uint64(4 * 1024 * 1024 * 1024)      // 4 GiB in bytes
 		partEndSectors := partStartSectors + (partSizeBytes / sectorSize) - 1
 
 		dev := Disk{
@@ -637,6 +637,96 @@ var _ = Describe("Layout", Label("layout"), func() {
 			}, fs, testConsole)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("empty"))
+		})
+		It("Adds a noformat partition without calling mkfs", func() {
+			testConsole := console.New()
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
+			// Intentionally do not register any mkfs command. The mock console
+			// fails the test if any unregistered command is run, so this asserts
+			// that no formatting tool is invoked for a noformat partition.
+			err := Layout(l, schema.Stage{
+				Layout: schema.Layout{
+					Device: &schema.Device{Path: devicePath},
+					Parts:  []schema.Partition{{PLabel: label, Size: 100, FileSystem: NoFormat}},
+				},
+			}, fs, testConsole)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			disk, err := fileBackend.OpenFromPath(rawDevicePath, true)
+			Expect(err).ToNot(HaveOccurred())
+			defer disk.Close()
+			table, err := gpt.Read(disk, int(diskfs.SectorSize512), int(diskfs.SectorSize512))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(table.Type()).To(Equal("gpt"))
+			Expect(table.Partitions).To(HaveLen(1))
+			Expect(table.Partitions[0].Name).To(Equal(label))
+			Expect(table.Partitions[0].Size).To(Equal(uint64(100*1024*1024) - reservedSectorsInBytes))
+		})
+		It("Adds a partition with FileSystem=\"-\" without calling mkfs", func() {
+			testConsole := console.New()
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
+			err := Layout(l, schema.Stage{
+				Layout: schema.Layout{
+					Device: &schema.Device{Path: devicePath},
+					Parts:  []schema.Partition{{PLabel: label, Size: 100, FileSystem: "-"}},
+				},
+			}, fs, testConsole)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			disk, err := fileBackend.OpenFromPath(rawDevicePath, true)
+			Expect(err).ToNot(HaveOccurred())
+			defer disk.Close()
+			table, err := gpt.Read(disk, int(diskfs.SectorSize512), int(diskfs.SectorSize512))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(table.Partitions).To(HaveLen(1))
+			Expect(table.Partitions[0].Name).To(Equal(label))
+		})
+		It("Adds a partition with FileSystem=\"none\" without calling mkfs", func() {
+			testConsole := console.New()
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
+			err := Layout(l, schema.Stage{
+				Layout: schema.Layout{
+					Device: &schema.Device{Path: devicePath},
+					Parts:  []schema.Partition{{PLabel: label, Size: 100, FileSystem: "none"}},
+				},
+			}, fs, testConsole)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			disk, err := fileBackend.OpenFromPath(rawDevicePath, true)
+			Expect(err).ToNot(HaveOccurred())
+			defer disk.Close()
+			table, err := gpt.Read(disk, int(diskfs.SectorSize512), int(diskfs.SectorSize512))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(table.Partitions).To(HaveLen(1))
+			Expect(table.Partitions[0].Name).To(Equal(label))
+		})
+		It("Mixes formatted and noformat partitions: only formatted ones invoke mkfs", func() {
+			testConsole := console.New()
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
+			// Only one mkfs call expected, for the ext4 partition. The noformat
+			// partition must not produce any mkfs invocation.
+			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext4 /tmp/go-vfs-.*%s2", devicePath), UseRegexp: true})
+			err := Layout(l, schema.Stage{
+				Layout: schema.Layout{
+					Device: &schema.Device{Path: devicePath},
+					Parts: []schema.Partition{
+						{PLabel: "NOFMT", Size: 100, FileSystem: NoFormat},
+						{PLabel: "DATA", Size: 100, FileSystem: "ext4"},
+					},
+				},
+			}, fs, testConsole)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			disk, err := fileBackend.OpenFromPath(rawDevicePath, true)
+			Expect(err).ToNot(HaveOccurred())
+			defer disk.Close()
+			table, err := gpt.Read(disk, int(diskfs.SectorSize512), int(diskfs.SectorSize512))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(table.Partitions).To(HaveLen(2))
+			Expect(table.Partitions[0].Name).To(Equal("NOFMT"))
+			Expect(table.Partitions[1].Name).To(Equal("DATA"))
+			// All queued commands consumed (no mkfs call was skipped or duplicated).
+			Expect(testConsole.Cmds.Len()).To(Equal(0))
 		})
 	})
 })
