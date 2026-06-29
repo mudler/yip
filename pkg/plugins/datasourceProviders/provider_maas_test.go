@@ -175,3 +175,32 @@ var _ = Describe("MAAS Probe and Extract", func() {
 		Expect(p.outputDir).To(Equal(dir))
 	})
 })
+
+var _ = Describe("MAAS file-based discovery", func() {
+	It("discovers the datasource from a file before falling back to cmdline", func() {
+		dir, err := os.MkdirTemp("", "maas-ds-*")
+		Expect(err).ToNot(HaveOccurred())
+		defer os.RemoveAll(dir)
+		dsFile := path.Join(dir, "datasource.yaml")
+		Expect(os.WriteFile(dsFile, []byte("datasource:\n  MAAS:\n    metadata_url: http://maas:5240/MAAS/metadata\n    consumer_key: ck\n    token_key: tk\n    token_secret: ts\n"), 0600)).To(Succeed())
+
+		p := NewMAAS(logrus.New(), WithDatasourceFiles(dsFile))
+		cfg, err := p.discover()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cfg.MetadataURL).To(Equal("http://maas:5240/MAAS/metadata"))
+		Expect(cfg.TokenKey).To(Equal("tk"))
+	})
+
+	It("probes true from a datasource file even when cmdline has no cloud-config-url", func() {
+		dir, err := os.MkdirTemp("", "maas-probe-*")
+		Expect(err).ToNot(HaveOccurred())
+		defer os.RemoveAll(dir)
+		dsFile := path.Join(dir, "datasource.yaml")
+		Expect(os.WriteFile(dsFile, []byte("datasource:\n  MAAS:\n    metadata_url: http://x\n    consumer_key: ck\n    token_key: tk\n    token_secret: ts\n"), 0600)).To(Succeed())
+		cmdline := path.Join(dir, "cmdline")
+		Expect(os.WriteFile(cmdline, []byte("ro console=ttyS0"), 0644)).To(Succeed())
+
+		p := NewMAAS(logrus.New(), WithDatasourceFiles(dsFile), WithCmdlinePath(cmdline))
+		Expect(p.Probe()).To(BeTrue())
+	})
+})

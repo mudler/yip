@@ -109,12 +109,13 @@ const maasMetadataVersion = "2012-03-01"
 
 // ProviderMAAS implements the Provider interface for MAAS.
 type ProviderMAAS struct {
-	l           logger.Interface
-	client      *http.Client
-	cmdlinePath string
-	outputDir   string
-	nonceFn     func() string
-	timestampFn func() int64
+	l                logger.Interface
+	client           *http.Client
+	cmdlinePath      string
+	outputDir        string
+	nonceFn          func() string
+	timestampFn      func() int64
+	datasourceFiles  []string
 
 	cfg   *maasConfig
 	cfgOK bool
@@ -137,16 +138,23 @@ func WithOutputDir(d string) Option {
 	return func(m *ProviderMAAS) { m.outputDir = d }
 }
 
+// WithDatasourceFiles overrides the on-disk files the provider reads the
+// MAAS datasource block from (default /oem/maas/datasource.yaml).
+func WithDatasourceFiles(p ...string) Option {
+	return func(m *ProviderMAAS) { m.datasourceFiles = p }
+}
+
 // NewMAAS returns a new ProviderMAAS with production defaults, optionally
 // adjusted by opts.
 func NewMAAS(l logger.Interface, opts ...Option) *ProviderMAAS {
 	p := &ProviderMAAS{
-		l:           l,
-		client:      &http.Client{Timeout: 30 * time.Second},
-		cmdlinePath: "/proc/cmdline",
-		outputDir:   ConfigPath,
-		nonceFn:     func() string { return strconv.FormatInt(time.Now().UnixNano(), 10) },
-		timestampFn: func() int64 { return time.Now().Unix() },
+		l:               l,
+		client:          &http.Client{Timeout: 30 * time.Second},
+		cmdlinePath:     "/proc/cmdline",
+		outputDir:       ConfigPath,
+		nonceFn:         func() string { return strconv.FormatInt(time.Now().UnixNano(), 10) },
+		timestampFn:     func() int64 { return time.Now().Unix() },
+		datasourceFiles: []string{"/oem/maas/datasource.yaml", "/run/config/maas_datasource.yaml"},
 	}
 	for _, o := range opts {
 		o(p)
@@ -175,9 +183,31 @@ func (p *ProviderMAAS) fetch(cfg maasConfig, field string) ([]byte, error) {
 	return io.ReadAll(resp.Body)
 }
 
+// discoverFromFiles reads the MAAS datasource block from the first readable,
+// parseable file in datasourceFiles. A curtin hook writes this on a MAAS
+// deploy, where the datasource is not present on the kernel cmdline.
+func (p *ProviderMAAS) discoverFromFiles() (maasConfig, bool) {
+	for _, f := range p.datasourceFiles {
+		data, err := os.ReadFile(f)
+		if err != nil {
+			continue
+		}
+		cfg, err := parsePreseed(data)
+		if err != nil {
+			p.l.Debugf("MAAS: file %s present but unusable: %s", f, err)
+			continue
+		}
+		return cfg, true
+	}
+	return maasConfig{}, false
+}
+
 // discover reads the kernel command line, fetches the MAAS preseed, and parses
 // it into a maasConfig.
 func (p *ProviderMAAS) discover() (maasConfig, error) {
+	if cfg, ok := p.discoverFromFiles(); ok {
+		return cfg, nil
+	}
 	cmdline, err := os.ReadFile(p.cmdlinePath)
 	if err != nil {
 		return maasConfig{}, fmt.Errorf("MAAS: reading cmdline: %w", err)
