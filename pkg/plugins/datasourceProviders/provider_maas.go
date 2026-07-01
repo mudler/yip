@@ -1,6 +1,8 @@
 package providers
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -46,6 +48,17 @@ func percentEncode(s string) string {
 		fmt.Fprintf(&b, "%%%02X", c)
 	}
 	return b.String()
+}
+
+// randomNonce returns a hex-encoded 128-bit random string suitable for use as
+// an OAuth nonce. On the unlikely event that crypto/rand fails, it falls back
+// to a time-based value so signing can still proceed.
+func randomNonce() string {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return strconv.FormatInt(time.Now().UnixNano(), 10)
+	}
+	return hex.EncodeToString(b[:])
 }
 
 // oauthAuthHeader builds an OAuth 1.0 PLAINTEXT Authorization header value.
@@ -109,13 +122,13 @@ const maasMetadataVersion = "2012-03-01"
 
 // ProviderMAAS implements the Provider interface for MAAS.
 type ProviderMAAS struct {
-	l                logger.Interface
-	client           *http.Client
-	cmdlinePath      string
-	outputDir        string
-	nonceFn          func() string
-	timestampFn      func() int64
-	datasourceFiles  []string
+	l               logger.Interface
+	client          *http.Client
+	cmdlinePath     string
+	outputDir       string
+	nonceFn         func() string
+	timestampFn     func() int64
+	datasourceFiles []string
 
 	cfg   *maasConfig
 	cfgOK bool
@@ -138,8 +151,9 @@ func WithOutputDir(d string) Option {
 	return func(m *ProviderMAAS) { m.outputDir = d }
 }
 
-// WithDatasourceFiles overrides the on-disk files the provider reads the
-// MAAS datasource block from (default /oem/maas/datasource.yaml).
+// WithDatasourceFiles overrides the on-disk files the provider reads the MAAS
+// datasource block from. The files are tried in order; the default list is
+// /oem/maas/datasource.yaml then /run/config/maas_datasource.yaml.
 func WithDatasourceFiles(p ...string) Option {
 	return func(m *ProviderMAAS) { m.datasourceFiles = p }
 }
@@ -152,7 +166,7 @@ func NewMAAS(l logger.Interface, opts ...Option) *ProviderMAAS {
 		client:          &http.Client{Timeout: 30 * time.Second},
 		cmdlinePath:     "/proc/cmdline",
 		outputDir:       ConfigPath,
-		nonceFn:         func() string { return strconv.FormatInt(time.Now().UnixNano(), 10) },
+		nonceFn:         randomNonce,
 		timestampFn:     func() int64 { return time.Now().Unix() },
 		datasourceFiles: []string{"/oem/maas/datasource.yaml", "/run/config/maas_datasource.yaml"},
 	}

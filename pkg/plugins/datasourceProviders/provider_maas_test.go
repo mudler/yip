@@ -29,6 +29,14 @@ var _ = Describe("MAAS OAuth", func() {
 		Expect(got).To(ContainSubstring(`oauth_consumer_key="c%20k"`))
 		Expect(got).To(ContainSubstring(`oauth_signature="%26a%2Fb"`))
 	})
+
+	It("generates a unique, non-empty nonce by default", func() {
+		p := NewMAAS(logrus.New())
+		n1 := p.nonceFn()
+		n2 := p.nonceFn()
+		Expect(n1).ToNot(BeEmpty())
+		Expect(n1).ToNot(Equal(n2))
+	})
 })
 
 var _ = Describe("MAAS preseed parsing", func() {
