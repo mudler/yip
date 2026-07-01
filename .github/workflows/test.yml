@@ -4,7 +4,7 @@ jobs:
   test:
     strategy:
       matrix:
-        go-version: [ 1.22.x ]
+        go-version: [ 1.26.x ]
         platform: [ ubuntu-latest ]
     runs-on: ${{ matrix.platform }}
     steps:
@@ -22,7 +22,7 @@ jobs:
   test-git:
     strategy:
       matrix:
-        go-version: [1.22.x]
+        go-version: [1.26.x]
         platform: [ubuntu-latest]
         tags: [
           "gitbinary",
