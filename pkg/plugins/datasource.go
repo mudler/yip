@@ -67,6 +67,8 @@ func DataSources(l logger.Interface, s schema.Stage, fs vfs.FS, console Console)
 			AvailableProviders = append(AvailableProviders, prv.NewDigitalOcean(l))
 		case dSProviders == "metaldata":
 			AvailableProviders = append(AvailableProviders, prv.NewMetalData(l))
+		case dSProviders == "maas":
+			AvailableProviders = append(AvailableProviders, prv.NewMAAS(l))
 		case dSProviders == "vmware":
 			AvailableProviders = append(AvailableProviders, prv.NewVMware(l))
 		case dSProviders == "cdrom":

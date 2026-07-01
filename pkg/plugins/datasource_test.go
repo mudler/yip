@@ -54,7 +54,7 @@ var _ = Describe("Datasources", Label("datasource"), func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{})
 			Expect(err).Should(BeNil())
 			defer cleanup()
-			prv := []string{"vmware", "hetzner", "gcp", "scaleway", "vultr", "digitalocean", "metaldata", "azure", "openstack", "cdrom",
+			prv := []string{"vmware", "hetzner", "gcp", "scaleway", "vultr", "digitalocean", "metaldata", "azure", "openstack", "maas", "cdrom",
 				"aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws",
 				"aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws",
 				"aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws", "aws",
