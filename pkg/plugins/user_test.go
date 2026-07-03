@@ -27,6 +27,7 @@ import (
 	"github.com/onsi/gomega/format"
 	"github.com/onsi/gomega/types"
 	"github.com/sirupsen/logrus"
+	"github.com/twpayne/go-vfs/v5"
 	"github.com/twpayne/go-vfs/v5/vfst"
 )
 
@@ -572,5 +573,85 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			Expect(b.UID()).To(Equal(1002))
 
 		})
+
+		// Regression test for https://github.com/kairos-io/kairos/issues/2949
+		//
+		// On an immutable OS /etc/passwd is regenerated on every boot while /home
+		// is persisted. When a new user is inserted alphabetically between two
+		// existing users, the new user used to grab the lowest free uid, stealing
+		// the uid that belonged to an existing (not yet processed) user's home
+		// directory and swapping their uids (and corrupting home ownership).
+		//
+		// Mirrors the reproduction: start with users "a" (uid 1001) and "c"
+		// (uid 1002) already having persistent home dirs, then add "b" in the
+		// middle. "b" must get a brand new uid (1003), NOT steal "c"'s 1002.
+		It("does not swap uids when a new user is inserted between existing ones", func() {
+			// The two existing users own the two lowest free ids (1000, 1001).
+			// Without the fix the new middle user "b" grabs the lowest free id
+			// (1001), stealing it from "c" and corrupting home ownership.
+			owners := map[string][2]int{
+				"/home/yiptestuser1a": {1000, 1000},
+				"/home/yiptestuser1c": {1001, 1001},
+			}
+			original := DefaultHomeDirResolver
+			DefaultHomeDirResolver = fakeHomeDirResolver{owners: owners}
+			defer func() { DefaultHomeDirResolver = original }()
+
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{
+				"/etc/passwd": existingPasswd,
+				"/etc/shadow": "",
+				"/etc/group":  "",
+			})
+			Expect(err).Should(BeNil())
+			defer cleanup()
+
+			err = User(l, schema.Stage{
+				Users: map[string]schema.User{
+					"yiptestuser1a": {PasswordHash: `$fkekofe`},
+					"yiptestuser1b": {PasswordHash: `$fkekofe`}, // new user inserted in the middle
+					"yiptestuser1c": {PasswordHash: `$fkekofe`},
+				},
+			}, fs, &testConsole)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			passdRaw, _ := fs.RawPath("/etc/passwd")
+			list := xpasswd.NewUserList()
+			list.SetPath(passdRaw)
+			Expect(list.Load()).ShouldNot(HaveOccurred())
+
+			a := list.Get("yiptestuser1a")
+			Expect(a).ToNot(BeNil())
+			// keeps the uid of its persistent home directory
+			Expect(a.UID()).To(Equal(1000))
+
+			c := list.Get("yiptestuser1c")
+			Expect(c).ToNot(BeNil())
+			// MUST keep the uid of its persistent home directory, not lose it to "b"
+			Expect(c.UID()).To(Equal(1001))
+
+			b := list.Get("yiptestuser1b")
+			Expect(b).ToNot(BeNil())
+			// gets a brand new uid, without stealing "a"'s or "c"'s
+			Expect(b.UID()).To(Equal(1002))
+
+			// The gid of a recreated user is also reused from its home directory
+			// so that file ownership stays consistent across boots.
+			Expect(a.GID()).To(Equal(1000))
+			Expect(c.GID()).To(Equal(1001))
+		})
 	})
 })
+
+// fakeHomeDirResolver simulates persistent home directories with a given owner
+// without needing root to set real file ownership.
+type fakeHomeDirResolver struct {
+	owners map[string][2]int // path -> {uid, gid}
+}
+
+func (f fakeHomeDirResolver) Resolve(_ vfs.FS, path string) (int, int, bool) {
+	o, ok := f.owners[path]
+	if !ok {
+		return 0, 0, false
+	}
+	return o[0], o[1], true
+}
