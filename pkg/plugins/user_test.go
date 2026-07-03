@@ -582,9 +582,10 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 		// the uid that belonged to an existing (not yet processed) user's home
 		// directory and swapping their uids (and corrupting home ownership).
 		//
-		// Mirrors the reproduction: start with users "a" (uid 1001) and "c"
-		// (uid 1002) already having persistent home dirs, then add "b" in the
-		// middle. "b" must get a brand new uid (1003), NOT steal "c"'s 1002.
+		// Mirrors the reproduction: start with users "a" (uid 1000) and "c"
+		// (uid 1001) already having persistent home dirs (the two lowest free
+		// ids), then add "b" in the middle. "b" must get a brand new uid (1002),
+		// NOT steal "c"'s 1001.
 		It("does not swap uids when a new user is inserted between existing ones", func() {
 			// The two existing users own the two lowest free ids (1000, 1001).
 			// Without the fix the new middle user "b" grabs the lowest free id
