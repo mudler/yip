@@ -51,6 +51,102 @@ func shadowWithPreservedAging(etcshadow, username, password string) *entities.Sh
 	return userShadow
 }
 
+// HomeDirResolver resolves the numeric uid/gid owning a user's home directory.
+// It exists so that the "reuse the id of the existing home directory" logic can
+// be mocked in tests (setting real file ownership requires root), following the
+// same pattern as DefaultFilesystemDetector/DefaultGrowFsToMax in this package.
+type HomeDirResolver interface {
+	// Resolve returns the uid and gid owning path and whether it exists.
+	Resolve(fs vfs.FS, path string) (uid int, gid int, ok bool)
+}
+
+type realHomeDirResolver struct{}
+
+func (realHomeDirResolver) Resolve(_ vfs.FS, path string) (int, int, bool) {
+	// NOTE: we intentionally stat the path directly (not through fs.RawPath) to
+	// keep the historical production behaviour. In production the filesystem is
+	// vfs.OSFS where RawPath is the identity, so this is equivalent.
+	info, err := os.Stat(path)
+	if err != nil {
+		return 0, 0, false
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return 0, 0, false
+	}
+	return int(stat.Uid), int(stat.Gid), true
+}
+
+// DefaultHomeDirResolver is the resolver used to look up the owner of existing
+// home directories. Tests override it to simulate persistent home directories.
+var DefaultHomeDirResolver HomeDirResolver = realHomeDirResolver{}
+
+// userDefaults reads /etc/default/useradd (if present) and returns the default
+// HOME base directory and SHELL, applying the same fallbacks as createUser.
+func userDefaults(fs vfs.FS) map[string]string {
+	usrDefaults := map[string]string{}
+	if useradd, err := fs.RawPath("/etc/default/useradd"); err == nil {
+		if _, err := os.Stat(useradd); err == nil {
+			if d, err := godotenv.Read(useradd); err == nil {
+				usrDefaults = d
+			}
+		}
+	}
+	if usrDefaults["SHELL"] == "" {
+		usrDefaults["SHELL"] = "/bin/sh"
+	}
+	if usrDefaults["HOME"] == "" {
+		usrDefaults["HOME"] = "/home"
+	}
+	return usrDefaults
+}
+
+// resolveHomedir returns the home directory that createUser would use for u.
+func resolveHomedir(fs vfs.FS, u schema.User) string {
+	if u.Homedir != "" {
+		return u.Homedir
+	}
+	return fmt.Sprintf("%s/%s", userDefaults(fs)["HOME"], u.Name)
+}
+
+// hasDeterministicUID reports whether the uid of u is already fixed and does not
+// need to be generated from the pool of free ids. This is the case when the uid
+// is set explicitly, when the user already exists in /etc/passwd, or when the
+// user's home directory already exists on disk (so its owner uid must be
+// reused). Users with a deterministic uid must be (re)created BEFORE users that
+// need a generated uid, otherwise a brand new user could steal the id that
+// belongs to an existing (but not yet processed) user's home directory,
+// swapping their uids on the next boot. See:
+// https://github.com/kairos-io/kairos/issues/2949
+func hasDeterministicUID(fs vfs.FS, u schema.User) bool {
+	if u.UID != "" {
+		return true
+	}
+	if etcpasswd, err := fs.RawPath("/etc/passwd"); err == nil {
+		list := users.NewUserList()
+		list.SetPath(etcpasswd)
+		if err := list.Load(); err == nil && list.Get(u.Name) != nil {
+			return true
+		}
+	}
+	_, _, ok := DefaultHomeDirResolver.Resolve(fs, resolveHomedir(fs, u))
+	return ok
+}
+
+// groupGIDInUse reports whether gid is already assigned to a group in etcgroup.
+func groupGIDInUse(etcgroup string, gid int) bool {
+	groups, err := entities.ParseGroup(etcgroup)
+	if err != nil {
+		return false
+	}
+	for _, g := range groups {
+		if g.Gid != nil && *g.Gid == gid {
+			return true
+		}
+	}
+	return false
+}
+
 func createUser(fs vfs.FS, u schema.User, console Console) error {
 	pass := u.PasswordHash
 	if u.LockPasswd {
@@ -105,6 +201,14 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 		}
 		gid, _ = strconv.Atoi(gr.Gid)
 		primaryGroup = u.PrimaryGroup
+	} else if _, hgid, ok := DefaultHomeDirResolver.Resolve(fs, resolveHomedir(fs, u)); ok && !groupGIDInUse(etcgroup, hgid) {
+		// The user is being (re)created but its home directory already exists
+		// (e.g. an immutable OS that regenerates /etc/{passwd,group} on every
+		// boot while /home is persisted). Reuse the gid that owns the home
+		// directory so file ownership stays consistent across boots instead of
+		// letting entities pick a new (possibly different) free gid.
+		// https://github.com/kairos-io/kairos/issues/2949
+		gid = hgid
 	}
 
 	updateGroup := entities.Group{
@@ -152,20 +256,16 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 			if err != nil {
 				return errors.Wrap(err, "could not get user id")
 			}
+		} else if homeUID, _, ok := DefaultHomeDirResolver.Resolve(fs, u.Homedir); ok {
+			// Try to see if the user was created previously with a given UID by
+			// checking the owner of the existing home directory and reuse it.
+			uid = homeUID
 		} else {
-			// Try to see if the user was created previously with a given UID by checking for an existing home dir
-			userDir, err := os.Stat(u.Homedir)
-			if err == nil {
-				if stat, ok := userDir.Sys().(*syscall.Stat_t); ok {
-					uid = int(stat.Uid)
-				}
-			} else {
-				// Now generate one if we havent been able to pick the existing one
-				// https://systemd.io/UIDS-GIDS/#special-distribution-uid-ranges
-				uid, err = list.GenerateUIDInRange(entities.HumanIDMin, entities.HumanIDMax)
-				if err != nil {
-					return errors.Wrap(err, "no available uid")
-				}
+			// Now generate one if we havent been able to pick the existing one
+			// https://systemd.io/UIDS-GIDS/#special-distribution-uid-ranges
+			uid, err = list.GenerateUIDInRange(entities.HumanIDMin, entities.HumanIDMax)
+			if err != nil {
+				return errors.Wrap(err, "no available uid")
 			}
 		}
 	}
@@ -235,14 +335,35 @@ func User(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error 
 	var errs error
 
 	// Order users so they get the same UID on each run
-	users := make([]string, 0, len(s.Users))
+	names := make([]string, 0, len(s.Users))
 
 	for k := range s.Users {
-		users = append(users, k)
+		names = append(names, k)
 	}
-	sort.Strings(users)
+	sort.Strings(names)
 
-	for _, k := range users {
+	// Split users into two groups, preserving alphabetical order within each:
+	// those whose uid is already deterministic (explicit uid, already present in
+	// /etc/passwd, or with an existing home directory) and those that need a
+	// generated uid. Deterministic users must be processed first so that a brand
+	// new user cannot grab the uid that belongs to an existing user's home
+	// directory before that user is (re)created, which would swap their uids and
+	// corrupt file ownership across boots.
+	// https://github.com/kairos-io/kairos/issues/2949
+	deterministic := make([]string, 0, len(names))
+	generated := make([]string, 0, len(names))
+	for _, k := range names {
+		u := s.Users[k]
+		u.Name = k
+		if hasDeterministicUID(fs, u) {
+			deterministic = append(deterministic, k)
+		} else {
+			generated = append(generated, k)
+		}
+	}
+	ordered := append(deterministic, generated...)
+
+	for _, k := range ordered {
 		r := s.Users[k]
 		r.Name = k
 		if !r.Exists() {
