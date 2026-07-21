@@ -23,6 +23,23 @@ import (
 // This are the reserved sectors in a GPT partition table (2048 sectors of 512 bytes)
 const reservedSectorsInBytes = uint64(2048 * diskfs.SectorSize512)
 
+// Test disks are 1GiB plus the 1MiB reserved at the start.
+const testDiskSize = uint64(1024*1024*1024) + reservedSectorsInBytes
+
+// The tail of a GPT disk belongs to the backup GPT: 1 sector for the header plus
+// 32 sectors for the 128 entries partition array. The last sector a partition may
+// use is therefore LastS-34, and an expansion asking for more is capped to it.
+const gptTailSectors = uint64(34)
+
+// maxFixedExpandSize is what a partition starting at 1MiB ends up with when it
+// asks for a fixed size that would reach past the end of the disk: everything up
+// to (and including) the last usable sector.
+const maxFixedExpandSize = (testDiskSize/uint64(diskfs.SectorSize512) - gptTailSectors - 2048 + 1) * uint64(diskfs.SectorSize512)
+
+// maxExpandToAllSize is what "expand to all remaining space" (size 0) yields: the
+// disk minus the 1MiB start offset and the 1MiB reserved tail.
+const maxExpandToAllSize = uint64(1024*1024*1024) - reservedSectorsInBytes
+
 // This tests run against a real disk image file created in a temp folder
 // The mkfs calls are the ones mocked as we cannot run mkfs against a file image partition without
 // having to mount it into a loop device and so on, but on a real device these calls would run as expected
@@ -390,7 +407,8 @@ var _ = Describe("Layout", Label("layout"), func() {
 				},
 			}, fs, testConsole)
 			Expect(err).Should(BeNil())
-			// Now check if the partition size is now 1024MiB
+			// 1024MiB does not fit once the backup GPT tail is reserved, so the
+			// partition is capped at the last usable sector instead of overrunning it
 			disk2, err := fileBackend.OpenFromPath(rawDevicePath, true)
 			defer disk2.Close()
 			table2, err := gpt.Read(disk2, int(diskfs.SectorSize512), int(diskfs.SectorSize512))
@@ -400,7 +418,7 @@ var _ = Describe("Layout", Label("layout"), func() {
 			Expect(table2.Partitions).To(HaveLen(1))
 			deviceLabel = table2.Partitions[0].Name
 			Expect(deviceLabel).To(Equal("FAKELABEL"))
-			Expect(table2.Partitions[0].Size).To(Equal(uint64(1024 * 1024 * 1024)))
+			Expect(table2.Partitions[0].Size).To(Equal(maxFixedExpandSize))
 
 		})
 		It("Expands last partition to take all space", func() {
@@ -454,7 +472,7 @@ var _ = Describe("Layout", Label("layout"), func() {
 			Expect(table2.Partitions).To(HaveLen(1))
 			deviceLabel = table2.Partitions[0].Name
 			Expect(deviceLabel).To(Equal("FAKELABEL"))
-			Expect(table2.Partitions[0].Size).To(Equal(uint64(1024 * 1024 * 1024)))
+			Expect(table2.Partitions[0].Size).To(Equal(maxExpandToAllSize))
 
 		})
 		It("Expands last partition after creating the partitions", func() {
@@ -481,7 +499,7 @@ var _ = Describe("Layout", Label("layout"), func() {
 			Expect(table.Partitions).To(HaveLen(1))
 			deviceLabel = table.Partitions[0].Name
 			Expect(deviceLabel).To(Equal("FAKELABEL"))
-			Expect(table.Partitions[0].Size).To(Equal(uint64(1024 * 1024 * 1024)))
+			Expect(table.Partitions[0].Size).To(Equal(maxFixedExpandSize))
 
 		})
 		It("Expands last partition with XFS fs", func() {
@@ -508,7 +526,7 @@ var _ = Describe("Layout", Label("layout"), func() {
 			Expect(table.Partitions).To(HaveLen(1))
 			deviceLabel = table.Partitions[0].Name
 			Expect(deviceLabel).To(Equal("FAKELABEL"))
-			Expect(table.Partitions[0].Size).To(Equal(uint64(1024 * 1024 * 1024)))
+			Expect(table.Partitions[0].Size).To(Equal(maxFixedExpandSize))
 
 		})
 		It("Fails to expand last partition, if there is not enough space left", func() {
@@ -728,5 +746,93 @@ var _ = Describe("Layout", Label("layout"), func() {
 			// All queued commands consumed (no mkfs call was skipped or duplicated).
 			Expect(testConsole.Cmds.Len()).To(Equal(0))
 		})
+	})
+})
+
+var _ = Describe("ExpandLastPartition GPT tail", Label("layout"), func() {
+	l := logrus.New()
+	l.SetLevel(logrus.DebugLevel)
+	l.SetOutput(io.Discard)
+
+	It("keeps the expanded partition inside the last usable sector", func() {
+		fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{})
+		Expect(err).Should(BeNil())
+		defer cleanup()
+		rawDevicePath, err := fs.RawPath("/test.img")
+		Expect(err).Should(BeNil())
+		fileDisk, err := fileBackend.CreateFromPath(rawDevicePath, 1*1024*1024*1024+int64(reservedSectorsInBytes))
+		Expect(err).To(BeNil())
+		Expect(fileDisk.Close()).ToNot(HaveOccurred())
+		d, err := diskfs.Open(rawDevicePath)
+		Expect(err).To(BeNil())
+		Expect(d.Partition(&gpt.Table{
+			ProtectiveMBR:      true,
+			LogicalSectorSize:  int(d.LogicalBlocksize),
+			PhysicalSectorSize: int(d.PhysicalBlocksize),
+		})).To(Succeed())
+		Expect(d.Close()).ToNot(HaveOccurred())
+
+		DefaultFilesystemDetector = MockFilesystemDetector{func(part *gpt.Partition, d *disk.Disk) (string, error) {
+			return "ext4", nil
+		}}
+		DefaultGrowFsToMax = MockGrowFSToMax{func(device string, filesystem string) error { return nil }}
+
+		testConsole := console.New()
+		testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
+		testConsole.AddCmd(console.CmdMock{Cmd: "mkfs.ext2 /tmp/go-vfs-.*/test.img1", UseRegexp: true})
+		testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
+		Expect(Layout(l, schema.Stage{
+			Layout: schema.Layout{
+				Device: &schema.Device{Path: "/test.img"},
+				Parts:  []schema.Partition{{PLabel: "FAKELABEL", Size: 512}},
+			},
+		}, fs, testConsole)).To(Succeed())
+
+		Expect(Layout(l, schema.Stage{
+			Layout: schema.Layout{
+				Device: &schema.Device{Path: "/test.img"},
+				Expand: &schema.Expand{},
+			},
+		}, fs, testConsole)).To(Succeed())
+
+		disk2, err := fileBackend.OpenFromPath(rawDevicePath, true)
+		Expect(err).ToNot(HaveOccurred())
+		defer disk2.Close()
+		table, err := gpt.Read(disk2, int(diskfs.SectorSize512), int(diskfs.SectorSize512))
+		Expect(err).ToNot(HaveOccurred())
+
+		diskSectors := uint64(1*1024*1024*1024+int64(reservedSectorsInBytes)) / 512
+		// GPT reserves the last sector for the backup header plus 32 sectors for
+		// the backup partition array: the last usable sector is diskSectors-34.
+		lastUsable := diskSectors - 34
+		Expect(table.Partitions[0].End).To(BeNumerically("<=", lastUsable),
+			fmt.Sprintf("partition ends at %d, past last usable sector %d (overlaps backup GPT by %d sectors)",
+				table.Partitions[0].End, lastUsable, table.Partitions[0].End-lastUsable))
+	})
+})
+
+var _ = Describe("PartitionNumberFromDevice", Label("layout"), func() {
+	It("parses the sdaN convention", func() {
+		n, err := PartitionNumberFromDevice("/dev/sda3")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(n).To(Equal(3))
+	})
+	It("parses the nvme0n1pN convention", func() {
+		n, err := PartitionNumberFromDevice("/dev/nvme0n1p12")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(n).To(Equal(12))
+	})
+	It("parses the mmcblk0pN convention", func() {
+		n, err := PartitionNumberFromDevice("/dev/mmcblk0p2")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(n).To(Equal(2))
+	})
+	It("fails on a whole disk with no partition number", func() {
+		_, err := PartitionNumberFromDevice("/dev/sda")
+		Expect(err).To(HaveOccurred())
+	})
+	It("fails on an image file", func() {
+		_, err := PartitionNumberFromDevice("/tmp/whatever/test.img")
+		Expect(err).To(HaveOccurred())
 	})
 })

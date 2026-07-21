@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 	"unicode"
@@ -48,17 +49,21 @@ const (
 	xfsMagic                 = "XFSB"
 	swapMagicSignature       = "SWAPSPACE2"
 	OneMiBInBytes            = 1024 * 1024
-	Ext4                     = "ext4"
-	Ext3                     = "ext3"
-	Ext2                     = "ext2"
-	Fat                      = "fat"
-	Vfat                     = "vfat"
-	Fat32                    = "fat32"
-	Fat16                    = "fat16"
-	Xfs                      = "xfs"
-	Btrfs                    = "btrfs"
-	Swap                     = "swap"
-	NoFormat                 = "noformat"
+	// gptTailSectors is the space at the end of the disk reserved for the backup
+	// GPT: 1 sector for the header plus 32 sectors for the 128 entries partition
+	// array. The last sector a partition may use is therefore LastS-34.
+	gptTailSectors = 34
+	Ext4           = "ext4"
+	Ext3           = "ext3"
+	Ext2           = "ext2"
+	Fat            = "fat"
+	Vfat           = "vfat"
+	Fat32          = "fat32"
+	Fat16          = "fat16"
+	Xfs            = "xfs"
+	Btrfs          = "btrfs"
+	Swap           = "swap"
+	NoFormat       = "noformat"
 )
 
 type Disk struct {
@@ -300,12 +305,24 @@ func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) erro
 
 	l.Debugf("Checking for layout expansion on device %s", dev.Device)
 	if s.Layout.Expand != nil {
+		// Expansion always grows the last partition of the disk. When the device
+		// was selected by label, make sure that label is on the last partition,
+		// otherwise we would silently grow a different partition over it.
+		if label := strings.TrimSpace(s.Layout.Device.Label); label != "" {
+			isLast, err := labelIsOnLastPartition(dev, label, fs)
+			if err != nil {
+				l.Debugf("Could not tell which partition holds label %s (%s), expanding the last partition", label, err.Error())
+			} else if !isLast {
+				l.Warnf("Label %s is not on the last partition of %s, skipping expansion: it would grow the last partition instead", label, dev.Device)
+				return nil
+			}
+		}
 		if s.Layout.Expand.Size == 0 {
 			l.Debug("Extending last partition to max space")
 		} else {
 			l.Debugf("Extending last partition to %d MiB", s.Layout.Expand.Size)
 		}
-		err := dev.ExpandLastPartition(s.Layout.Expand.Size, console)
+		err := dev.ExpandLastPartition(l, s.Layout.Expand.Size, console)
 		if err != nil {
 			l.Error(err.Error())
 			return err
@@ -631,6 +648,47 @@ func FindDiskFromLabel(label string, fs vfs.FS) (Disk, error) {
 	}, nil
 }
 
+// labelIsOnLastPartition reports whether the filesystem label lives on the last
+// partition of the disk. Returns an error when the label cannot be mapped to a
+// partition number, for example when it resolves to an image file rather than to
+// a /dev/<disk><number> block device.
+func labelIsOnLastPartition(dev Disk, label string, fs vfs.FS) (bool, error) {
+	if len(dev.Parts) == 0 {
+		return false, errors.New("no partitions found on device")
+	}
+	path, err := fs.RawPath(filepath.Join("/dev/disk/by-label", label))
+	if err != nil {
+		return false, fmt.Errorf("could not resolve raw path for label %q: %w", label, err)
+	}
+	partDev, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return false, fmt.Errorf("resolve label %q: %w", label, err)
+	}
+	partNumber, err := PartitionNumberFromDevice(partDev)
+	if err != nil {
+		return false, err
+	}
+	return partNumber == dev.Parts[len(dev.Parts)-1].PartNumber, nil
+}
+
+// PartitionNumberFromDevice extracts the partition number out of a partition
+// device path, handling both the /dev/sda3 and the /dev/nvme0n1p3 conventions.
+func PartitionNumberFromDevice(devPath string) (int, error) {
+	base := filepath.Base(devPath)
+	digits := len(base)
+	for digits > 0 && unicode.IsDigit(rune(base[digits-1])) {
+		digits--
+	}
+	if digits == len(base) || digits == 0 {
+		return 0, fmt.Errorf("no partition number in device %q", base)
+	}
+	number, err := strconv.Atoi(base[digits:])
+	if err != nil {
+		return 0, fmt.Errorf("no partition number in device %q: %w", base, err)
+	}
+	return number, nil
+}
+
 func parentDiskFromBlockDev(devPath string) (string, error) {
 	// First check if its some kind of image file instead of a block device
 	// naively check if the path contains /dev/
@@ -705,7 +763,7 @@ func formatPartition(part Partition, basedevice string, console Console) (string
 	return mkfs.Apply(console)
 }
 
-func (dev *Disk) ExpandLastPartition(size uint64, console Console) error {
+func (dev *Disk) ExpandLastPartition(l logger.Interface, size uint64, console Console) error {
 	if len(dev.Parts) == 0 {
 		return errors.New("no partition to expand")
 	}
@@ -782,9 +840,18 @@ func (dev *Disk) ExpandLastPartition(size uint64, console Console) error {
 	}
 
 	if size == 0 {
-		part.End = dev.LastS - 1
+		// requestedSize already accounts for the reserved tail
+		part.End = part.Start + (requestedSize / dev.SectorS) - 1
 	} else {
 		part.End = part.Start + MiBToSectors(size, dev.SectorS) - 1
+	}
+	// The tail of the disk belongs to the backup GPT (header + partition array).
+	// A partition ending past the last usable sector corrupts the table: the
+	// kernel and the on-disk GPT then disagree and udev stops creating the
+	// by-partlabel symlinks. Cap the partition instead of overrunning it.
+	if lastUsableSector := dev.LastS - gptTailSectors; part.End > lastUsableSector {
+		l.Warnf("Requested size ends at sector %d, past the last usable sector %d, capping the partition to it", part.End, lastUsableSector)
+		part.End = lastUsableSector
 	}
 	// We have to set Size to 0 so the GPT library recalculates it
 	part.Size = 0
