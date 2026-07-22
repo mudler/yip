@@ -242,9 +242,9 @@ last:x:999:999:Test user for uid:/:/usr/bin/nologin
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(string(group)).Should(Equal("foo:x:6000:foo\n"))
 
-			passdRaw, _ := fs.RawPath("/etc/passwd")
+			passwdRaw, _ := fs.RawPath("/etc/passwd")
 			list := xpasswd.NewUserList()
-			list.SetPath(passdRaw)
+			list.SetPath(passwdRaw)
 			Expect(list.Load()).ShouldNot(HaveOccurred())
 			foo := list.Get("foo")
 			Expect(foo).ToNot(BeNil())
@@ -276,15 +276,45 @@ last:x:999:999:Test user for uid:/:/usr/bin/nologin
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(string(group)).Should(Equal("foo:x:7000:foo\n"))
 
-			passdRaw, _ := fs.RawPath("/etc/passwd")
+			passwdRaw, _ := fs.RawPath("/etc/passwd")
 			list := xpasswd.NewUserList()
-			list.SetPath(passdRaw)
+			list.SetPath(passwdRaw)
 			Expect(list.Load()).ShouldNot(HaveOccurred())
 			foo := list.Get("foo")
 			Expect(foo).ToNot(BeNil())
 			gid, err := foo.GID()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(gid).To(Equal(7000))
+		})
+
+		It("ignores explicit gid when primary_group names an existing system group", func() {
+			// primary_group wins over an explicit gid because rewriting a
+			// well-known group's numeric gid would silently break every file
+			// already owned by that gid on the system.
+			// If the caller wants a pinned gid for the user's own group, they
+			// should leave primary_group empty.
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/etc/passwd": existingPasswd,
+				"/etc/shadow": "",
+				"/etc/group":  "",
+			})
+			Expect(err).Should(BeNil())
+			defer cleanup()
+
+			err = User(l, schema.Stage{
+				Users: map[string]schema.User{"foo": {
+					PasswordHash: `$fkekofe`,
+					PrimaryGroup: "root",
+					GID:          "6000",
+					Homedir:      "/run/foo",
+				}},
+			}, fs, &testConsole)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			group, err := fs.ReadFile("/etc/group")
+			Expect(err).ShouldNot(HaveOccurred())
+			// The user's primary group is root (looked up from the host); the
+			// explicit gid 6000 is intentionally NOT applied.
+			Expect(string(group)).ShouldNot(ContainSubstring(":6000:"))
 		})
 
 		It("returns an error when gid is not a number", func() {

@@ -119,7 +119,7 @@ func resolveHomedir(fs vfs.FS, u schema.User) string {
 // swapping their uids on the next boot. See:
 // https://github.com/kairos-io/kairos/issues/2949
 func hasDeterministicUID(fs vfs.FS, u schema.User) bool {
-	if u.UID != "" || u.GID != "" {
+	if u.UID != "" {
 		return true
 	}
 	if etcpasswd, err := fs.RawPath("/etc/passwd"); err == nil {
@@ -194,23 +194,28 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 	primaryGroup := u.Name
 
 	gid := -1 // -1 instructs entities to find the next free id and assign it
-	if u.GID != "" {
-		// Explicit gid: use it verbatim, same semantics as an explicit uid.
-		// This wins over primary_group lookup and home directory reuse.
-		gid, err = strconv.Atoi(u.GID)
-		if err != nil {
-			return errors.Wrap(err, "invalid gid defined")
-		}
-		if u.PrimaryGroup != "" {
-			primaryGroup = u.PrimaryGroup
-		}
-	} else if u.PrimaryGroup != "" {
+	if u.PrimaryGroup != "" {
+		// An explicit primary_group names an existing system group. Look up its
+		// numeric gid and reuse it. Explicit u.GID is intentionally ignored in
+		// this branch — rewriting a well-known group's gid (e.g. wheel, docker)
+		// would silently break every file already owned by that gid, which is
+		// almost never what the caller wants. If the intent is to create the
+		// user's own group with a pinned gid, leave primary_group empty and set
+		// gid instead.
 		gr, err := osuser.LookupGroup(u.PrimaryGroup)
 		if err != nil {
 			return errors.Wrap(err, "could not resolve primary group of user")
 		}
 		gid, _ = strconv.Atoi(gr.Gid)
 		primaryGroup = u.PrimaryGroup
+	} else if u.GID != "" {
+		// Explicit gid without an explicit primary_group: create the user's own
+		// primary group (named after the user) with this exact gid. Same
+		// semantics as an explicit uid — wins over home-directory gid reuse.
+		gid, err = strconv.Atoi(u.GID)
+		if err != nil {
+			return errors.Wrap(err, "invalid gid defined")
+		}
 	} else if _, hgid, ok := DefaultHomeDirResolver.Resolve(fs, resolveHomedir(fs, u)); ok && !groupGIDInUse(etcgroup, hgid) {
 		// The user is being (re)created but its home directory already exists
 		// (e.g. an immutable OS that regenerates /etc/{passwd,group} on every
