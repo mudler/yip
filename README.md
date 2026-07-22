@@ -325,7 +325,7 @@ stages:
 
 #### `stages.<stageID>.[<stepN>].git`
 
-Clones a git repository into `path`. Supports HTTPS with username/password and SSH with a private key. `branch_only: true` fetches only the specified branch (shallow-style checkout).
+Clones a git repository into `path`. Supports HTTPS with username/password and SSH with a private key. `branch_only: true` fetches only the specified branch (single-branch checkout).
 
 ```yaml
 stages:
