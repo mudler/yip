@@ -645,7 +645,7 @@ Repartitions a disk: adds partitions in the trailing free space and/or expands t
 
 Device targeting: the target disk is picked by matching (in order) `label` (filesystem or partition label) or `path`. `path` also accepts a `script://<command>` form — the command is executed and its trimmed stdout is used as the device path, useful when the target is not known ahead of time.
 
-If `init_disk: true` the disk is wiped and a fresh GPT is written. **Destructive** — only use on a disk you fully control. `disk_name` (optional) makes the GPT GUID deterministic (V5 UUID derived from the name under the DNS namespace).
+If `init_disk: true` the disk is wiped and a fresh GPT is written. **Destructive** — only use on a disk you fully control. `disk_name` (optional) makes the GPT GUID deterministic (UUIDv5 derived from the name under the URL namespace, `uuid.NamespaceURL`).
 
 Only the last partition can be expanded, and expansion happens before any new partition is added. Expansion only grows the partition — it never shrinks it.
 
