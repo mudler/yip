@@ -1,99 +1,68 @@
 # :pushpin: yip
 
+Applies a configuration described in YAML to the system. Distro-agnostic, cloud-init style, small scope, pluggable.
 
-Simply applies a configuration to the system described with yaml files.
+```yaml
+name: "Example"
+stages:
+  default:
+    - name: "Write a file and run it"
+      files:
+        - path: /tmp/hello.sh
+          content: |
+            #!/bin/sh
+            echo "hello from yip"
+          permissions: 0755
+      commands:
+        - /tmp/hello.sh
+```
 
+```bash
+$> yip -s default file.yaml
+$> yip -s default https://example.com/file.yaml
+$> cat file.yaml | yip -
+```
+
+## Table of contents
+
+- [How it works](#how-it-works)
+- [CLI usage](#cli-usage)
+- [Cloud-init compatibility](#cloud-init-compatibility)
+- [Node-data interpolation](#node-data-interpolation)
+- [Stage filtering](#stage-filtering)
+- [Configuration reference](#configuration-reference)
+  - [Metadata and flow control](#metadata-and-flow-control)
+  - [Files, directories and downloads](#files-directories-and-downloads)
+  - [Users, groups and SSH](#users-groups-and-ssh)
+  - [System configuration](#system-configuration)
+  - [Services](#services)
+  - [Packages](#packages)
+  - [Disk and images](#disk-and-images)
+  - [Cloud data sources](#cloud-data-sources)
+  - [Commands](#commands)
+
+## How it works
+
+Yip runs *stages*. A stage is a named list of *steps*, and each step is a map of fields that trigger built-in plugins. For example:
 
 ```yaml
 stages:
-   # "test" is the stage
-   test:
-     - systemd_firstboot:
-         keymap: us
-     - files:
+  default:
+    - files:
         - path: /tmp/bar
-          content: |
-                    test
-          permissions: 0777
-          owner: 1000
-          group: 100
-       if: "[ ! -e /tmp/bar ]"
-     - files:
-        - path: /tmp/foo
-          content: |
-                    test
-          permissions: 0777
-          owner: 1000
-          group: 100
-       commands:
-        - echo "test"
-       modules:
-       - nvidia
-       environment:
-         FOO: "bar"
-       systctl:
-         debug.exception-trace: "0"
-       hostname: "foo"
-       systemctl:
-         enable:
-         - foo
-         disable:
-         - bar
-         start:
-         - baz
-         mask:
-         - foobar
-       authorized_keys:
-          user:
-          - "github:mudler"
-          - "ssh-rsa ...."
-       dns:
-         path: /etc/resolv.conf
-         nameservers:
-         - 8.8.8.8
-       ensure_entities:
-       -  path: /etc/passwd
-          entity: |
-                  kind: "user"
-                  username: "foo"
-                  password: "pass"
-                  uid: 0
-                  gid: 0
-                  info: "Foo!"
-                  homedir: "/home/foo"
-                  shell: "/bin/bash"
-       delete_entities:
-       -  path: /etc/passwd
-          entity: |
-                  kind: "user"
-                  username: "foo"
-                  password: "pass"
-                  uid: 0
-                  gid: 0
-                  info: "Foo!"
-                  homedir: "/home/foo"
-                  shell: "/bin/bash"
-      datasource:
-        providers:
-          - "digitalocean"
-          - "aws"
-          - "gcp"
-        path: "/usr/local/etc"
+          content: "hello"
+          permissions: 0644
+      commands:
+        - cat /tmp/bar
 ```
 
-- Simple
-- Small scope, pluggable, extensible
+The step above triggers two plugins in the same step: `files` (writes `/tmp/bar`) and `commands` (runs `cat`). Within a single step plugins run in a fixed order — you do not need to split them across steps to guarantee ordering.
 
-Yip uses a simple, yet powerful distro-agnostic cloud-init style format for the definition.
+A YAML file can define multiple stages, and yip can be told which one to run with `-s <stage>`. Multiple files can be passed on the command line; their stages are merged before execution.
 
-```bash
-$> yip -s test yip1.yaml yip2.yaml
-$> yip -s test https://..
-```
----
+If any step fails yip exits non-zero, but it keeps running the remaining steps and files.
 
-That's it! by default `yip` uses the default stage and the `default` executor, but you can customize its execution.
-
+## CLI usage
 
 ```
 yip loads cloud-init style yamls and applies them in the system.
@@ -113,599 +82,653 @@ Flags:
   -s, --stage string      Stage to apply (default "default")
 ```
 
+Sources can be local paths, HTTP(S) URLs, or `-` for stdin.
 
-## How it works
+## Cloud-init compatibility
 
-
-Yip works in *stages*. You can define *stages* that you can decide to run and apply in various ways and in a different enviroment (that's why *stages*).  
-
-A stage is just a list of steps, for example the following:
-
-```yaml
-stages:
-   default:
-     - files:
-        - path: /tmp/bar
-          content: |
-                    #!/bin/sh
-                    echo "test"
-          permissions: 0777
-          owner: 1000
-          group: 100
-       commands:
-        - /tmp/bar
-```
-
-writes a `/tmp/bar` file during the `default` stage and will also run it afterwards. 
-
-Now we can execute it:
-
-```bash
-$> cat myfile.yaml | yip -s default -
-```
-
-As `yip` by default runs the `default` stage we could have just run:
-
-```bash
-$> cat myfile.yaml | yip -
-```
-
-A yaml file can define multiple stages, which can be run from the `cli` with `-s`. Each stage is defined under `stages`, and in each stage are defined a list of `steps` to execute.
-
-`Yip` will execute the steps and report failures. It will exit non-zero if one of the steps failed executing. It will, however, keep running all the detected `yipfiles` and stages.
-
-## Compatibility with Cloud Init format
-
-A subset of the official [cloud-config spec](http://cloudinit.readthedocs.org/en/latest/topics/format.html#cloud-config-data) is implemented by yip. 
-
-If a yaml file starts with `#cloud-config` it is parsed as a standard cloud-init, associated it to the yip `boot` stage. For example:
+A subset of the official [cloud-config spec](http://cloudinit.readthedocs.org/en/latest/topics/format.html#cloud-config-data) is understood. If a file starts with `#cloud-config` it is parsed as cloud-init and mapped to the yip `boot` stage:
 
 ```yaml
 #cloud-config
 users:
-- name: "bar"
-  passwd: "foo"
-  groups: "users"
-  ssh_authorized_keys:
-  - faaapploo
+  - name: "bar"
+    passwd: "foo"
+    groups: "users"
+    ssh_authorized_keys:
+      - faaapploo
 ssh_authorized_keys:
   - asdd
 runcmd:
-- foo
+  - foo
 hostname: "bar"
 write_files:
-- encoding: b64
-  content: CiMgVGhpcyBmaWxlIGNvbnRyb2xzIHRoZSBzdGF0ZSBvZiBTRUxpbnV4
-  path: /foo/bar
-  permissions: "0644"
-  owner: "bar"
+  - encoding: b64
+    content: CiMgVGhpcyBmaWxlIGNvbnRyb2xzIHRoZSBzdGF0ZSBvZiBTRUxpbnV4
+    path: /foo/bar
+    permissions: "0644"
+    owner: "bar"
 ```
 
-To execute it with yip, run `yip -s boot cloud-config.yaml`.
-
+Run with `yip -s boot cloud-config.yaml`.
 
 ## Node-data interpolation
 
-`yip` interpolates host data retrieved by [sysinfo](https://github.com/zcalusic/sysinfo#sample-output) and are templated in the commands, file and entities  fields.
-
-This means that templating like the following is possible:
+Host data collected by [sysinfo](https://github.com/zcalusic/sysinfo#sample-output) is exposed to templates in `commands`, `files`, and entity fields:
 
 ```yaml
 stages:
-  foo:
-  - name: "echo"
-    commands:
-    - echo "{{.Values.node.hostname}}"
-
-name: "Test yip!"
-```
-
-## Filtering stages by node hostname
-
-`yip` can skip stages based on the node hostname:
-
-
-```yaml
-stages:
-  foo:
-  - name: "echo"
-    commands:
-    - echo hello
-    node: "hostname" # Node hostname
-
-name: "Test yip!"
-```
-
-## Filtering stages with if statement
-
-`yip` can skip stages based on if statements:
-
-
-```yaml
-stages:
-  foo:
-  - name: "echo"
-    commands:
-    - echo hello
-    if: "cat /proc/cmdline | grep debug"
-
-name: "Test yip!"
-```
-
-The expression inside the if will be evaluated in bash and, if specified, the stage gets executed only if the condition returns successfully (exit 0).
-
-## Filtering stages with only_os and only_os_version statement
-
-`yip` can skip stages based on the OS and OS version:
-
-Use the `only_os` and `only_os_version` fields to specify the OS and OS version where the stage should be executed. They can be used together or separately and mixed with the normal `if` statement to provide several filtering criteria.
-
-Notice that both fields are compiled as a regex, so you can use regex patterns to match the OS and OS version.
-
-```yaml
-stages:
-  foo:
-  - name: "echo ubuntu"
-    commands:
-    - echo hello
-    only_os: "ubuntu"
-  - name: "echo ubuntu and opensuse-leap"
-    commands:
-       - echo hello
-    only_os: "ubuntu|opensuse-leap"
-  - name: "echo everything but ubuntu"
-    commands:
-       - echo hello
-    only_os: "^(?!ubuntu).*"
-  - name: "echo ubuntu 20.04"
-    commands:
-       - echo hello
-    only_os: "ubuntu"
-    only_os_version: "20.04"
-  - name: "echo ubuntu 20.04 or 22.04"
-    commands:
-       - echo hello
-    only_os: "ubuntu"
-    only_os_version: "20.04|22.04"
-
-name: "Test yip!"
-```
-
-
-## Filtering stages with if_files statement
-
-`yip` can skip stages based on the existence of files:
-
-```yaml
-stages:
-    foo:
-    - name: "echo"
+  default:
+    - name: "echo hostname"
       commands:
-      - echo hello
+        - echo "{{.Values.node.hostname}}"
+
+name: "Test yip!"
+```
+
+## Stage filtering
+
+Each step supports a set of predicates that decide whether it runs. Predicates are AND-ed: all of them must pass for the step to execute.
+
+### `if`
+
+Evaluates the expression as a shell command. The step runs only when the command exits `0`.
+
+```yaml
+stages:
+  default:
+    - name: "debug boot only"
+      if: "cat /proc/cmdline | grep debug"
+      commands:
+        - echo "debug enabled"
+```
+
+### `if_files`
+
+Runs (or skips) the step based on file existence. Accepts three optional sub-lists:
+
+- `any`: at least one of the files exists.
+- `all`: all of the files exist.
+- `none`: none of the files exist.
+
+Combine them freely — the step runs when every provided sub-condition is satisfied.
+
+```yaml
+stages:
+  default:
+    - name: "only on Linux hosts that never saw yip"
       if_files:
         any:
           - /etc/os-release
-          - /tmp/foo
         all:
           - /etc/passwd
         none:
-          - /tmp/bar
+          - /var/lib/yip/done
+      commands:
+        - touch /var/lib/yip/done
 ```
 
-The `if_files` field accepts three subfields: `any`, `all`, and `none`. Each subfield takes a list of file paths.
-- `any`: The stage will execute if at least one of the specified files exists.
-- `all`: The stage will execute only if all the specified files exist.
-- `none`: The stage will execute only if none of the specified files exist.
+### `node`
 
-You can use any combination of these subfields to create complex file existence conditions for stage execution.
+Runs the step only on hosts whose hostname matches the pattern. Accepts a Go regexp.
 
+```yaml
+stages:
+  default:
+    - node: "bastion.*"
+      commands:
+        - echo "runs on bastion hosts only"
+```
+
+### `only_os` / `only_os_version`
+
+Matches the `ID` and `VERSION_ID` fields from `/etc/os-release`. Both are compiled as Go regexps.
+
+```yaml
+stages:
+  default:
+    - name: "ubuntu or opensuse-leap"
+      only_os: "ubuntu|opensuse-leap"
+      commands:
+        - echo hello
+    - name: "everything but ubuntu"
+      only_os: "^(?!ubuntu).*"
+      commands:
+        - echo hello
+    - name: "ubuntu 20.04 or 22.04"
+      only_os: "ubuntu"
+      only_os_version: "20.04|22.04"
+      commands:
+        - echo hello
+```
+
+### `only_arch`
+
+Matches `runtime.GOARCH` (`amd64`, `arm64`, `riscv64`, ...) against a Go regexp.
+
+```yaml
+stages:
+  default:
+    - name: "only on arm64"
+      only_arch: "arm64"
+      commands:
+        - echo "arm64!"
+    - name: "arm64 or amd64"
+      only_arch: "arm64|amd64"
+      commands:
+        - echo hello
+```
+
+### `only_service_manager`
+
+Runs the step only when the host uses the given service manager. Supported values: `systemd`, `openrc`. Detection is done by probing for the corresponding binaries; a system where both are present is treated as ambiguous and the step is skipped.
+
+```yaml
+stages:
+  default:
+    - name: "enable service under systemd only"
+      only_service_manager: "systemd"
+      systemctl:
+        enable:
+          - my-service
+```
 
 ## Configuration reference
 
-Below is a reference of all keys available in the cloud-init style files.
+Below is a reference of all keys available in a step.
 
+### Metadata and flow control
 
-### `stages.<stageID>.[<stepN>].name`
+#### `stages.<stageID>.[<stepN>].name`
 
-A description of the stage step. Used only when printing output to console.
-
-### `stages.<stageID>.[<stepN>].files`
-
-A list of files to write to disk.
+Human-readable description of the step. Used only when printing progress to the console.
 
 ```yaml
 stages:
-   default:
-     - files:
+  default:
+    - name: "Setup logging"
+      commands:
+        - echo "started"
+```
+
+#### `stages.<stageID>.[<stepN>].after`
+
+Declares that this step depends on other named steps. Yip uses this to build a dependency graph within a stage. The referenced names must match the `name` field of other steps in the same stage.
+
+```yaml
+stages:
+  default:
+    - name: "write config"
+      files:
+        - path: /etc/myapp.conf
+          content: "key=value"
+    - name: "start service"
+      after:
+        - name: "write config"
+      commands:
+        - systemctl start myapp
+```
+
+### Files, directories and downloads
+
+#### `stages.<stageID>.[<stepN>].directories`
+
+Creates directories on disk. Runs before `files` so that file writes into fresh directories succeed in one step.
+
+```yaml
+stages:
+  default:
+    - name: "Setup folders"
+      directories:
+        - path: "/etc/foo"
+          permissions: 0600
+          owner: 0
+          group: 0
+```
+
+#### `stages.<stageID>.[<stepN>].files`
+
+Writes files to disk.
+
+Supported `encoding` values: `b64`, `base64`, `gz`, `gzip`, `gz+base64`, `gzip+base64`, `gz+b64`, `gzip+b64`. Owner and group can be given as numeric uid/gid (`owner`, `group`) or as a string (`ownerstring: "user:group"` or `"user"`).
+
+```yaml
+stages:
+  default:
+    - files:
         - path: /tmp/bar
-          encoding: "b64" # "base64", "gz", "gzip", "gz+base64", "gzip+base64", "gz+b64", "gzip+b64"
           content: |
-                    #!/bin/sh
-                    echo "test"
-          permissions: 0777
+            #!/bin/sh
+            echo "test"
+          permissions: 0755
           owner: 1000
           group: 100
-          # or
-          # owner_string: "user:group", or "user"
+        - path: /etc/motd
+          encoding: b64
+          content: SGVsbG8gd29ybGQK
+          ownerstring: "root:root"
 ```
 
-### `stages.<stageID>.[<stepN>].downloads`
+#### `stages.<stageID>.[<stepN>].downloads`
 
-A list of http urls to download and write to disk.
+Downloads files over HTTP(S) and writes them to disk. `timeout` is in seconds; `0` means no timeout.
 
 ```yaml
 stages:
-   default:
-     - downloads:
-        - path: /tmp/bar
-          url: ""
-          timeout: 0
-          permissions: 0777
-          owner: 1000
-          group: 100
-          # or
-          # owner_string: "user:group", or "user"
+  default:
+    - downloads:
+        - path: /usr/local/bin/tool
+          url: "https://example.com/tool"
+          timeout: 30
+          permissions: 0755
+          ownerstring: "root:root"
 ```
 
-### `stages.<stageID>.[<stepN>].directories`
+#### `stages.<stageID>.[<stepN>].git`
 
-A list of directories to be created on disk. Runs before `files`.
+Clones a git repository into `path`. Supports HTTPS with username/password and SSH with a private key. `branch_only: true` fetches only the specified branch (shallow-style checkout).
 
 ```yaml
 stages:
-   default:
-     - name: "Setup folders"
-       directories: 
-       - path: "/etc/foo"
-         permissions: 0600
-         owner: 0
-         group: 0
+  default:
+    - name: "Clone config repo"
+      git:
+        url: "https://github.com/example/config.git"
+        path: /opt/config
+        branch: "main"
+        branch_only: true
+        auth:
+          username: "gituser"
+          password: "gitpassword"
+
+    - name: "Clone via SSH key"
+      git:
+        url: "git@github.com:example/private.git"
+        path: /opt/private
+        branch: "main"
+        auth:
+          private_key: |
+            -----BEGIN OPENSSH PRIVATE KEY-----
+            ...
+            -----END OPENSSH PRIVATE KEY-----
+          # optional; set to true to skip host key verification
+          insecure: true
 ```
 
-### `stages.<stageID>.[<stepN>].dns`
+### Users, groups and SSH
 
-A way to configure the `/etc/resolv.conf` file.
+#### `stages.<stageID>.[<stepN>].users`
+
+Adds or modifies users. Each entry is keyed by username and takes the following fields. Every field is optional and of type string unless noted otherwise. When a user already exists, only the password is updated.
+
+- **name**: Login name. Defaults to the map key.
+- **passwd**: Password hash. Plain strings are accepted as well.
+- **gecos**: GECOS comment.
+- **homedir**: Home directory. Defaults to `/home/<name>`.
+- **no_create_home**: Boolean. Skip home directory creation.
+- **primary_group**: Primary group name. Defaults to a new group named after the user.
+- **groups**: List of additional groups the user belongs to.
+- **no_user_group**: Boolean. Skip creating the per-user primary group.
+- **ssh_authorized_keys**: List of public SSH keys to add for this user. Entries in `github:<name>` / `gitlab:<name>` form are resolved by fetching the user's public keys from the corresponding service.
+- **system**: Boolean. Create a system account (no home directory).
+- **no_log_init**: Boolean. Skip initializing lastlog and faillog.
+- **shell**: Login shell.
+- **lock_passwd**: Boolean. Lock the account password (equivalent to setting `!` in `/etc/shadow`).
+- **uid**: Numeric user id. When set, the user is created with this exact uid — no free-uid search and no home-directory-owner reuse. Useful on immutable systems where `/etc/passwd` is regenerated on every boot but `/home` is persisted, to keep file ownership stable.
 
 ```yaml
 stages:
-   default:
-     - name: "Setup dns"
-       dns: 
-         nameservers:
-         - 8.8.8.8
-         - 1.1.1.1
-         search:
-         - foo.bar
-         options:
-         - ..
-         path: "/etc/resolv.conf.bak"
+  default:
+    - name: "Setup users"
+      users:
+        bastion:
+          passwd: "strongpassword"
+          homedir: "/home/bastion"
+          shell: "/bin/bash"
+          groups:
+            - wheel
+          ssh_authorized_keys:
+            - github:mudler
+        svc-app:
+          uid: "12345"
+          system: true
+          shell: "/usr/sbin/nologin"
 ```
-### `stages.<stageID>.[<stepN>].hostname`
 
-A string representing the machine hostname. It sets it in the running system, updates `/etc/hostname` and adds the new hostname to `/etc/hosts`.
+#### `stages.<stageID>.[<stepN>].authorized_keys`
+
+Adds SSH keys to the `authorized_keys` file of an existing user. Entries starting with `github:` or `gitlab:` are fetched from those services.
 
 ```yaml
 stages:
-   default:
-     - name: "Setup hostname"
-       hostname: "foo"
+  default:
+    - name: "Provision SSH keys"
+      authorized_keys:
+        mudler:
+          - github:mudler
+          - "ssh-rsa AAAA..."
+        root:
+          - "ssh-ed25519 AAAA..."
 ```
-### `stages.<stageID>.[<stepN>].sysctl`
 
-Kernel configuration. It sets `/proc/sys/<key>` accordingly, similarly to `sysctl`.
+#### `stages.<stageID>.[<stepN>].ensure_entities`
+
+Adds a user or group in the [entities](https://github.com/mudler/entities) format. Useful when you need full control over the `/etc/passwd`, `/etc/shadow`, or `/etc/group` row.
 
 ```yaml
 stages:
-   default:
-     - name: "Setup exception trace"
-       systctl:
-         debug.exception-trace: "0"
-```
-
-### `stages.<stageID>.[<stepN>].authorized_keys`
-
-A list of SSH authorized keys that should be added for each user. 
-SSH keys can be obtained from GitHub user accounts by using the format github:${USERNAME},  similarly for Gitlab with gitlab:${USERNAME}.
-
-```yaml
-stages:
-   default:
-     - name: "Setup exception trace"
-       authorized_keys:
-         mudler:
-         - github:mudler
-         - ssh-rsa: ...
-```
-
-### `stages.<stageID>.[<stepN>].node`
-
-If defined, the node hostname where this stage has to run, otherwise it skips the execution. The node can be also a regexp in the Golang format.
-
-```yaml
-stages:
-   default:
-     - name: "Setup logging"
-       node: "bastion"
-```
-
-### `stages.<stageID>.[<stepN>].users`
-
-A map of users and user info to set. Passwords can be also encrypted.
-
-The `users` parameter adds or modifies the specified list of users. Each user is an object which consists of the following fields. Each field is optional and of type string unless otherwise noted.
-In case the user is already existing, the password only will be overwritten.
-
-- **name**: Required. Login name of user
-- **gecos**: GECOS comment of user
-- **passwd**: Hash of the password to use for this user. Unencrypted strings supported too.
-- **homedir**: User's home directory. Defaults to /home/*name*
-- **no-create-home**: Boolean. Skip home directory creation.
-- **primary-group**: Default group for the user. Defaults to a new group created named after the user.
-- **groups**: Add user to these additional groups
-- **no-user-group**: Boolean. Skip default group creation.
-- **ssh-authorized-keys**: List of public SSH keys to authorize for this user
-- **system**: Create the user as a system user. No home directory will be created.
-- **no-log-init**: Boolean. Skip initialization of lastlog and faillog databases.
-- **shell**: User's login shell.
-
-```yaml
-stages:
-   default:
-     - name: "Setup users"
-       users: 
-          bastion: 
-            passwd: "strongpassword"
-            homedir: "/home/foo
-```
-
-### `stages.<stageID>.[<stepN>].ensure_entities`
-
-A `user` or a `group` in the [entity](https://github.com/mudler/entities) format to be configured in the system
-
-```yaml
-stages:
-   default:
-     - name: "Setup users"
-       ensure_entities:
-       -  path: /etc/passwd
+  default:
+    - name: "Ensure system user"
+      ensure_entities:
+        - path: /etc/passwd
           entity: |
-                  kind: "user"
-                  username: "foo"
-                  password: "x"
-                  uid: 0
-                  gid: 0
-                  info: "Foo!"
-                  homedir: "/home/foo"
-                  shell: "/bin/bash"
+            kind: "user"
+            username: "foo"
+            password: "x"
+            uid: 1500
+            gid: 1500
+            info: "Foo service user"
+            homedir: "/home/foo"
+            shell: "/bin/bash"
 ```
-### `stages.<stageID>.[<stepN>].delete_entities`
 
-A `user` or a `group` in the [entity](https://github.com/mudler/entities) format to be pruned from the system
+#### `stages.<stageID>.[<stepN>].delete_entities`
+
+Removes a user or group entity from the system.
 
 ```yaml
 stages:
-   default:
-     - name: "Setup users"
-       delete_entities:
-       -  path: /etc/passwd
+  default:
+    - name: "Drop legacy user"
+      delete_entities:
+        - path: /etc/passwd
           entity: |
-                  kind: "user"
-                  username: "foo"
-                  password: "x"
-                  uid: 0
-                  gid: 0
-                  info: "Foo!"
-                  homedir: "/home/foo"
-                  shell: "/bin/bash"
+            kind: "user"
+            username: "legacy"
 ```
-### `stages.<stageID>.[<stepN>].modules`
 
-A list of kernel modules to load.
+### System configuration
+
+#### `stages.<stageID>.[<stepN>].hostname`
+
+Sets the machine hostname on the running system, writes it to `/etc/hostname`, and updates `/etc/hosts`.
 
 ```yaml
 stages:
-   default:
-     - name: "Setup users"
-       modules:
-       - nvidia
+  default:
+    - hostname: "node-01"
 ```
-### `stages.<stageID>.[<stepN>].systemctl`
 
-A list of systemd services to `enable`, `disable`, `mask` or `start`.
+#### `stages.<stageID>.[<stepN>].dns`
 
-A list of overrides to apply to the service files witht he following fields:
- - `service`: The service name to add the override for. Required. `.service` extension is appended to the name if not provided.
-   - `name`: The name of the override file. Optional, if not provided it will be named `override-yip.conf`. `.conf` extension is appended to the name if not provided.
- - `content`: The content of the override file.
-
-Overrides don't check if the service is enabled or disabled, or even if it exists, it will apply the override anyway.
+Writes `/etc/resolv.conf` (or the file specified in `path`).
 
 ```yaml
 stages:
-   default:
-     - name: "Setup users"
-       systemctl:
-         enable:
+  default:
+    - name: "Setup DNS"
+      dns:
+        nameservers:
+          - 8.8.8.8
+          - 1.1.1.1
+        search:
+          - example.com
+        options:
+          - "timeout:2"
+        path: "/etc/resolv.conf"
+```
+
+#### `stages.<stageID>.[<stepN>].sysctl`
+
+Sets kernel parameters via `/proc/sys/<key>`, equivalent to `sysctl -w`.
+
+```yaml
+stages:
+  default:
+    - name: "Kernel tuning"
+      sysctl:
+        net.ipv4.ip_forward: "1"
+        debug.exception-trace: "0"
+```
+
+#### `stages.<stageID>.[<stepN>].modules`
+
+Loads kernel modules.
+
+```yaml
+stages:
+  default:
+    - name: "GPU driver"
+      modules:
+        - nvidia
+        - nvidia_uvm
+```
+
+#### `stages.<stageID>.[<stepN>].environment`
+
+Writes variables to `/etc/environment` (or the file specified in `environment_file`).
+
+```yaml
+stages:
+  default:
+    - environment:
+        FOO: "bar"
+        HTTP_PROXY: "http://proxy:3128"
+```
+
+#### `stages.<stageID>.[<stepN>].environment_file`
+
+Overrides the file written by `environment`. Use it to target a user-specific env file such as `~/.envrc` instead of the system-wide `/etc/environment`.
+
+```yaml
+stages:
+  default:
+    - environment_file: "/home/user/.envrc"
+      environment:
+        FOO: "bar"
+```
+
+#### `stages.<stageID>.[<stepN>].timesyncd`
+
+Writes `/etc/systemd/timesyncd.conf`. Any key from [timesyncd.conf](https://www.freedesktop.org/software/systemd/man/timesyncd.conf.html) can be set.
+
+```yaml
+stages:
+  default:
+    - name: "Setup NTP"
+      systemctl:
+        enable:
+          - systemd-timesyncd
+      timesyncd:
+        NTP: "0.pool.ntp.org 1.pool.ntp.org"
+        FallbackNTP: ""
+```
+
+#### `stages.<stageID>.[<stepN>].systemd_firstboot`
+
+Runs `systemd-firstboot` with the given map. Keys map to `--<key>=<value>` arguments (`keymap`, `locale`, `timezone`, ...).
+
+```yaml
+stages:
+  default:
+    - systemd_firstboot:
+        keymap: us
+        locale: en_US.UTF-8
+        timezone: Europe/Madrid
+```
+
+### Services
+
+#### `stages.<stageID>.[<stepN>].systemctl`
+
+Manages systemd unit state and optionally drops override files. All lists are optional.
+
+- **enable**: units to enable.
+- **disable**: units to disable.
+- **start**: units to start now.
+- **mask**: units to mask.
+- **overrides**: list of drop-in override files. Each entry:
+  - **service**: unit name (`.service` is appended if missing). Required.
+  - **name**: override file name. Optional, defaults to `override-yip.conf`. `.conf` is appended if missing.
+  - **content**: full content of the override file.
+
+Overrides are written even if the unit is not enabled or does not exist yet.
+
+```yaml
+stages:
+  default:
+    - name: "Configure services"
+      systemctl:
+        enable:
           - systemd-timesyncd
           - cronie
-         mask:
+        mask:
           - purge-kernels
-         disable:
+        disable:
           - crond
-         start:
+        start:
           - cronie
-         overrides:
-            - service: "systemd-timesyncd"
-              name: "override-custom.conf"
-              content: |
-                [Service]
-                ExecStart=
-                ExecStart=/usr/lib/systemd/systemd-timesyncd
+        overrides:
+          - service: "systemd-timesyncd"
+            name: "override-custom.conf"
+            content: |
+              [Service]
+              ExecStart=
+              ExecStart=/usr/lib/systemd/systemd-timesyncd
 ```
-### `stages.<stageID>.[<stepN>].environment`
 
-A map of variables to write in `/etc/environment`, or otherwise specified in `environment_file`
+### Packages
+
+#### `stages.<stageID>.[<stepN>].packages`
+
+Installs, removes, refreshes, or upgrades packages using the host package manager. The distro is detected from `/etc/os-release`; supported managers: `apt-get` (Debian/Ubuntu), `dnf` (Fedora/RHEL/Rocky/Alma/Oracle/CentOS/openEuler), `zypper` (openSUSE/SLE), `pacman` (Arch), `apk` (Alpine).
+
+Operation order is: `refresh` → `upgrade` → `install` → `remove`.
 
 ```yaml
 stages:
-   default:
-     - name: "Setup users"
-       environment:
-         FOO: "bar"
+  default:
+    - name: "Base packages"
+      packages:
+        refresh: true
+        upgrade: false
+        install:
+          - vim
+          - curl
+        remove:
+          - nano
 ```
-### `stages.<stageID>.[<stepN>].environment_file`
 
-A string to specify where to set the environment file
+#### `stages.<stageID>.[<stepN>].package_pins`
+
+Best-effort version pinning applied before package installs. The exact mechanism depends on the detected package manager:
+
+- **apt-get**: writes `/etc/apt/preferences.d/99-yip-pins` with `Pin-Priority: 1001`.
+- **dnf**: writes `/etc/dnf/plugins/versionlock.conf` + a `versionlock.list`. Full NEVRA is resolved with `dnf repoquery` when possible, otherwise a raw pattern is used.
+- **zypper**: runs `zypper addlock name=version`, falling back to `addlock name` if the version-scoped lock is rejected.
+- **apk**: rewrites `/etc/apk/world` with `name=version` entries.
+- **pacman**: not supported; the step is skipped with a warning.
 
 ```yaml
 stages:
-   default:
-     - name: "Setup users"
-       environment_file: "/home/user/.envrc"
-       environment:
-         FOO: "bar"
+  default:
+    - name: "Pin kernel and container runtime"
+      package_pins:
+        linux-image-generic: "5.15.0-91.101"
+        containerd.io: "1.7.11"
 ```
-### `stages.<stageID>.[<stepN>].timesyncd`
 
-Sets the `systemd-timesyncd` daemon file (`/etc/system/timesyncd.conf`) file accordingly. The documentation for `timesyncd` and all the options can be found [here](https://www.freedesktop.org/software/systemd/man/timesyncd.conf.html).
+### Disk and images
+
+#### `stages.<stageID>.[<stepN>].layout`
+
+Repartitions a disk: adds partitions in the trailing free space and/or expands the last partition. Sizes are always in MiB; `size: 0` means "use all remaining free space".
+
+Device targeting: the target disk is picked by matching (in order) `label` (filesystem or partition label) or `path`. `path` also accepts a `script://<command>` form — the command is executed and its trimmed stdout is used as the device path, useful when the target is not known ahead of time.
+
+If `init_disk: true` the disk is wiped and a fresh GPT is written. **Destructive** — only use on a disk you fully control. `disk_name` (optional) makes the GPT GUID deterministic (V5 UUID derived from the name under the DNS namespace).
+
+Only the last partition can be expanded, and expansion happens before any new partition is added. Expansion only grows the partition — it never shrinks it.
+
+For `add_partitions`:
+
+- **size** (required): MiB. `0` means all remaining free space.
+- **fsLabel**: filesystem label. Optional.
+- **pLabel**: partition label. Optional but recommended — if a partition with the same `pLabel` already exists it is left untouched, otherwise data may be lost.
+- **filesystem**: `ext2` (default), `ext3`, `ext4`, `fat`, `vfat`, `fat16`, `fat32`, `xfs`, `btrfs`, `swap`, or `noformat` / `-` / `none` to create the partition without formatting.
+- **bootable**: boolean. Sets the bootable flag and the corresponding partition GUID type.
 
 ```yaml
 stages:
-   default:
-     - name: "Setup NTP"
-       systemctl:
-         enable:
-         - systemd-timesyncd
-       timesyncd: 
-          NTP: "0.pool.org foo.pool.org"
-          FallbackNTP: ""
-          ...
+  default:
+    - name: "Repart disk"
+      layout:
+        device:
+          label: COS_RECOVERY
+          path: /dev/sda
+          init_disk: true
+          disk_name: "MYDISK"
+        expand_partition:
+          size: 4096  # 0 for all remaining free space
+        add_partitions:
+          - fsLabel: COS_STATE
+            size: 8192
+            pLabel: state
+          - fsLabel: COS_PERSISTENT
+            filesystem: ext4
+            size: 0
+          - fsLabel: COS_GRUB
+            size: 512
+            filesystem: fat32
+            bootable: true
+          - pLabel: raw_data
+            size: 1024
+            filesystem: noformat
 ```
 
-### `stages.<stageID>.[<stepN>].systemd_firstboot`
+#### `stages.<stageID>.[<stepN>].unpack_images`
 
-Runs `systemd-firstboot` with the given map
+Unpacks OCI images onto the filesystem. `platform` is optional and defaults to the host platform.
 
 ```yaml
 stages:
-   default:
-     - name: "Setup Locale"
-       systemd_firstboot:
-         keymap: us
+  default:
+    - name: "Unpack images"
+      unpack_images:
+        - source: "quay.io/luet/base:latest"
+          target: "/usr/local/luet/"
+        - source: "rancher/k3s:latest"
+          target: "/usr/local/k3s-arm64"
+          platform: "linux/arm64"
 ```
 
-### `stages.<stageID>.[<stepN>].commands`
+### Cloud data sources
 
-A list of arbitrary commands to run after file writes and directory creation.
+#### `stages.<stageID>.[<stepN>].datasource`
+
+Fetches user data from the specified cloud providers. The list is iterated in order and the first provider that succeeds is used. Provider-specific data is written under `/run/config`; user data is stored at `path`.
 
 ```yaml
 stages:
-   default:
-     - name: "Setup something"
-       commands:
-         - echo 1 > /bar
+  default:
+    - name: "Fetch cloud user data"
+      datasource:
+        providers:
+          - "aws"
+          - "digitalocean"
+        path: "/etc/cloud-data"
 ```
 
-### `stages.<stageID>.[<stepN>].datasource`
+### Commands
 
-Sets to fetch user data from the specified cloud providers. It iterates
-through the list of providers and the first one that succeeds to
-extract some user data is the one being used. It populates provider
-specific data into `/run/config` folder and the custom user data is stored
-into the provided path.
+#### `stages.<stageID>.[<stepN>].commands`
 
+Runs arbitrary shell commands. Executes after file/directory writes so newly written files and directories are available.
 
 ```yaml
 stages:
-   default:
-     - name: "Fetch cloud provider's user data"
-       datasource:
-         providers:
-           - "aws"
-           - "digitalocean"
-         path: "/etc/cloud-data"
-```
-
-### `stages.<stageID>.[<stepN>].layout`
-
-Sets additional partitions on disk free space, if any, and/or expands the last
-partition. All sizes are expressed in MiB only and default value of `size: 0`
-means all available free space in disk. This plugin is useful to be used in
-oem images where the default partitions might not suit the actual disk geometry.
-
-
-```yaml
-stages:
-   default:
-     - name: "Repart disk"
-       layout:
-         device:
-           # It will partition a device including the given filesystem label
-           # or partition label (filesystem label matches first) or the device
-           # provided in 'path'. The label check has precedence over path when
-           # both are provided.
-           # init_disk set to true is used to initialize the disk partition table with an empty GPT table. This
-           # is useful when we want to initialize the disk from scratch to add our own partitions.
-           # WARNING: This will destroy all data in the disk! So only run it when you are dealing with a new disk or
-           # you are sure you want to wipe out all data in the disk.
-           # disk_name is optional and used to set deterministic GUID disk name when init_disk is true. This allows for
-           # reproducible disk GUIDs across multiple runs and easy identification of disk by GUID.
-           # The GUID generated is a V5 UUID based on the disk_name provided under the DNS namespace.
-           # Not setting it will default to a GUID based on the YIP_DISK name
-           label: COS_RECOVERY
-           path: /dev/sda
-           init_disk: true
-           disk_name: "MYDISK"
-         # Only last partition can be expanded and it happens before any other
-         # partition is added.
-         # Only grows the partition, cannot shrink it.
-         expand_partition:
-           size: 4096 #  size: 0 means all available free space, in MiB
-         # List of partitions to add.
-         # The only obligatory field is the size.
-         # Filesystem will default to ext2 if omitted
-         # fsLabel is optional, its the filesystem label.
-         # pLabel is optional, its the partition label. If a partition with the same label exists, it will be skipped.
-         # Bootable flag is optional and defaults to false
-         # Use bootable: true to set the bootable flag on the partition and set the proper partition GUID type
-         # Size is in MiB. Setting the size to 0 means all available free space.
-         # For a good use, we recommend setting all the fields when possible to have a deterministic layout.
-         # We especially recommend setting pLabel to avoid recreating partitions if they already exist as all data will be lost on them.
-          # Supported filesystem values: ext2, ext3, ext4, fat, vfat, fat16, fat32, xfs, btrfs, swap, noformat.
-          # Use filesystem: noformat (or "-" / "none") to create the partition without formatting it.
-         add_partitions:
-           - fsLabel: COS_STATE
-             size: 8192
-             # No partition label is applied if omitted
-             pLabel: state
-           - fsLabel: COS_PERSISTENT
-             # default filesystem is ext2 if omitted
-             filesystem: ext4
-           - fsLabel: COS_GRUB
-             size: 512
-             filesystem: fat32
-             bootable: true
-           - pLabel: raw_data
-             size: 1024
-             # Use "noformat" (or "-" / "none") to create the partition without formatting it
-             filesystem: noformat
-```
-
-### `stages.<stageID>.[<stepN>].unpack_images`
-
-Unpacks a list of OCI images to disk.
-Accepts a list of `source` and `target` paths.
-The `source` is the image to unpack, and the `target` is the path where the image will be unpacked.
-Optially a `platform` can be specified to unpack the image for a specific platform. By default it will unpack the image for the current platform.
-
-```yaml
-stages:
-   default:
-     - name: "Unpack images"
-       unpack_images:
-         - source: "quay.io/luet/base:latest"
-           target: "/usr/local/luet/"
-         - source: "rancher/k3s:latest"
-           target: "/usr/local/k3s-arm64"
-           platform: "linux/arm64"
+  default:
+    - name: "Regenerate initrd"
+      commands:
+        - dracut -f
+        - depmod -a
 ```
