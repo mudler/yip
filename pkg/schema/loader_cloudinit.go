@@ -56,6 +56,7 @@ func (cloudInit) Load(source string, s []byte, fs vfs.FS) (*YipConfig, error) {
 			NoLogInit:    u.NoLogInit,
 			Shell:        u.Shell,
 			UID:          u.UID,
+			GID:          u.GID,
 			LockPasswd:   u.LockPasswd,
 		}
 		sshKeys[u.Name] = u.SSHAuthorizedKeys

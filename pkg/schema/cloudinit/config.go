@@ -91,4 +91,5 @@ type User struct {
 	Shell                string   `yaml:"shell,omitempty"`
 	LockPasswd           bool     `yaml:"lock_passwd"`
 	UID                  string   `yaml:"uid"`
+	GID                  string   `yaml:"gid"`
 }

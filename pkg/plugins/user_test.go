@@ -219,6 +219,93 @@ last:x:999:999:Test user for uid:/:/usr/bin/nologin
 
 		})
 
+		It("set UID and GID explicitly", func() {
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/etc/passwd": existingPasswd,
+				"/etc/shadow": "",
+				"/etc/group":  "",
+			})
+			Expect(err).Should(BeNil())
+			defer cleanup()
+
+			err = User(l, schema.Stage{
+				Users: map[string]schema.User{"foo": {
+					PasswordHash: `$fkekofe`,
+					UID:          "5000",
+					GID:          "6000",
+					Homedir:      "/run/foo",
+					Shell:        "/bin/bash",
+				}},
+			}, fs, &testConsole)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			group, err := fs.ReadFile("/etc/group")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(string(group)).Should(Equal("foo:x:6000:foo\n"))
+
+			passdRaw, _ := fs.RawPath("/etc/passwd")
+			list := xpasswd.NewUserList()
+			list.SetPath(passdRaw)
+			Expect(list.Load()).ShouldNot(HaveOccurred())
+			foo := list.Get("foo")
+			Expect(foo).ToNot(BeNil())
+			Expect(foo.UID()).To(Equal(5000))
+			gid, err := foo.GID()
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(gid).To(Equal(6000))
+		})
+
+		It("set GID without UID assigns explicit gid and generated uid", func() {
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/etc/passwd": existingPasswd,
+				"/etc/shadow": "",
+				"/etc/group":  "",
+			})
+			Expect(err).Should(BeNil())
+			defer cleanup()
+
+			err = User(l, schema.Stage{
+				Users: map[string]schema.User{"foo": {
+					PasswordHash: `$fkekofe`,
+					GID:          "7000",
+					Homedir:      "/run/foo",
+					Shell:        "/bin/bash",
+				}},
+			}, fs, &testConsole)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			group, err := fs.ReadFile("/etc/group")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(string(group)).Should(Equal("foo:x:7000:foo\n"))
+
+			passdRaw, _ := fs.RawPath("/etc/passwd")
+			list := xpasswd.NewUserList()
+			list.SetPath(passdRaw)
+			Expect(list.Load()).ShouldNot(HaveOccurred())
+			foo := list.Get("foo")
+			Expect(foo).ToNot(BeNil())
+			gid, err := foo.GID()
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(gid).To(Equal(7000))
+		})
+
+		It("returns an error when gid is not a number", func() {
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/etc/passwd": existingPasswd,
+				"/etc/shadow": "",
+				"/etc/group":  "",
+			})
+			Expect(err).Should(BeNil())
+			defer cleanup()
+
+			err = User(l, schema.Stage{
+				Users: map[string]schema.User{"foo": {
+					PasswordHash: `$fkekofe`,
+					GID:          "notanumber",
+					Homedir:      "/run/foo",
+				}},
+			}, fs, &testConsole)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("invalid gid defined"))
+		})
+
 		It("edits already existing user password", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/etc/passwd": existingPasswd,
 				"/etc/shadow": `foo:$6$rfBd56ti$7juhxebonsy.GiErzyxZPkbm.U4lUlv/59D2pvFqlbjVqyJP5f4VgP.EX3FKAeGTAr.GVf0jQmy9BXAZL5mNJ1:18820::::::
@@ -639,6 +726,42 @@ rancher:$6$2SMtYvSg$wL/zzuT4m3uYkHWO1Rl4x5U6BeGu9IfzIafueinxnNgLFHI34En35gu9evtl
 			// so that file ownership stays consistent across boots.
 			Expect(a.GID()).To(Equal(1000))
 			Expect(c.GID()).To(Equal(1001))
+		})
+
+		// Both an explicit gid AND a persistent home directory gid must be
+		// respected as-is — neither can be silently reassigned, or the user
+		// whose files already carry that gid would lose ownership. When they
+		// coincide the two users share a numeric gid; Linux permits duplicate
+		// gids and both users keep file access to their own home directory.
+		It("respects both explicit gid and home-directory gid even when they collide", func() {
+			owners := map[string][2]int{
+				"/home/yiptestuser2a": {2000, 2000},
+			}
+			original := DefaultHomeDirResolver
+			DefaultHomeDirResolver = fakeHomeDirResolver{owners: owners}
+			defer func() { DefaultHomeDirResolver = original }()
+
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{
+				"/etc/passwd": existingPasswd,
+				"/etc/shadow": "",
+				"/etc/group":  "",
+			})
+			Expect(err).Should(BeNil())
+			defer cleanup()
+
+			err = User(l, schema.Stage{
+				Users: map[string]schema.User{
+					"yiptestuser2a": {PasswordHash: `$fkekofe`},                 // home dir gid=2000, must be reused
+					"yiptestuser2b": {PasswordHash: `$fkekofe`, GID: "2000"},    // explicit gid=2000, must be honored
+				},
+			}, fs, &testConsole)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			group, err := fs.ReadFile("/etc/group")
+			Expect(err).ShouldNot(HaveOccurred())
+			// Both users end up with gid 2000 — neither loses its established id.
+			Expect(string(group)).Should(ContainSubstring("yiptestuser2a:x:2000:"))
+			Expect(string(group)).Should(ContainSubstring("yiptestuser2b:x:2000:"))
 		})
 	})
 })
