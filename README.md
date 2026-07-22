@@ -529,7 +529,7 @@ stages:
 
 #### `stages.<stageID>.[<stepN>].timesyncd`
 
-Writes `/etc/systemd/timesyncd.conf`. Any key from [timesyncd.conf](https://www.freedesktop.org/software/systemd/man/timesyncd.conf.html) can be set.
+Writes a drop-in file at `/etc/systemd/timesyncd.conf.d/10-yip.conf` (under the `[Time]` section). Any key from [timesyncd.conf](https://www.freedesktop.org/software/systemd/man/timesyncd.conf.html) can be set.
 
 ```yaml
 stages:
