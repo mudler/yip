@@ -219,7 +219,7 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 		if err != nil {
 			return errors.Wrap(err, "invalid gid defined")
 		}
-	} else if _, hgid, ok := DefaultHomeDirResolver.Resolve(fs, resolveHomedir(fs, u)); ok && !groupGIDInUse(etcgroup, hgid) {
+	} else if _, hgid, ok := DefaultHomeDirResolver.Resolve(fs, resolveHomedir(fs, u)); ok {
 		// The user is being (re)created but its home directory already exists
 		// (e.g. an immutable OS that regenerates /etc/{passwd,group} on every
 		// boot while /home is persisted). Reuse the gid that owns the home
