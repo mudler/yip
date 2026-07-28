@@ -206,7 +206,10 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 		if err != nil {
 			return errors.Wrap(err, "could not resolve primary group of user")
 		}
-		gid, _ = strconv.Atoi(gr.Gid)
+		gid, err = strconv.Atoi(gr.Gid)
+		if err != nil {
+			return errors.Wrap(err, "invalid gid returned for primary group")
+		}
 		primaryGroup = u.PrimaryGroup
 	} else if u.GID != "" {
 		// Explicit gid without an explicit primary_group: create the user's own
