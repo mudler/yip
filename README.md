@@ -447,6 +447,8 @@ In case the user is already existing, the password only will be overwritten.
 - **system**: Create the user as a system user. No home directory will be created.
 - **no-log-init**: Boolean. Skip initialization of lastlog and faillog databases.
 - **shell**: User's login shell.
+- **uid**: Numeric user id to assign. When set, the user is created with this exact uid and no free-uid search or home-directory-owner reuse is performed. Useful on immutable systems where `/etc/passwd` is regenerated on every boot but `/home` is persisted, to keep file ownership stable across boots.
+- **gid**: Numeric group id for the user's own primary group. When set (and `primary_group` is empty) the primary group is created with this exact gid. Same rationale as `uid` — pin it to keep group ownership stable across regenerations of `/etc/group`. If `primary_group` is set as well, the existing group's numeric gid wins and `gid` is ignored — rewriting a well-known group's gid would silently break file ownership on the host. Leave `primary_group` empty to pin the gid of the auto-created user group.
 
 ```yaml
 stages:

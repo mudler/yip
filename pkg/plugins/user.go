@@ -195,13 +195,31 @@ func createUser(fs vfs.FS, u schema.User, console Console) error {
 
 	gid := -1 // -1 instructs entities to find the next free id and assign it
 	if u.PrimaryGroup != "" {
+		// An explicit primary_group names an existing system group. Look up its
+		// numeric gid and reuse it. Explicit u.GID is intentionally ignored in
+		// this branch — rewriting a well-known group's gid (e.g. wheel, docker)
+		// would silently break every file already owned by that gid, which is
+		// almost never what the caller wants. If the intent is to create the
+		// user's own group with a pinned gid, leave primary_group empty and set
+		// gid instead.
 		gr, err := osuser.LookupGroup(u.PrimaryGroup)
 		if err != nil {
 			return errors.Wrap(err, "could not resolve primary group of user")
 		}
-		gid, _ = strconv.Atoi(gr.Gid)
+		gid, err = strconv.Atoi(gr.Gid)
+		if err != nil {
+			return errors.Wrap(err, "invalid gid returned for primary group")
+		}
 		primaryGroup = u.PrimaryGroup
-	} else if _, hgid, ok := DefaultHomeDirResolver.Resolve(fs, resolveHomedir(fs, u)); ok && !groupGIDInUse(etcgroup, hgid) {
+	} else if u.GID != "" {
+		// Explicit gid without an explicit primary_group: create the user's own
+		// primary group (named after the user) with this exact gid. Same
+		// semantics as an explicit uid — wins over home-directory gid reuse.
+		gid, err = strconv.Atoi(u.GID)
+		if err != nil {
+			return errors.Wrap(err, "invalid gid defined")
+		}
+	} else if _, hgid, ok := DefaultHomeDirResolver.Resolve(fs, resolveHomedir(fs, u)); ok {
 		// The user is being (re)created but its home directory already exists
 		// (e.g. an immutable OS that regenerates /etc/{passwd,group} on every
 		// boot while /home is persisted). Reuse the gid that owns the home
@@ -343,12 +361,12 @@ func User(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error 
 	sort.Strings(names)
 
 	// Split users into two groups, preserving alphabetical order within each:
-	// those whose uid is already deterministic (explicit uid, already present in
-	// /etc/passwd, or with an existing home directory) and those that need a
-	// generated uid. Deterministic users must be processed first so that a brand
-	// new user cannot grab the uid that belongs to an existing user's home
-	// directory before that user is (re)created, which would swap their uids and
-	// corrupt file ownership across boots.
+	// those whose uid/gid is already deterministic (explicit uid or gid, already
+	// present in /etc/passwd, or with an existing home directory) and those
+	// that need a generated id. Deterministic users must be processed first so
+	// that a brand new user cannot grab the id that belongs to an existing
+	// user's home directory before that user is (re)created, which would swap
+	// their ids and corrupt file ownership across boots.
 	// https://github.com/kairos-io/kairos/issues/2949
 	deterministic := make([]string, 0, len(names))
 	generated := make([]string, 0, len(names))
