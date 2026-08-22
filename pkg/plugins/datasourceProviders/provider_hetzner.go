@@ -19,7 +19,6 @@ limitations under the License.
 package providers
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -28,6 +27,14 @@ import (
 	"time"
 
 	"github.com/mudler/yip/pkg/logger"
+)
+
+// Hetzner native metadata API endpoints.
+// The EC2-compatible routes (/latest/meta-data/, /latest/user-data) were removed
+// by Hetzner on 2026-08-01. See https://docs.hetzner.cloud/changelog#2026-08-01-removed-metadata-routes
+const (
+	hetznerMetaDataURL = "http://169.254.169.254/hetzner/v1/metadata/"
+	hetznerUserDataURL = "http://169.254.169.254/hetzner/v1/userdata"
 )
 
 // ProviderHetzner is the type implementing the Provider interface for Hetzner
@@ -46,15 +53,14 @@ func (p *ProviderHetzner) String() string {
 
 // Probe checks if we are running on Hetzner
 func (p *ProviderHetzner) Probe() bool {
-	// Getting the hostname should always work...
-	_, err := hetznerGet(metaDataURL + "hostname")
+	_, err := hetznerGet(hetznerMetaDataURL + "hostname")
 	return err == nil
 }
 
 // Extract gets both the Hetzner specific and generic userdata
 func (p *ProviderHetzner) Extract() ([]byte, error) {
 	// Get host name. This must not fail
-	hostname, err := hetznerGet(metaDataURL + "hostname")
+	hostname, err := hetznerGet(hetznerMetaDataURL + "hostname")
 	if err != nil {
 		return nil, err
 	}
@@ -66,22 +72,11 @@ func (p *ProviderHetzner) Extract() ([]byte, error) {
 	// public ipv4
 	p.hetznerMetaGet("public-ipv4", "public_ipv4", 0644)
 
-	// private ipv4
-	p.hetznerMetaGet("local-ipv4", "local_ipv4", 0644)
-
 	// instance-id
 	p.hetznerMetaGet("instance-id", "instance_id", 0644)
 
-	// // local-hostname
-	// hetznerMetaGet("local-hostname", "local_hostname", 0644)
-
-	// ssh
-	if err := p.handleSSH(); err != nil {
-		p.l.Errorf("Hetzner: Failed to get ssh data: %s", err)
-	}
-
 	// Generic userdata
-	userData, err := hetznerGet(userDataURL)
+	userData, err := hetznerGet(hetznerUserDataURL)
 	if err != nil {
 		p.l.Errorf("Hetzner: Failed to get user-data: %s", err)
 		// This is not an error
@@ -92,15 +87,12 @@ func (p *ProviderHetzner) Extract() ([]byte, error) {
 
 // lookup a value (lookupName) in hetzner metaservice and store in given fileName
 func (p *ProviderHetzner) hetznerMetaGet(lookupName string, fileName string, fileMode os.FileMode) {
-	if lookupValue, err := hetznerGet(metaDataURL + lookupName); err == nil {
-		// we got a value from the metadata server, now save to filesystem
+	if lookupValue, err := hetznerGet(hetznerMetaDataURL + lookupName); err == nil {
 		err = os.WriteFile(path.Join(ConfigPath, fileName), lookupValue, fileMode)
 		if err != nil {
-			// we couldn't save the file for some reason
 			p.l.Errorf("Hetzner: Failed to write %s:%s %s", fileName, lookupValue, err)
 		}
 	} else {
-		// we did not get a value back from the metadata server
 		p.l.Errorf("Hetzner: Failed to get %s: %s", lookupName, err)
 	}
 }
@@ -128,34 +120,4 @@ func hetznerGet(url string) ([]byte, error) {
 		return nil, fmt.Errorf("Hetzner: Failed to read http response: %s", err)
 	}
 	return body, nil
-}
-
-// SSH keys:
-func (p *ProviderHetzner) handleSSH() error {
-	sshKeysJSON, err := hetznerGet(metaDataURL + "public-keys")
-	if err != nil {
-		return fmt.Errorf("Failed to get sshKeys: %s", err)
-	}
-
-	var sshKeys []string
-	err = json.Unmarshal(sshKeysJSON, &sshKeys)
-	if err != nil {
-		return fmt.Errorf("Failed to get sshKeys: %s", err)
-	}
-
-	if err := os.Mkdir(path.Join(ConfigPath, SSH), 0755); err != nil {
-		return fmt.Errorf("Failed to create %s: %s", SSH, err)
-	}
-
-	fileHandle, _ := os.OpenFile(path.Join(ConfigPath, SSH, "authorized_keys"), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
-	defer fileHandle.Close()
-
-	for _, sshKey := range sshKeys {
-		_, err = fileHandle.WriteString(sshKey + "\n")
-		if err != nil {
-			return fmt.Errorf("Failed to write ssh keys: %s", err)
-		}
-	}
-
-	return nil
 }
