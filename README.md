@@ -375,6 +375,8 @@ Adds or modifies users. Each entry is keyed by username and takes the following 
 - **lock_passwd**: Boolean. Lock the account password (equivalent to setting `!` in `/etc/shadow`).
 - **uid**: Numeric user id. When set, the user is created with this exact uid — no free-uid search and no home-directory-owner reuse. Useful on immutable systems where `/etc/passwd` is regenerated on every boot but `/home` is persisted, to keep file ownership stable.
 - **gid**: Numeric group id for the user's own primary group. When set (and `primary_group` is empty), the primary group is created with this exact gid. If `primary_group` is set too, that group's existing gid is used and `gid` is ignored.
+- **subuid**: Subordinate user ID range in `start:count` format. Yip creates or replaces the user's entry in `/etc/subuid`.
+- **subgid**: Subordinate group ID range in `start:count` format. Yip creates or replaces the user's entry in `/etc/subgid`.
 
 ```yaml
 stages:
@@ -391,6 +393,8 @@ stages:
             - github:mudler
         svc-app:
           uid: "12345"
+          subuid: "100000:65536"
+          subgid: "100000:65536"
           system: true
           shell: "/usr/sbin/nologin"
 ```

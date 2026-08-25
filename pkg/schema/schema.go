@@ -100,6 +100,8 @@ type User struct {
 	LockPasswd        bool     `yaml:"lock_passwd,omitempty"`
 	UID               string   `yaml:"uid,omitempty"`
 	GID               string   `yaml:"gid,omitempty"`
+	SubUID            string   `yaml:"subuid,omitempty"`
+	SubGID            string   `yaml:"subgid,omitempty"`
 }
 
 func (u User) Exists() bool {

@@ -47,6 +47,20 @@ func loadYip(s string) *YipConfig {
 }
 
 var _ = Describe("Schema", func() {
+	It("loads subordinate uid and gid ranges", func() {
+		yipConfig := loadstdYip(`stages:
+  boot:
+    - users:
+        podman:
+          subuid: "100000:65536"
+          subgid: "200000:65536"
+`)
+
+		user := yipConfig.Stages["boot"][0].Users["podman"]
+		Expect(user.SubUID).To(Equal("100000:65536"))
+		Expect(user.SubGID).To(Equal("200000:65536"))
+	})
+
 	Context("Loading from dot notation", func() {
 		oneConfigwithGarbageS := "stages.foo[0].name=bar boo.baz"
 		twoConfigsS := "stages.foo[0].name=bar   stages.foo[0].commands[0]=baz"
