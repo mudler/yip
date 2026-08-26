@@ -124,6 +124,120 @@ last:x:999:999:Test user for uid:/:/usr/bin/nologin
 		BeforeEach(func() {
 			testConsole.Reset()
 		})
+		It("writes subordinate uid and gid ranges idempotently", func() {
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{
+				"/etc/passwd": existingPasswd,
+				"/etc/shadow": "",
+				"/etc/group":  "",
+				"/etc/subuid": "# allocated by image\n\nother:100000:65536\nfoo:200000:65536\nfoo:300000:65536\n",
+				"/etc/subgid": "# allocated by image\n\nother:100000:65536\nfoo:200000:65536\n",
+			})
+			Expect(err).ShouldNot(HaveOccurred())
+			defer cleanup()
+
+			err = User(l, schema.Stage{Users: map[string]schema.User{
+				"foo": {
+					PasswordHash: `$fkekofe`,
+					SubUID:       "400000:65536",
+					SubGID:       "500000:65536",
+				},
+			}}, fs, &testConsole)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			subuid, err := fs.ReadFile("/etc/subuid")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(string(subuid)).To(Equal("# allocated by image\n\nother:100000:65536\nfoo:400000:65536\n"))
+
+			subgid, err := fs.ReadFile("/etc/subgid")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(string(subgid)).To(Equal("# allocated by image\n\nother:100000:65536\nfoo:500000:65536\n"))
+
+			err = User(l, schema.Stage{Users: map[string]schema.User{
+				"foo": {SubUID: "400000:65536", SubGID: "500000:65536"},
+			}}, fs, &testConsole)
+			Expect(err).ShouldNot(HaveOccurred())
+			subuidAgain, err := fs.ReadFile("/etc/subuid")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(subuidAgain).To(Equal(subuid))
+			subgidAgain, err := fs.ReadFile("/etc/subgid")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(subgidAgain).To(Equal(subgid))
+		})
+
+		It("writes subordinate ranges for an existing user", func() {
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{
+				"/etc/passwd": existingPasswd,
+				"/etc/shadow": "",
+				"/etc/group":  "",
+			})
+			Expect(err).ShouldNot(HaveOccurred())
+			defer cleanup()
+
+			err = User(l, schema.Stage{Users: map[string]schema.User{
+				"root": {SubUID: "100000:65536", SubGID: "100000:65536"},
+			}}, fs, &testConsole)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			subuid, err := fs.ReadFile("/etc/subuid")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(string(subuid)).To(Equal("root:100000:65536\n"))
+			subgid, err := fs.ReadFile("/etc/subgid")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(string(subgid)).To(Equal("root:100000:65536\n"))
+		})
+
+		It("rejects malformed subordinate ranges", func() {
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{
+				"/etc/passwd": existingPasswd,
+				"/etc/shadow": "",
+				"/etc/group":  "",
+			})
+			Expect(err).ShouldNot(HaveOccurred())
+			defer cleanup()
+
+			err = User(l, schema.Stage{Users: map[string]schema.User{
+				"root": {SubUID: "not-a-range"},
+			}}, fs, &testConsole)
+			Expect(err).To(MatchError(ContainSubstring("invalid subuid range")))
+			_, err = fs.ReadFile("/etc/subuid")
+			Expect(err).To(MatchError(ContainSubstring("no such file")))
+		})
+
+		It("rejects subordinate ranges that overflow the id space", func() {
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{
+				"/etc/passwd": existingPasswd,
+				"/etc/shadow": "",
+				"/etc/group":  "",
+			})
+			Expect(err).ShouldNot(HaveOccurred())
+			defer cleanup()
+
+			err = User(l, schema.Stage{Users: map[string]schema.User{
+				"root": {SubUID: "4294967295:2"},
+			}}, fs, &testConsole)
+			Expect(err).To(MatchError(ContainSubstring("exceeds the 32-bit id space")))
+			_, err = fs.ReadFile("/etc/subuid")
+			Expect(err).To(MatchError(ContainSubstring("no such file")))
+		})
+
+		It("does not create subordinate id files when ranges are unset", func() {
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{
+				"/etc/passwd": existingPasswd,
+				"/etc/shadow": "",
+				"/etc/group":  "",
+			})
+			Expect(err).ShouldNot(HaveOccurred())
+			defer cleanup()
+
+			err = User(l, schema.Stage{Users: map[string]schema.User{
+				"root": {},
+			}}, fs, &testConsole)
+			Expect(err).ShouldNot(HaveOccurred())
+			_, err = fs.ReadFile("/etc/subuid")
+			Expect(err).To(MatchError(ContainSubstring("no such file")))
+			_, err = fs.ReadFile("/etc/subgid")
+			Expect(err).To(MatchError(ContainSubstring("no such file")))
+		})
 		It("change user password", func() {
 			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/etc/passwd": existingPasswd,
 				"/etc/shadow": "",

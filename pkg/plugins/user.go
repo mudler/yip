@@ -6,6 +6,7 @@ import (
 	osuser "os/user"
 	"sort"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/mauromorales/xpasswd/pkg/users"
@@ -349,6 +350,51 @@ func setUserPass(fs vfs.FS, username, password string) error {
 	return nil
 }
 
+func setSubID(fs vfs.FS, path, username, idRange string) error {
+	if idRange == "" {
+		return nil
+	}
+	parts := strings.Split(idRange, ":")
+	if len(parts) != 2 {
+		return errors.Errorf("invalid %s range %q: expected start:count", strings.TrimPrefix(path, "/etc/"), idRange)
+	}
+	start, err := strconv.ParseUint(parts[0], 10, 32)
+	if err != nil {
+		return errors.Errorf("invalid %s range %q: start must be an unsigned integer", strings.TrimPrefix(path, "/etc/"), idRange)
+	}
+	count, err := strconv.ParseUint(parts[1], 10, 32)
+	if err != nil || count == 0 {
+		return errors.Errorf("invalid %s range %q: count must be a positive integer", strings.TrimPrefix(path, "/etc/"), idRange)
+	}
+	const maxSubID = uint64(^uint32(0))
+	if start > maxSubID-(count-1) {
+		return errors.Errorf("invalid %s range %q: range exceeds the 32-bit id space", strings.TrimPrefix(path, "/etc/"), idRange)
+	}
+
+	content, err := fs.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return errors.Wrapf(err, "reading %s", path)
+	}
+
+	prefix := username + ":"
+	var output strings.Builder
+	for _, line := range strings.SplitAfter(string(content), "\n") {
+		record := strings.TrimSuffix(strings.TrimSuffix(line, "\n"), "\r")
+		if !strings.HasPrefix(record, prefix) {
+			output.WriteString(line)
+		}
+	}
+	if output.Len() > 0 && !strings.HasSuffix(output.String(), "\n") {
+		output.WriteByte('\n')
+	}
+	output.WriteString(prefix + idRange + "\n")
+
+	if err := fs.WriteFile(path, []byte(output.String()), 0o644); err != nil {
+		return errors.Wrapf(err, "writing %s", path)
+	}
+	return nil
+}
+
 func User(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error {
 	var errs error
 
@@ -392,6 +438,13 @@ func User(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) error 
 			if err := setUserPass(fs, r.Name, r.PasswordHash); err != nil {
 				return err
 			}
+		}
+
+		if err := setSubID(fs, "/etc/subuid", r.Name, r.SubUID); err != nil {
+			errs = multierror.Append(errs, err)
+		}
+		if err := setSubID(fs, "/etc/subgid", r.Name, r.SubGID); err != nil {
+			errs = multierror.Append(errs, err)
 		}
 
 		if len(s.Users[k].SSHAuthorizedKeys) > 0 {
