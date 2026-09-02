@@ -161,6 +161,34 @@ var _ = Describe("Executor", func() {
 
 		})
 
+		It("Runs a command with a shebang under the interpreter it names", func() {
+			testConsole := console.NewStandardConsole()
+
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/tmp": &vfst.Dir{Perm: 0o755}})
+			Expect(err).Should(BeNil())
+			defer cleanup()
+
+			marker := filepath.Join(fs.TempDir(), "shebang")
+
+			// `[[` is a bash keyword that sh does not have. Under sh the
+			// shebang reads as a comment and the command fails with
+			// `[[: not found`, which is kairos-io/kairos#2946.
+			config := schema.YipConfig{Stages: map[string][]schema.Stage{
+				"foo": {{
+					Commands: []string{
+						"#!/bin/bash\nif [[ foo == foo ]]; then echo bash > " + marker + "; fi",
+					},
+				}},
+			}}
+
+			err = def.Apply("foo", config, fs, testConsole)
+			Expect(err).Should(BeNil())
+
+			written, err := os.ReadFile(marker)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(string(written)).Should(Equal("bash\n"))
+		})
+
 		It("Run yip files in sequence", func() {
 			testConsole := console.NewStandardConsole()
 
