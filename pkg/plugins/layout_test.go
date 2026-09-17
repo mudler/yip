@@ -475,6 +475,52 @@ var _ = Describe("Layout", Label("layout"), func() {
 			Expect(table2.Partitions[0].Size).To(Equal(maxExpandToAllSize))
 
 		})
+		It("Expanding twice to take all space is a no-op the second time", func() {
+			DefaultFilesystemDetector = MockFilesystemDetector{func(part *gpt.Partition, d *disk.Disk) (string, error) {
+				return "ext4", nil
+			}}
+			DefaultGrowFsToMax = MockGrowFSToMax{func(device string, filesystem string) error {
+				return nil
+			}}
+			testConsole := console.New()
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
+			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 /tmp/go-vfs-.*%s1", devicePath), UseRegexp: true})
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
+			err := Layout(l, schema.Stage{
+				Layout: schema.Layout{
+					Device: &schema.Device{Path: devicePath},
+					Parts:  []schema.Partition{{PLabel: label, Size: 512}},
+				},
+			}, fs, testConsole)
+			Expect(err).Should(BeNil())
+
+			By("expanding to max size")
+			err = Layout(l, schema.Stage{
+				Layout: schema.Layout{
+					Device: &schema.Device{Path: devicePath},
+					Expand: &schema.Expand{},
+				},
+			}, fs, testConsole)
+			Expect(err).Should(BeNil())
+
+			By("expanding to max size again, as every subsequent boot does")
+			err = Layout(l, schema.Stage{
+				Layout: schema.Layout{
+					Device: &schema.Device{Path: devicePath},
+					Expand: &schema.Expand{},
+				},
+			}, fs, testConsole)
+			Expect(err).Should(BeNil())
+
+			disk3, err := fileBackend.OpenFromPath(rawDevicePath, true)
+			Expect(err).ToNot(HaveOccurred())
+			defer disk3.Close()
+			table3, err := gpt.Read(disk3, int(diskfs.SectorSize512), int(diskfs.SectorSize512))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(table3.Partitions).To(HaveLen(1))
+			Expect(table3.Partitions[0].Size).To(Equal(maxExpandToAllSize))
+		})
 		It("Expands last partition after creating the partitions", func() {
 			testConsole := console.New()
 			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
