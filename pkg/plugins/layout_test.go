@@ -479,13 +479,17 @@ var _ = Describe("Layout", Label("layout"), func() {
 			DefaultFilesystemDetector = MockFilesystemDetector{func(part *gpt.Partition, d *disk.Disk) (string, error) {
 				return "ext4", nil
 			}}
+			grows := 0
 			DefaultGrowFsToMax = MockGrowFSToMax{func(device string, filesystem string) error {
+				grows++
 				return nil
 			}}
+			// One mock per command the two first calls are allowed to run. The
+			// second expand is queued nothing, so any command it runs pops an
+			// empty queue and fails the spec.
 			testConsole := console.New()
 			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
 			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 /tmp/go-vfs-.*%s1", devicePath), UseRegexp: true})
-			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
 			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
 			err := Layout(l, schema.Stage{
 				Layout: schema.Layout{
@@ -512,6 +516,12 @@ var _ = Describe("Layout", Label("layout"), func() {
 				},
 			}, fs, testConsole)
 			Expect(err).Should(BeNil())
+
+			By("running no command at all on the boot that had nothing to expand")
+			Expect(testConsole.Cmds.Len()).To(Equal(0), "a queued command was left unused, so the mocks no longer describe what runs")
+
+			By("still growing the filesystem, which may lag the partition")
+			Expect(grows).To(Equal(2))
 
 			disk3, err := fileBackend.OpenFromPath(rawDevicePath, true)
 			Expect(err).ToNot(HaveOccurred())

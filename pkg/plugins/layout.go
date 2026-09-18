@@ -872,11 +872,18 @@ func (dev *Disk) ExpandLastPartition(l logger.Interface, size uint64, console Co
 			return err
 		}
 	}
-	// Now try to re-read partition table so kernel sees new partitions
-	// This is on a best effort basis, as if the partition is in use, it will fail
-	_ = d.ReReadPartitionTable()
-	syscall.Sync()
-	_, _ = console.Run("udevadm trigger && udevadm settle")
+	// Tell the kernel about the new table, but only when there is a new table
+	// to tell it about. On the idempotent path nothing was rewritten, and a
+	// blanket "udevadm trigger" then replays a change event for every device
+	// on the machine, on every boot, for no gain. This runs from the rootfs
+	// stage inside the initramfs, where the mounts the rest of the boot needs
+	// are the ones udev is being asked to re-evaluate.
+	if !alreadyAtMax {
+		// Best effort: if the partition is in use the re-read fails.
+		_ = d.ReReadPartitionTable()
+		syscall.Sync()
+		_, _ = console.Run("udevadm trigger && udevadm settle")
+	}
 
 	// Now resize the underlying filesystem
 	filesystem, err := DefaultFilesystemDetector.DetectFileSystemType(part, d)
