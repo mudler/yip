@@ -55,17 +55,46 @@ var DefaultGrowFsToMax GrowFsToMaxInterface = &RealGrowFsToMax{}
 // GrowFSToMax grows the filesystem on the given block device path
 // to the maximum available space in the partition.
 // fsType: "ext4" (works for ext3/ext2 via ext4 driver), "xfs", "btrfs".
+//
+// Growing needs the filesystem mounted, and that mount is unshared into a
+// private mount namespace so it is not visible to the rest of the system. A
+// mount namespace belongs to an OS thread, not to a goroutine, so this runs on
+// a thread of its own. See runOnDedicatedThread.
 func (r *RealGrowFsToMax) GrowFSToMax(devicePath, fsType string) error {
 	switch fsType {
 	case Ext4, Ext3, Ext2:
-		return growExtFSToMax(devicePath)
+		return runOnDedicatedThread(func() error { return growExtFSToMax(devicePath) })
 	case Xfs:
-		return growXfsToMax(devicePath)
+		return runOnDedicatedThread(func() error { return growXfsToMax(devicePath) })
 	case Btrfs:
-		return growBtrfsToMax(devicePath)
+		return runOnDedicatedThread(func() error { return growBtrfsToMax(devicePath) })
 	default:
 		return fmt.Errorf("unsupported fsType %q; expected ext4/xfs/btrfs", fsType)
 	}
+}
+
+// runOnDedicatedThread runs fn on an OS thread that no other goroutine can be
+// scheduled onto, and waits for it.
+//
+// unshare(CLONE_NEWNS) changes the mount namespace of the calling thread. Go
+// gives no goroutine a thread of its own, so without this an unshare deep
+// inside a library call leaves a thread behind whose view of the mount tree is
+// frozen at that moment, and the runtime then hands that thread to whatever
+// goroutine asks next. Callers that mount something afterwards, from another
+// thread, do not see it there: the read-only image underneath shows through
+// instead, and which callers are hit varies from run to run.
+//
+// Locking the goroutine to its thread and never unlocking it makes the runtime
+// destroy the thread when the goroutine returns, so the namespace dies with it.
+func runOnDedicatedThread(fn func() error) error {
+	done := make(chan error, 1)
+	go func() {
+		// Deliberately not unlocked: an unlocked thread goes back into the
+		// pool carrying whatever namespace fn left on it.
+		runtime.LockOSThread()
+		done <- fn()
+	}()
+	return <-done
 }
 
 // GrowExtFSToMax grows an ext4/ext3/ext2 filesystem on the given block device path
@@ -256,8 +285,14 @@ func ephemeralMount(dev, fstype string) (mountpoint string, cleanup cleanupFn, e
 	// Try to isolate the mount (best-effort): private mount namespace on Linux.
 	// If unshare fails (e.g., old kernels or lacking caps), we still proceed
 	// because we immediately unmount afterwards.
-	_ = unix.Unshare(unix.CLONE_NEWNS)
-	_ = unix.Mount("", "/", "", unix.MS_REC|unix.MS_PRIVATE, "")
+	//
+	// Callers must already be on a dedicated thread, see runOnDedicatedThread:
+	// the unshare below applies to the thread, not to the goroutine.
+	if err := unix.Unshare(unix.CLONE_NEWNS); err == nil {
+		// Only inside the new namespace. In the shared one this turns every
+		// mount on the machine private and breaks propagation for everybody.
+		_ = unix.Mount("", "/", "", unix.MS_REC|unix.MS_PRIVATE, "")
+	}
 
 	if err := unix.Mount(dev, mp, fstype, 0, ""); err != nil {
 		_ = os.RemoveAll(mp)
@@ -272,8 +307,8 @@ func ephemeralMount(dev, fstype string) (mountpoint string, cleanup cleanupFn, e
 		_ = os.RemoveAll(mp)
 	}
 
-	// Ensure cleanup on panic/GC too.
-	runtime.SetFinalizer(&mp, func(*string) { cleanup() })
+	// No finalizer: it would run on an arbitrary thread, in the wrong mount
+	// namespace, and unmount nothing. Every caller defers cleanup already.
 
 	return mp, cleanup, nil
 }
