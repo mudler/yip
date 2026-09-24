@@ -520,8 +520,8 @@ var _ = Describe("Layout", Label("layout"), func() {
 			By("running no command at all on the boot that had nothing to expand")
 			Expect(testConsole.Cmds.Len()).To(Equal(0), "a queued command was left unused, so the mocks no longer describe what runs")
 
-			By("still growing the filesystem, which may lag the partition")
-			Expect(grows).To(Equal(2))
+			By("skipping the filesystem grow when the partition is already at max")
+			Expect(grows).To(Equal(1))
 
 			disk3, err := fileBackend.OpenFromPath(rawDevicePath, true)
 			Expect(err).ToNot(HaveOccurred())

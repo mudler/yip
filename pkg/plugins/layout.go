@@ -827,63 +827,60 @@ func (dev *Disk) ExpandLastPartition(l logger.Interface, size uint64, console Co
 	// there is nothing left to give it, and that is success, not failure.
 	// Returning an error here made the stage fail on every boot after the
 	// first one. See kairos-io/kairos#4685.
-	alreadyAtMax := size == 0 && requestedSize <= currentSize
-	if alreadyAtMax {
+	if size == 0 && requestedSize <= currentSize {
+		// Already spans the rest of the disk. Return without touching the
+		// partition table, udev, or the filesystem: grow-to-max on a
+		// filesystem that already fills its partition is a no-op, and the
+		// ephemeral mount it takes to reach the ioctl races with the mount
+		// tree the initramfs is building at the same time.
 		l.Debugf("Partition already spans the rest of the disk (%d bytes), nothing to expand", currentSize)
+		_ = d.Close()
+		return nil
 	}
 	// A fixed size smaller than the current one is a shrink, which we do not do.
-	if !alreadyAtMax && requestedSize <= currentSize {
+	if requestedSize <= currentSize {
 		_ = d.Close()
 		return fmt.Errorf("requested size is less than or equal to current partition size (requested %d bytes, current %d bytes)", requestedSize, currentSize)
 	}
 
-	if !alreadyAtMax {
-		// Calculate how many sectors we need to expand
-		// expandSectors is the needed sectors to expand the disk
-		// We need to take into account that its the size minus the partition current size, so only what we need to expand
-		expandSectors := (requestedSize - currentSize) / dev.SectorS
-		// Free size in the disk in sectors. We get the total size, then minus the end of the last partition
-		freeSectorsInDisk := (uint64(d.Size)/dev.SectorS - part.End) - 1 // leave 1 sector at the end for backup GPT header
-		// Check if there is enough space. Remember that all disks have a backup GPT header at the end, so we need to leave at least 1MiB free at the end + 1MiB alignment at the start
-		if expandSectors > freeSectorsInDisk {
-			_ = d.Close()
-			return fmt.Errorf("not enough free space in disk: need %d MiB, available %d MiB", expandSectors*dev.SectorS/OneMiBInBytes, freeSectorsInDisk*dev.SectorS/OneMiBInBytes)
-		}
+	// Calculate how many sectors we need to expand
+	// expandSectors is the needed sectors to expand the disk
+	// We need to take into account that its the size minus the partition current size, so only what we need to expand
+	expandSectors := (requestedSize - currentSize) / dev.SectorS
+	// Free size in the disk in sectors. We get the total size, then minus the end of the last partition
+	freeSectorsInDisk := (uint64(d.Size)/dev.SectorS - part.End) - 1 // leave 1 sector at the end for backup GPT header
+	// Check if there is enough space. Remember that all disks have a backup GPT header at the end, so we need to leave at least 1MiB free at the end + 1MiB alignment at the start
+	if expandSectors > freeSectorsInDisk {
+		_ = d.Close()
+		return fmt.Errorf("not enough free space in disk: need %d MiB, available %d MiB", expandSectors*dev.SectorS/OneMiBInBytes, freeSectorsInDisk*dev.SectorS/OneMiBInBytes)
+	}
 
-		if size == 0 {
-			// requestedSize already accounts for the reserved tail
-			part.End = part.Start + (requestedSize / dev.SectorS) - 1
-		} else {
-			part.End = part.Start + MiBToSectors(size, dev.SectorS) - 1
-		}
-		// The tail of the disk belongs to the backup GPT (header + partition array).
-		// A partition ending past the last usable sector corrupts the table: the
-		// kernel and the on-disk GPT then disagree and udev stops creating the
-		// by-partlabel symlinks. Cap the partition instead of overrunning it.
-		if lastUsableSector := dev.LastS - gptTailSectors; part.End > lastUsableSector {
-			l.Warnf("Requested size ends at sector %d, past the last usable sector %d, capping the partition to it", part.End, lastUsableSector)
-			part.End = lastUsableSector
-		}
-		// We have to set Size to 0 so the GPT library recalculates it
-		part.Size = 0
-		err = d.Partition(gptTable)
-		if err != nil {
-			_ = d.Close()
-			return err
-		}
+	if size == 0 {
+		// requestedSize already accounts for the reserved tail
+		part.End = part.Start + (requestedSize / dev.SectorS) - 1
+	} else {
+		part.End = part.Start + MiBToSectors(size, dev.SectorS) - 1
 	}
-	// Tell the kernel about the new table, but only when there is a new table
-	// to tell it about. On the idempotent path nothing was rewritten, and a
-	// blanket "udevadm trigger" then replays a change event for every device
-	// on the machine, on every boot, for no gain. This runs from the rootfs
-	// stage inside the initramfs, where the mounts the rest of the boot needs
-	// are the ones udev is being asked to re-evaluate.
-	if !alreadyAtMax {
-		// Best effort: if the partition is in use the re-read fails.
-		_ = d.ReReadPartitionTable()
-		syscall.Sync()
-		_, _ = console.Run("udevadm trigger && udevadm settle")
+	// The tail of the disk belongs to the backup GPT (header + partition array).
+	// A partition ending past the last usable sector corrupts the table: the
+	// kernel and the on-disk GPT then disagree and udev stops creating the
+	// by-partlabel symlinks. Cap the partition instead of overrunning it.
+	if lastUsableSector := dev.LastS - gptTailSectors; part.End > lastUsableSector {
+		l.Warnf("Requested size ends at sector %d, past the last usable sector %d, capping the partition to it", part.End, lastUsableSector)
+		part.End = lastUsableSector
 	}
+	// We have to set Size to 0 so the GPT library recalculates it
+	part.Size = 0
+	err = d.Partition(gptTable)
+	if err != nil {
+		_ = d.Close()
+		return err
+	}
+	// Tell the kernel about the new table. Best effort: if the partition is
+	// in use the re-read fails.
+	_ = d.ReReadPartitionTable()
+	syscall.Sync()
+	_, _ = console.Run("udevadm trigger && udevadm settle")
 
 	// Now resize the underlying filesystem
 	filesystem, err := DefaultFilesystemDetector.DetectFileSystemType(part, d)
