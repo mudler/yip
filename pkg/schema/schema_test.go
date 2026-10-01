@@ -15,9 +15,13 @@
 package schema_test
 
 import (
+	"syscall"
+	"time"
+
 	. "github.com/mudler/yip/pkg/schema"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/twpayne/go-vfs/v5"
 	"github.com/twpayne/go-vfs/v5/vfst"
 )
 
@@ -231,4 +235,86 @@ users:
 		})
 	})
 
+})
+
+var _ = Describe("FromFile", func() {
+	var fs vfs.FS
+	var cleanup func()
+
+	// loadWithin runs the load on its own goroutine, because the bug this
+	// guards against is a blocking open: a plain call would hang the suite
+	// instead of failing it.
+	loadWithin := func(path string) error {
+		done := make(chan error, 1)
+		go func() {
+			_, err := Load(path, fs, FromFile, nil)
+			done <- err
+		}()
+		select {
+		case err := <-done:
+			return err
+		case <-time.After(10 * time.Second):
+			Fail("Load did not return within 10s, it is blocked on " + path)
+			return nil
+		}
+	}
+
+	rawPath := func(path string) string {
+		raw, err := fs.RawPath(path)
+		Expect(err).ShouldNot(HaveOccurred())
+		return raw
+	}
+
+	BeforeEach(func() {
+		var err error
+		fs, cleanup, err = vfst.NewTestFS(map[string]interface{}{
+			"/config/good.yaml": "stages:\n  test:\n  - name: noop\n",
+		})
+		Expect(err).ShouldNot(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		cleanup()
+	})
+
+	It("reads a regular file", func() {
+		config, err := Load("/config/good.yaml", fs, FromFile, nil)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(config.Stages["test"][0].Name).To(Equal("noop"))
+	})
+
+	// kairos-io/kairos#4865: a FIFO named like a config blocked open(2) until
+	// a writer arrived, which on a real boot is never.
+	It("refuses a named pipe instead of blocking on it", func() {
+		Expect(syscall.Mkfifo(rawPath("/config/pipe.yaml"), 0o600)).To(Succeed())
+
+		err := loadWithin("/config/pipe.yaml")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("is a named pipe, not a regular file"))
+	})
+
+	It("refuses a symlink that points at a named pipe", func() {
+		Expect(syscall.Mkfifo(rawPath("/config/pipe"), 0o600)).To(Succeed())
+		Expect(fs.Symlink("/config/pipe", "/config/link.yaml")).To(Succeed())
+
+		err := loadWithin("/config/link.yaml")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("is a named pipe, not a regular file"))
+	})
+
+	It("still follows a symlink that points at a config", func() {
+		Expect(fs.Symlink("/config/good.yaml", "/config/link.yaml")).To(Succeed())
+
+		config, err := Load("/config/link.yaml", fs, FromFile, nil)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(config.Stages["test"][0].Name).To(Equal("noop"))
+	})
+
+	It("refuses a directory", func() {
+		Expect(fs.Mkdir("/config/dir.yaml", 0o755)).To(Succeed())
+
+		err := loadWithin("/config/dir.yaml")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("is a directory, not a regular file"))
+	})
 })

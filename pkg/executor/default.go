@@ -204,6 +204,21 @@ func (e *DefaultExecutor) dirOps(stage, dir string, fs vfs.FS, console plugins.C
 				return nil
 			}
 
+			// Walk hands us the Lstat, so resolve the entry before deciding:
+			// a symlink to a real config is a layout yip supports. Anything
+			// that is not a regular file is skipped rather than returned as
+			// an error, so a single planted path cannot cost the directory
+			// every config next to it (kairos-io/kairos#4865).
+			target, err := fs.Stat(path)
+			if err != nil {
+				e.logger.Warnf("skipping %s: %s", path, err.Error())
+				return nil
+			}
+			if !target.Mode().IsRegular() {
+				e.logger.Warnf("skipping %s: it is %s, not a regular file", path, schema.FileTypeName(target.Mode()))
+				return nil
+			}
+
 			config, err := schema.Load(path, fs, schema.FromFile, e.modifier)
 			if err != nil {
 				return err
