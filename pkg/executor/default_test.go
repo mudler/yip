@@ -22,6 +22,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -857,5 +858,74 @@ stages:
 
 		_, err := os.Stat(temp + "/ran")
 		Expect(err).ShouldNot(HaveOccurred())
+	})
+})
+
+// kairos-io/kairos#5382: a config the walk can read but yip cannot parse used
+// to end the walk, and the caller then dropped every op already collected, so
+// one typo in one file cost the directory all the others.
+var _ = Describe("Executor over a directory holding an unparseable config", func() {
+	l := logrus.New()
+	l.SetOutput(io.Discard)
+	def := NewExecutor(WithLogger(l))
+	testConsole := console.NewStandardConsole()
+
+	var fs *vfst.TestFS
+	var cleanup func()
+	var temp string
+
+	BeforeEach(func() {
+		var err error
+		fs, cleanup, err = vfst.NewTestFS(map[string]interface{}{
+			"/some/yip": &vfst.Dir{Perm: 0o755},
+		})
+		Expect(err).ShouldNot(HaveOccurred())
+
+		temp = fs.TempDir()
+		Expect(fs.WriteFile("/some/yip/01_first.yaml", []byte(`
+stages:
+  test:
+  - commands:
+    - touch `+temp+`/first
+`), 0o644)).To(Succeed())
+		Expect(fs.WriteFile("/some/yip/03_last.yaml", []byte(`
+stages:
+  test:
+  - commands:
+    - touch `+temp+`/last
+`), 0o644)).To(Succeed())
+	})
+
+	AfterEach(func() {
+		cleanup()
+	})
+
+	It("runs the configs on both sides of it and still reports it", func() {
+		Expect(fs.WriteFile("/some/yip/02_broken.yaml", []byte("not a mapping, just a scalar\n"), 0o644)).To(Succeed())
+
+		err := def.Run("test", fs, testConsole, "/some/yip")
+		Expect(err).Should(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("02_broken.yaml"))
+
+		_, serr := os.Stat(temp + "/first")
+		Expect(serr).ShouldNot(HaveOccurred())
+		_, serr = os.Stat(temp + "/last")
+		Expect(serr).ShouldNot(HaveOccurred())
+	})
+
+	It("keeps the lexicographic ordering of the configs that do load", func() {
+		Expect(fs.WriteFile("/some/yip/02_broken.yaml", []byte("not a mapping, just a scalar\n"), 0o644)).To(Succeed())
+
+		g, err := def.Graph("test", fs, testConsole, "/some/yip")
+		Expect(err).Should(HaveOccurred())
+		Expect(g).ShouldNot(BeNil())
+
+		var order []string
+		for _, layer := range g {
+			for _, op := range layer {
+				order = append(order, op.Name)
+			}
+		}
+		Expect(strings.Join(order, " ")).To(MatchRegexp(`01_first\.yaml.*03_last\.yaml`))
 	})
 })
