@@ -187,6 +187,7 @@ func (e *DefaultExecutor) genOpFromSchema(file, stage string, config schema.YipC
 func (e *DefaultExecutor) dirOps(stage, dir string, fs vfs.FS, console plugins.Console) ([]*op, error) {
 	results := []*op{}
 	prev := []*op{}
+	var loadErrors error
 	err := vfs.Walk(fs, dir,
 		func(path string, info os.FileInfo, err error) error {
 			if err != nil {
@@ -204,10 +205,33 @@ func (e *DefaultExecutor) dirOps(stage, dir string, fs vfs.FS, console plugins.C
 				return nil
 			}
 
+			// Walk hands us the Lstat, so resolve the entry before deciding:
+			// a symlink to a real config is a layout yip supports. Anything
+			// that is not a regular file is skipped rather than returned as
+			// an error, so a single planted path cannot cost the directory
+			// every config next to it (kairos-io/kairos#4865).
+			target, err := fs.Stat(path)
+			if err != nil {
+				e.logger.Warnf("skipping %s: %s", path, err.Error())
+				return nil
+			}
+			if !target.Mode().IsRegular() {
+				e.logger.Warnf("skipping %s: it is %s, not a regular file", path, schema.FileTypeName(target.Mode()))
+				return nil
+			}
+
 			config, err := schema.Load(path, fs, schema.FromFile, e.modifier)
 			if err != nil {
-				return err
-
+				// Same rule as above, for a file yip can open but cannot
+				// parse. Returning the error ends the walk and the caller
+				// then throws away every op collected so far, so one typo
+				// in one config costs the directory all the others, in
+				// lexicographic order or not (kairos-io/kairos#5382). The
+				// error still travels back, so a strict caller keeps
+				// failing on it.
+				e.logger.Errorf("skipping %s: %s", path, err.Error())
+				loadErrors = multierror.Append(loadErrors, fmt.Errorf("%s: %w", path, err))
+				return nil
 			}
 			ops := e.genOpFromSchema(path, stage, *config, fs, console)
 			// mark lexicographic order dependency from previous blocks
@@ -226,7 +250,10 @@ func (e *DefaultExecutor) dirOps(stage, dir string, fs vfs.FS, console plugins.C
 			results = append(results, ops...)
 			return nil
 		})
-	return results, err
+	if err != nil {
+		loadErrors = multierror.Append(loadErrors, err)
+	}
+	return results, loadErrors
 }
 
 func writeDAG(dag [][]herd.GraphEntry) {
@@ -245,7 +272,7 @@ func writeDAG(dag [][]herd.GraphEntry) {
 
 func (e *DefaultExecutor) Graph(stage string, fs vfs.FS, console plugins.Console, source string) ([][]herd.GraphEntry, error) {
 	g, err := e.prepareDAG(stage, source, fs, console)
-	if err != nil {
+	if g == nil {
 		return nil, err
 	}
 	return g.Analyze(), err
@@ -257,6 +284,8 @@ func (e *DefaultExecutor) Analyze(stage string, fs vfs.FS, console plugins.Conso
 		g, err := e.prepareDAG(stage, source, fs, console)
 		if err != nil {
 			errs = multierror.Append(errs, err)
+		}
+		if g == nil {
 			continue
 		}
 		for i, layer := range g.Analyze() {
@@ -277,12 +306,13 @@ func (e *DefaultExecutor) prepareDAG(stage, uri string, fs vfs.FS, console plugi
 
 	g := herd.DAG(herd.EnableInit)
 	var ops opList
+	// A directory is the only source that can fail on part of itself and
+	// still carry usable ops. Keep that failure next to the graph instead of
+	// in place of it, so the configs that did load still run.
+	var partial error
 	switch {
 	case err == nil && f.IsDir():
-		ops, err = e.dirOps(stage, uri, fs, console)
-		if err != nil {
-			return nil, err
-		}
+		ops, partial = e.dirOps(stage, uri, fs, console)
 	case err == nil:
 		config, err := schema.Load(uri, fs, schema.FromFile, e.modifier)
 		if err != nil {
@@ -312,22 +342,24 @@ func (e *DefaultExecutor) prepareDAG(stage, uri string, fs vfs.FS, console plugi
 		g.Add(o.name, append(o.options, herd.WithCallback(o.fn), herd.WithDeps(append(o.after, o.deps...)...))...)
 	}
 
-	return g, nil
+	return g, partial
 }
 
 func (e *DefaultExecutor) runStage(stage, uri string, fs vfs.FS, console plugins.Console) (err error) {
-	g, err := e.prepareDAG(stage, uri, fs, console)
-	if err != nil {
-		return err
-	}
-
+	g, prepErr := e.prepareDAG(stage, uri, fs, console)
 	if g == nil {
+		if prepErr != nil {
+			return prepErr
+		}
 		return fmt.Errorf("no dag could be created")
 	}
 
-	err = g.Run(context.Background())
-	if err != nil {
-		return err
+	if prepErr != nil {
+		err = multierror.Append(err, prepErr)
+	}
+
+	if rerr := g.Run(context.Background()); rerr != nil {
+		return multierror.Append(err, rerr)
 	}
 
 	for _, g := range g.Analyze() {

@@ -22,6 +22,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
+	"syscall"
+	"time"
 
 	"github.com/sanity-io/litter"
 	"github.com/twpayne/go-vfs/v5"
@@ -780,5 +783,149 @@ stages:
 			Expect(len(g)).To(Equal(4), litter.Sdump(g))
 
 		})
+	})
+})
+
+// kairos-io/kairos#4865: a FIFO named like a config in a scanned directory
+// blocked the whole stage run in open(2), because the walk only skipped
+// directories.
+var _ = Describe("Executor over a directory holding a non-regular file", func() {
+	l := logrus.New()
+	l.SetOutput(io.Discard)
+	def := NewExecutor(WithLogger(l))
+	testConsole := console.NewStandardConsole()
+
+	var fs *vfst.TestFS
+	var cleanup func()
+	var temp string
+
+	BeforeEach(func() {
+		var err error
+		fs, cleanup, err = vfst.NewTestFS(map[string]interface{}{
+			"/some/yip": &vfst.Dir{Perm: 0o755},
+		})
+		Expect(err).ShouldNot(HaveOccurred())
+
+		temp = fs.TempDir()
+		Expect(fs.WriteFile("/some/yip/01_good.yaml", []byte(`
+stages:
+  test:
+  - commands:
+    - touch `+temp+`/ran
+`), 0o644)).To(Succeed())
+	})
+
+	AfterEach(func() {
+		cleanup()
+	})
+
+	mkfifo := func(path string) {
+		raw, err := fs.RawPath(path)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(syscall.Mkfifo(raw, 0o600)).To(Succeed())
+	}
+
+	// The run happens on its own goroutine: a regression here blocks forever,
+	// and a plain call would hang the suite instead of failing it.
+	runWithin := func(dir string) error {
+		done := make(chan error, 1)
+		go func() {
+			done <- def.Run("test", fs, testConsole, dir)
+		}()
+		select {
+		case err := <-done:
+			return err
+		case <-time.After(10 * time.Second):
+			Fail("Run did not return within 10s, it is blocked on " + dir)
+			return nil
+		}
+	}
+
+	It("skips a named pipe and still runs the configs next to it", func() {
+		mkfifo("/some/yip/00_pipe.yaml")
+
+		Expect(runWithin("/some/yip")).Should(BeNil())
+
+		_, err := os.Stat(temp + "/ran")
+		Expect(err).ShouldNot(HaveOccurred())
+	})
+
+	It("skips a symlink that points at a named pipe", func() {
+		mkfifo("/some/yip/pipe")
+		Expect(fs.Symlink("/some/yip/pipe", "/some/yip/00_link.yaml")).To(Succeed())
+
+		Expect(runWithin("/some/yip")).Should(BeNil())
+
+		_, err := os.Stat(temp + "/ran")
+		Expect(err).ShouldNot(HaveOccurred())
+	})
+})
+
+// kairos-io/kairos#5382: a config the walk can read but yip cannot parse used
+// to end the walk, and the caller then dropped every op already collected, so
+// one typo in one file cost the directory all the others.
+var _ = Describe("Executor over a directory holding an unparseable config", func() {
+	l := logrus.New()
+	l.SetOutput(io.Discard)
+	def := NewExecutor(WithLogger(l))
+	testConsole := console.NewStandardConsole()
+
+	var fs *vfst.TestFS
+	var cleanup func()
+	var temp string
+
+	BeforeEach(func() {
+		var err error
+		fs, cleanup, err = vfst.NewTestFS(map[string]interface{}{
+			"/some/yip": &vfst.Dir{Perm: 0o755},
+		})
+		Expect(err).ShouldNot(HaveOccurred())
+
+		temp = fs.TempDir()
+		Expect(fs.WriteFile("/some/yip/01_first.yaml", []byte(`
+stages:
+  test:
+  - commands:
+    - touch `+temp+`/first
+`), 0o644)).To(Succeed())
+		Expect(fs.WriteFile("/some/yip/03_last.yaml", []byte(`
+stages:
+  test:
+  - commands:
+    - touch `+temp+`/last
+`), 0o644)).To(Succeed())
+	})
+
+	AfterEach(func() {
+		cleanup()
+	})
+
+	It("runs the configs on both sides of it and still reports it", func() {
+		Expect(fs.WriteFile("/some/yip/02_broken.yaml", []byte("not a mapping, just a scalar\n"), 0o644)).To(Succeed())
+
+		err := def.Run("test", fs, testConsole, "/some/yip")
+		Expect(err).Should(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("02_broken.yaml"))
+
+		_, serr := os.Stat(temp + "/first")
+		Expect(serr).ShouldNot(HaveOccurred())
+		_, serr = os.Stat(temp + "/last")
+		Expect(serr).ShouldNot(HaveOccurred())
+	})
+
+	It("keeps the lexicographic ordering of the configs that do load", func() {
+		Expect(fs.WriteFile("/some/yip/02_broken.yaml", []byte("not a mapping, just a scalar\n"), 0o644)).To(Succeed())
+
+		g, err := def.Graph("test", fs, testConsole, "/some/yip")
+		Expect(err).Should(HaveOccurred())
+		Expect(g).ShouldNot(BeNil())
+
+		var order []string
+		for _, layer := range g {
+			for _, op := range layer {
+				order = append(order, op.Name)
+			}
+		}
+		Expect(strings.Join(order, " ")).To(MatchRegexp(`01_first\.yaml.*03_last\.yaml`))
 	})
 })
