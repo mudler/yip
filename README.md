@@ -181,21 +181,29 @@ stages:
 
 ### `only_os` / `only_os_version`
 
-Matches the `ID` and `VERSION_ID` fields from `/etc/os-release`. Both are compiled as Go regexps.
+`only_os` matches the `PRETTY_NAME` field from `/etc/os-release`, and
+`only_os_version` matches `VERSION_ID`. Both are compiled as Go regexps, which
+are [RE2](https://github.com/google/re2/wiki/Syntax): there is no lookahead,
+and matching is case-sensitive and unanchored.
+
+`PRETTY_NAME` is the human-readable string, so it is `Ubuntu 24.04.1 LTS`
+rather than the `ubuntu` of `ID`. A pattern written against `ID` matches
+nothing.
 
 ```yaml
 stages:
   default:
     - name: "ubuntu or opensuse-leap"
-      only_os: "ubuntu|opensuse-leap"
+      only_os: "Ubuntu.*|openSUSE Leap.*"
       commands:
         - echo hello
     - name: "everything but ubuntu"
-      only_os: "^(?!ubuntu).*"
+      # RE2 has no negative lookahead, so exclude by listing what to include.
+      only_os: "Debian.*|Fedora.*|Alpine.*"
       commands:
         - echo hello
     - name: "ubuntu 20.04 or 22.04"
-      only_os: "ubuntu"
+      only_os: "Ubuntu.*"
       only_os_version: "20.04|22.04"
       commands:
         - echo hello
