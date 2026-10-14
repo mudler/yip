@@ -137,6 +137,10 @@ type Partition struct {
 	PLabel     string `yaml:"pLabel,omitempty"`
 	FileSystem string `yaml:"filesystem,omitempty"`
 	Bootable   bool   `yaml:"bootable,omitempty"`
+	// MkfsOptions is passed to mkfs verbatim, after the label flag and before
+	// the device. It is the only way to reach options the layout plugin does
+	// not model, such as -O ^metadata_csum_seed on ext4.
+	MkfsOptions []string `yaml:"mkfs_options,omitempty"`
 }
 
 type Dependency struct {

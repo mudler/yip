@@ -229,6 +229,23 @@ users:
 			// Load it back to confirm that dumping it produces a valid yip config
 			_ = loadstdYip(dumped)
 		})
+		It("Reads mkfs_options on an add_partitions entry", func() {
+			yipConfig := loadstdYip(`#node-config
+stages:
+  test:
+    - layout:
+        device:
+          path: /dev/sda
+        add_partitions:
+          - fsLabel: COS_OEM
+            size: 64
+            filesystem: ext4
+            mkfs_options: ["-O", "^metadata_csum_seed"]
+`)
+			parts := yipConfig.Stages["test"][0].Layout.Parts
+			Expect(parts).To(HaveLen(1))
+			Expect(parts[0].MkfsOptions).To(Equal([]string{"-O", "^metadata_csum_seed"}))
+		})
 	})
 
 })
