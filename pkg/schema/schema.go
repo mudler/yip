@@ -19,8 +19,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"os/user"
 	"strings"
+	"syscall"
 
 	"github.com/google/shlex"
 	config "github.com/mudler/yip/pkg/schema/cloudinit"
@@ -281,13 +283,69 @@ func detect(b []byte) (yipLoader, error) {
 	}
 }
 
-// FromFile loads a yip config from a YAML file
+// FromFile loads a yip config from a YAML file, and refuses anything that is
+// not a regular file.
+//
+// Candidate paths come from directories a node operator can drop files into,
+// so the open has to survive a path that is not a config at all. ReadFile
+// opens without O_NONBLOCK, and opening a FIFO for reading blocks in open(2)
+// until a writer arrives. A FIFO named like a config therefore parks the whole
+// stage run: on Kairos the stage runner never returns, keeps its shutdown
+// inhibitor, and the node can be neither reached nor rebooted until someone
+// deletes the file from recovery media (kairos-io/kairos#4865). A character
+// device has the same shape of problem, and /dev/zero named like a config
+// reads until memory runs out.
+//
+// O_NONBLOCK makes the open return immediately whatever the path turns out to
+// be, so the fstat that follows can reject the types that are not configs. The
+// flag does not change reads from a regular file, so the common path behaves
+// as it did.
+//
+// O_NOFOLLOW is deliberately not set. A symlink pointing at a real config is a
+// layout yip supports, and following it lands on the regular file the fstat
+// wants; a symlink pointing at a FIFO is caught by that same fstat.
 func FromFile(s string, fs vfs.FS, m Modifier) ([]byte, error) {
-	yamlFile, err := fs.ReadFile(s)
+	f, err := fs.OpenFile(s, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+
+	stat, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	if !stat.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s is %s, not a regular file", s, FileTypeName(stat.Mode()))
+	}
+
+	yamlFile, err := io.ReadAll(f)
 	if err != nil {
 		return nil, err
 	}
 	return m(yamlFile)
+}
+
+// FileTypeName names a file type the way an operator reading a boot console
+// would, rather than as the mode bits ("p---------").
+func FileTypeName(m os.FileMode) string {
+	switch {
+	case m&os.ModeNamedPipe != 0:
+		return "a named pipe"
+	case m&os.ModeSocket != 0:
+		return "a socket"
+	case m&os.ModeCharDevice != 0:
+		return "a character device"
+	case m&os.ModeDevice != 0:
+		return "a block device"
+	case m&os.ModeDir != 0:
+		return "a directory"
+	case m&os.ModeIrregular != 0:
+		return "an irregular file"
+	default:
+		return "not a regular file"
+	}
 }
 
 // FromUrl loads a yip config from a url
