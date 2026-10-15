@@ -33,11 +33,27 @@ type Console interface {
 func templateSysData(l logger.Interface, s string) string {
 	interpolateOpts := map[string]interface{}{}
 
-	data, err := json.Marshal(&system)
-	if err != nil {
-		l.Warn(fmt.Sprintf("Failed marshalling '%s': %s", s, err.Error()))
+	var data []byte
+	var err error
+
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				if l != nil {
+					l.Warn(fmt.Sprintf("templateSysData panicked during system data marshaling: %v", r))
+				}
+			}
+		}()
+		data, err = json.Marshal(&system)
+	}()
+
+	if err != nil || data == nil {
+		if l != nil {
+			l.Warn(fmt.Sprintf("Failed marshalling system info for '%s': %v", s, err))
+		}
 		return s
 	}
+
 	litter.Config.HideZeroValues = true
 	litter.Config.HidePrivateFields = true
 
@@ -52,7 +68,9 @@ func templateSysData(l logger.Interface, s string) string {
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
-				l.Warn(fmt.Sprintf("litter.Sdump panicked: %v", r))
+				if l != nil {
+					l.Warn(fmt.Sprintf("litter.Sdump panicked: %v", r))
+				}
 			}
 		}()
 		l.Trace(litter.Sdump(&system))
