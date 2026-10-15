@@ -669,6 +669,7 @@ For `add_partitions`:
 - **pLabel**: partition label. Optional but recommended — if a partition with the same `pLabel` already exists it is left untouched, otherwise data may be lost.
 - **filesystem**: `ext2` (default), `ext3`, `ext4`, `fat`, `vfat`, `fat16`, `fat32`, `xfs`, `btrfs`, `swap`, or `noformat` / `-` / `none` to create the partition without formatting.
 - **bootable**: boolean. Sets the bootable flag and the corresponding partition GUID type.
+- **mkfs_options**: list of arguments passed to `mkfs` verbatim, after the label flag and before the device. Use it for options the fields above do not model, for example `["-O", "^metadata_csum_seed"]` to create an ext4 filesystem that an older `e2fsprogs` can still mount.
 
 ```yaml
 stages:
@@ -689,6 +690,7 @@ stages:
           - fsLabel: COS_PERSISTENT
             filesystem: ext4
             size: 0
+            mkfs_options: ["-O", "^metadata_csum_seed"]
           - fsLabel: COS_GRUB
             size: 512
             filesystem: fat32
