@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/mudler/yip/pkg/logger"
@@ -22,6 +23,15 @@ const (
 	SUSEInstaller    Installer = "zypper"
 	AlpineInstaller  Installer = "apk"
 	UnknownInstaller Installer = "unknown"
+)
+
+// packageAttempts is how many times a package manager command is run before the
+// step gives up, and packageRetryWait is how long to wait before the second
+// attempt (it triples for each further one). They are variables so a test can
+// shorten the wait.
+var (
+	packageAttempts  = 3
+	packageRetryWait = 5 * time.Second
 )
 
 func (d Installer) String() string {
@@ -46,6 +56,38 @@ const (
 	SUSE               Distro = "suse"
 	OpenEuler          Distro = "openEuler"
 )
+
+// runPackageCommand runs one package manager command and retries it when it
+// fails. A package manager reports a mirror it could not reach as a plain
+// command failure, so without a retry every caller is only as reliable as the
+// worst mirror the metalink hands out. Re-running the command resolves the
+// mirror list again, which is what makes the retry worth anything.
+func runPackageCommand(l logger.Interface, console Console, step, command string) error {
+	var out string
+	var err error
+
+	wait := packageRetryWait
+	for attempt := 1; attempt <= packageAttempts; attempt++ {
+		l.Debugf("Running %s (attempt %d of %d)", step, attempt, packageAttempts)
+		out, err = console.Run(templateSysData(l, command))
+		if strings.TrimSpace(out) != "" {
+			l.Debug(fmt.Sprintf("Command output: %s", out))
+		} else {
+			l.Debugf("Empty command output")
+		}
+		if err == nil {
+			return nil
+		}
+		if attempt < packageAttempts {
+			l.Warnf("Package %s failed: %s. Retrying in %s", step, err.Error(), wait)
+			time.Sleep(wait)
+			wait *= 3
+		}
+	}
+
+	l.Errorf("Package %s failed after %d attempts: %s", step, packageAttempts, err.Error())
+	return err
+}
 
 // Packages runs the package manager to try to install/remove/upgrade/refresh packages
 // It will try to identify the package manager based on the distro
@@ -96,65 +138,36 @@ func Packages(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) er
 		l.Errorf("Unknown installer")
 		return errors.New("unknown package manager")
 	}
+
 	// Run update databases/repos
 	if s.Packages.Refresh {
-		l.Debugf("Running refresh")
-		out, err := console.Run(templateSysData(l, strings.Join(append([]string{cmd.String()}, refreshArgs...), " ")))
-		if err != nil {
-			l.Debug(fmt.Sprintf("Command output: %s", out))
+		command := strings.Join(append([]string{cmd.String()}, refreshArgs...), " ")
+		if err := runPackageCommand(l, console, "refresh", command); err != nil {
 			return err
-		}
-		if strings.TrimSpace(out) != "" {
-			l.Debug(fmt.Sprintf("Command output: %s", out))
-		} else {
-			l.Debugf("Empty command output")
 		}
 	}
 
 	// Upgrade packages
 	if s.Packages.Upgrade {
-		l.Debugf("Running upgrade")
-		out, err := console.Run(templateSysData(l, strings.Join(append([]string{cmd.String()}, updateArgs...), " ")))
-		if err != nil {
-			l.Debug(fmt.Sprintf("Command output: %s", out))
+		command := strings.Join(append([]string{cmd.String()}, updateArgs...), " ")
+		if err := runPackageCommand(l, console, "upgrade", command); err != nil {
 			return err
-		}
-		if strings.TrimSpace(out) != "" {
-			l.Debug(fmt.Sprintf("Command output: %s", out))
-		} else {
-			l.Debugf("Empty command output")
 		}
 	}
 
 	if s.Packages.Install != nil {
-		// Run install
 		installArgs = append(installArgs, s.Packages.Install...)
-		l.Debugf("Running install")
-		out, err := console.Run(templateSysData(l, strings.Join(append([]string{cmd.String()}, installArgs...), " ")))
-		if err != nil {
-			l.Debug(fmt.Sprintf("Command output: %s", out))
+		command := strings.Join(append([]string{cmd.String()}, installArgs...), " ")
+		if err := runPackageCommand(l, console, "install", command); err != nil {
 			return err
-		}
-		if strings.TrimSpace(out) != "" {
-			l.Debug(fmt.Sprintf("Command output: %s", out))
-		} else {
-			l.Debugf("Empty command output")
 		}
 	}
 
 	if s.Packages.Remove != nil {
-		// Run remove
 		removeArgs = append(removeArgs, s.Packages.Remove...)
-		l.Debugf("Running remove")
-		out, err := console.Run(templateSysData(l, strings.Join(append([]string{cmd.String()}, removeArgs...), " ")))
-		if err != nil {
-			l.Debug(fmt.Sprintf("Command output: %s", out))
+		command := strings.Join(append([]string{cmd.String()}, removeArgs...), " ")
+		if err := runPackageCommand(l, console, "remove", command); err != nil {
 			return err
-		}
-		if strings.TrimSpace(out) != "" {
-			l.Debug(fmt.Sprintf("Command output: %s", out))
-		} else {
-			l.Debugf("Empty command output")
 		}
 	}
 

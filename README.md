@@ -617,6 +617,8 @@ Installs, removes, refreshes, or upgrades packages using the host package manage
 
 Operation order is: `refresh` → `upgrade` → `install` → `remove`.
 
+Each of the four operations is run up to three times. A package manager reports a mirror it could not reach as a plain command failure, and re-running the command makes it resolve the mirror list again, so a mirror that is briefly unreachable no longer costs the whole stage. The waits between the attempts are 5 and 15 seconds.
+
 ```yaml
 stages:
   default:

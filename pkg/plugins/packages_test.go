@@ -1,7 +1,10 @@
 package plugins
 
 import (
+	"errors"
 	"io"
+	"os/exec"
+	"time"
 
 	"github.com/mudler/yip/pkg/schema"
 	consoletests "github.com/mudler/yip/tests/console"
@@ -9,6 +12,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/sanity-io/litter"
 	"github.com/sirupsen/logrus"
+	"github.com/twpayne/go-vfs/v5"
 	"github.com/twpayne/go-vfs/v5/vfst"
 )
 
@@ -124,5 +128,103 @@ var _ = Describe("Commands", Label("packages"), func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("unknown package manager"))
 		})
+	})
+})
+
+// flakyConsole fails the first failures runs and succeeds afterwards. It
+// records every command it was asked to run, including the ones that failed.
+type flakyConsole struct {
+	consoletests.TestConsole
+	failures int
+	runs     int
+}
+
+func (f *flakyConsole) Run(cmd string, opts ...func(*exec.Cmd)) (string, error) {
+	f.runs++
+	f.Commands = append(f.Commands, cmd)
+	if f.runs <= f.failures {
+		return "All mirrors were tried", errors.New("exit status 1")
+	}
+	return "", nil
+}
+
+var _ = Describe("Packages retries", Label("packages"), func() {
+	l := logrus.New()
+	l.SetOutput(io.Discard)
+
+	var fs vfs.FS
+	var cleanup func()
+
+	BeforeEach(func() {
+		var err error
+		fs, cleanup, err = vfst.NewTestFS(map[string]interface{}{})
+		Expect(err).Should(BeNil())
+		Expect(fs.Mkdir("/etc", 0755)).ToNot(HaveOccurred())
+		Expect(fs.WriteFile("/etc/os-release", []byte("ID=fedora\nVERSION=43\n"), 0644)).ToNot(HaveOccurred())
+
+		// Keep the suite fast: the wait is only there to let a mirror recover.
+		original := packageRetryWait
+		packageRetryWait = time.Millisecond
+		DeferCleanup(func() {
+			packageRetryWait = original
+			cleanup()
+		})
+	})
+
+	It("retries a command that failed and reports no error once it passes", func() {
+		console := &flakyConsole{failures: packageAttempts - 1}
+
+		err := Packages(l, schema.Stage{
+			Packages: schema.Packages{Install: []string{"foo"}},
+		}, fs, console)
+
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(console.Commands).Should(Equal([]string{
+			"dnf install -y --setopt=install_weak_deps=False foo",
+			"dnf install -y --setopt=install_weak_deps=False foo",
+			"dnf install -y --setopt=install_weak_deps=False foo",
+		}))
+	})
+
+	It("gives up after the last attempt and returns the error", func() {
+		console := &flakyConsole{failures: packageAttempts + 1}
+
+		err := Packages(l, schema.Stage{
+			Packages: schema.Packages{Install: []string{"foo"}},
+		}, fs, console)
+
+		Expect(err).Should(HaveOccurred())
+		Expect(err.Error()).To(Equal("exit status 1"))
+		Expect(console.runs).Should(Equal(packageAttempts))
+	})
+
+	It("retries every step of the stage, not only the install", func() {
+		for _, stage := range []schema.Stage{
+			{Packages: schema.Packages{Refresh: true, Install: []string{"foo"}}},
+			{Packages: schema.Packages{Upgrade: true, Install: []string{"foo"}}},
+			{Packages: schema.Packages{Install: []string{"foo"}, Remove: []string{"bar"}}},
+		} {
+			console := &flakyConsole{failures: 1}
+
+			Expect(Packages(l, stage, fs, console)).ShouldNot(HaveOccurred())
+			// The first step burns the one failure and is run twice, the
+			// second one passes on its first attempt.
+			Expect(console.runs).Should(Equal(3), litter.Sdump(stage))
+		}
+	})
+
+	It("does not retry a stage it cannot run at all", func() {
+		bare, cleanupBare, err := vfst.NewTestFS(map[string]interface{}{})
+		Expect(err).Should(BeNil())
+		defer cleanupBare()
+		console := &flakyConsole{failures: packageAttempts}
+
+		err = Packages(l, schema.Stage{
+			Packages: schema.Packages{Install: []string{"foo"}},
+		}, bare, console)
+
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("unknown package manager"))
+		Expect(console.runs).Should(BeZero())
 	})
 })
