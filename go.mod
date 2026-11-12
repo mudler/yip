@@ -31,7 +31,7 @@ require (
 	github.com/zcalusic/sysinfo v1.1.3
 	golang.org/x/crypto v0.54.0
 	golang.org/x/sys v0.47.0
-	gopkg.in/ini.v1 v1.67.3
+	gopkg.in/ini.v1 v1.68.0
 	gopkg.in/yaml.v3 v3.0.1
 	pault.ag/go/modprobe v0.2.0
 )
