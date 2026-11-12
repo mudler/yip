@@ -234,13 +234,16 @@ func (e *DefaultExecutor) dirOps(stage, dir string, fs vfs.FS, console plugins.C
 				return nil
 			}
 			ops := e.genOpFromSchema(path, stage, *config, fs, console)
+			// A config with no steps for this stage leaves prev alone, so
+			// the chain carries over it to the next config that has some.
+			if len(ops) == 0 {
+				return nil
+			}
 			// mark lexicographic order dependency from previous blocks
-			if len(prev) > 0 && len(ops) > 0 {
-				for _, p := range prev {
-					if len(p.after) == 0 {
-						for _, o := range ops {
-							o.deps = append(o.deps, p.name)
-						}
+			for _, p := range prev {
+				if len(p.after) == 0 {
+					for _, o := range ops {
+						o.deps = append(o.deps, p.name)
 					}
 				}
 			}
