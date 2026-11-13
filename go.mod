@@ -1,6 +1,6 @@
 module github.com/mudler/yip
 
-go 1.26.8
+go 1.27
 
 require (
 	github.com/Masterminds/sprig/v3 v3.3.0
@@ -28,7 +28,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/twpayne/go-vfs/v5 v5.0.5
 	github.com/vmware/vmw-guestinfo v0.0.0-20220317130741-510905f0efa3
-	github.com/zcalusic/sysinfo v1.1.3
+	github.com/zcalusic/sysinfo v1.2.3
 	golang.org/x/crypto v0.59.0
 	golang.org/x/sys v0.50.0
 	gopkg.in/ini.v1 v1.68.0
