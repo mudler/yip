@@ -929,3 +929,80 @@ stages:
 		Expect(strings.Join(order, " ")).To(MatchRegexp(`01_first\.yaml.*03_last\.yaml`))
 	})
 })
+
+// A config with no steps for the stage being run must not break the
+// lexicographic chain: the configs after it still wait for the ones before
+// it. Kairos ships 30_ulimit.yaml with no initramfs steps, and without the
+// chain 31_hosts.yaml ran concurrently with 05_network.yaml, whose step
+// checks /etc/hosts while 31_hosts.yaml replaces it.
+var _ = Describe("Executor over a directory with a config that has no steps for the stage", func() {
+	l := logrus.New()
+	l.SetOutput(io.Discard)
+	def := NewExecutor(WithLogger(l))
+	testConsole := console.NewStandardConsole()
+
+	var fs *vfst.TestFS
+	var cleanup func()
+	var temp string
+
+	BeforeEach(func() {
+		var err error
+		fs, cleanup, err = vfst.NewTestFS(map[string]interface{}{
+			"/some/yip": &vfst.Dir{Perm: 0o755},
+		})
+		Expect(err).ShouldNot(HaveOccurred())
+
+		temp = fs.TempDir()
+		Expect(fs.WriteFile("/some/yip/01_first.yaml", []byte(`
+stages:
+  test:
+  - name: first
+    commands:
+    - sleep 0.5
+    - echo first >> `+temp+`/order
+`), 0o644)).To(Succeed())
+		Expect(fs.WriteFile("/some/yip/02_other_stage.yaml", []byte(`
+stages:
+  other:
+  - name: unrelated
+    commands:
+    - "true"
+`), 0o644)).To(Succeed())
+		Expect(fs.WriteFile("/some/yip/03_last.yaml", []byte(`
+stages:
+  test:
+  - name: last
+    commands:
+    - echo last >> `+temp+`/order
+`), 0o644)).To(Succeed())
+	})
+
+	AfterEach(func() {
+		cleanup()
+	})
+
+	It("puts the config after it in a later layer than the config before it", func() {
+		g, err := def.Graph("test", fs, testConsole, "/some/yip")
+		Expect(err).ShouldNot(HaveOccurred())
+
+		layerOf := map[string]int{}
+		for i, layer := range g {
+			for _, op := range layer {
+				layerOf[op.Name] = i
+			}
+		}
+		first, ok := layerOf["/some/yip/01_first.yaml.first"]
+		Expect(ok).To(BeTrue(), "layers: %v", layerOf)
+		last, ok := layerOf["/some/yip/03_last.yaml.last"]
+		Expect(ok).To(BeTrue(), "layers: %v", layerOf)
+		Expect(last).To(BeNumerically(">", first), "layers: %v", layerOf)
+	})
+
+	It("runs the config after it only once the config before it is done", func() {
+		Expect(def.Run("test", fs, testConsole, "/some/yip")).To(Succeed())
+
+		out, err := os.ReadFile(temp + "/order")
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(string(out)).To(Equal("first\nlast\n"))
+	})
+})
