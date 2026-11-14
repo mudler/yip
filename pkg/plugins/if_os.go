@@ -23,8 +23,6 @@ func OnlyIfOS(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) er
 			return err
 		}
 
-		// Get the OS name from the system
-		system.GetSysInfo()
 		if system.OS.Name == "" {
 			return fmt.Errorf("%s as system os name is empty", fmt.Sprintf(SkipOnlyOs, s.OnlyIfOs))
 		}
@@ -46,8 +44,6 @@ func OnlyIfOSVersion(l logger.Interface, s schema.Stage, fs vfs.FS, console Cons
 			return err
 		}
 
-		// Get the OS version from the system
-		system.GetSysInfo()
 		if system.OS.Version == "" {
 			return fmt.Errorf("%s as system version is empty", fmt.Sprintf(SkipOnlyOsVersion, s.OnlyIfOsVersion))
 		}
