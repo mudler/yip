@@ -71,6 +71,10 @@ type Disk struct {
 	SectorS uint64
 	LastS   uint64
 	Parts   []Partition
+	// Mapper is the device-mapper device (for example /dev/dm-0, an opened
+	// LUKS volume) the label resolved to. It is empty when the label is
+	// directly on a partition of Device.
+	Mapper string
 }
 
 type Partition struct {
@@ -305,6 +309,14 @@ func Layout(l logger.Interface, s schema.Stage, fs vfs.FS, console Console) erro
 
 	l.Debugf("Checking for layout expansion on device %s", dev.Device)
 	if s.Layout.Expand != nil {
+		// Growing a partition under a device-mapper device would also need
+		// the mapping resized before the filesystem. For LUKS2 that needs
+		// the volume key, which the layout plugin does not have, so leave
+		// the device alone instead of failing the stage on every boot.
+		if dev.Mapper != "" {
+			l.Infof("%s is on the device-mapper device %s, skipping expansion: growing a partition under device-mapper (such as an encrypted LUKS volume) is not supported", s.Layout.Device.Label, dev.Mapper)
+			return nil
+		}
 		// Expansion always grows the last partition of the disk. When the device
 		// was selected by label, make sure that label is on the last partition,
 		// otherwise we would silently grow a different partition over it.
@@ -614,8 +626,20 @@ func FindDiskFromLabel(label string, fs vfs.FS) (Disk, error) {
 		return Disk{}, fmt.Errorf("resolve label %q: %w", label, err)
 	}
 
+	// A label can be on a device-mapper device, such as an opened LUKS
+	// volume. Follow it down to the partition it sits on: that partition
+	// is what tells us the disk.
+	backing, isMapper, err := backingDevice(sysRoot, partDev)
+	if err != nil {
+		return Disk{}, err
+	}
+	mapper := ""
+	if isMapper {
+		mapper = partDev
+	}
+
 	// Map partition -> parent disk via sysfs directory structure
-	diskDev, err := parentDiskFromBlockDev(partDev)
+	diskDev, err := parentDiskFromBlockDev(sysRoot, backing)
 
 	if err != nil && !errors.Is(err, ItsImageFileError{}) {
 		return Disk{}, err
@@ -645,6 +669,7 @@ func FindDiskFromLabel(label string, fs vfs.FS) (Disk, error) {
 		SectorS: uint64(d.LogicalBlocksize),
 		LastS:   uint64(d.Size / d.LogicalBlocksize),
 		Parts:   GetParts(d),
+		Mapper:  mapper,
 	}, nil
 }
 
@@ -663,6 +688,10 @@ func labelIsOnLastPartition(dev Disk, label string, fs vfs.FS) (bool, error) {
 	partDev, err := filepath.EvalSymlinks(path)
 	if err != nil {
 		return false, fmt.Errorf("resolve label %q: %w", label, err)
+	}
+	partDev, _, err = backingDevice(sysRoot, partDev)
+	if err != nil {
+		return false, err
 	}
 	partNumber, err := PartitionNumberFromDevice(partDev)
 	if err != nil {
@@ -689,7 +718,41 @@ func PartitionNumberFromDevice(devPath string) (int, error) {
 	return number, nil
 }
 
-func parentDiskFromBlockDev(devPath string) (string, error) {
+// sysRoot is the root that sysfs paths are resolved against. Only tests that
+// build a fake sysfs tree pass anything else.
+const sysRoot = "/"
+
+// maxMapperDepth bounds how many stacked device-mapper devices backingDevice
+// follows, so a broken sysfs tree cannot loop forever.
+const maxMapperDepth = 8
+
+// backingDevice follows a device-mapper device down to the block device it
+// sits on, through /sys/class/block/<dm>/slaves. An opened LUKS volume
+// /dev/dm-0 on /dev/sda5 resolves to /dev/sda5. Stacked mappings (LUKS on LVM)
+// are followed all the way down. Any other device is returned as is.
+// isMapper reports whether devPath was a device-mapper device.
+func backingDevice(root, devPath string) (backing string, isMapper bool, err error) {
+	current := devPath
+	for depth := 0; depth < maxMapperDepth; depth++ {
+		sysDev := filepath.Join(root, "sys/class/block", filepath.Base(current))
+		// Only device-mapper devices have a dm/ directory in sysfs.
+		if _, err := os.Stat(filepath.Join(sysDev, "dm")); err != nil {
+			return current, isMapper, nil
+		}
+		isMapper = true
+		slaves, err := os.ReadDir(filepath.Join(sysDev, "slaves"))
+		if err != nil {
+			return "", true, fmt.Errorf("list devices under %s: %w", current, err)
+		}
+		if len(slaves) != 1 {
+			return "", true, fmt.Errorf("%s is on %d devices, expected exactly one", current, len(slaves))
+		}
+		current = filepath.Join("/dev", slaves[0].Name())
+	}
+	return "", true, fmt.Errorf("%s: more than %d stacked device-mapper devices", devPath, maxMapperDepth)
+}
+
+func parentDiskFromBlockDev(root, devPath string) (string, error) {
 	// First check if its some kind of image file instead of a block device
 	// naively check if the path contains /dev/
 	if !strings.HasPrefix(devPath, "/dev/") {
@@ -700,7 +763,7 @@ func parentDiskFromBlockDev(devPath string) (string, error) {
 	// Get the base name of the device
 	name := filepath.Base(devPath) // "sda3", "nvme0n1p3", "mmcblk0p2", ...
 	fmt.Printf("Deriving parent disk for block device %s\n", devPath)
-	sysClass := filepath.Join("/sys/class/block", name)
+	sysClass := filepath.Join(root, "sys/class/block", name)
 	fmt.Printf("Deriving parent disk for block device %s\n", sysClass)
 
 	// Read where it points to only if its a symlink
@@ -715,7 +778,7 @@ func parentDiskFromBlockDev(devPath string) (string, error) {
 	parentName := filepath.Base(parentDir)
 
 	// Sanity check: parent should exist in /sys/class/block
-	if _, err := os.Stat(filepath.Join("/sys/class/block", parentName)); err != nil {
+	if _, err := os.Stat(filepath.Join(root, "sys/class/block", parentName)); err != nil {
 		return "", fmt.Errorf("derive parent disk for %s (got %s): %w", devPath, parentName, err)
 	}
 
