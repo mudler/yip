@@ -74,13 +74,14 @@ type Disk struct {
 }
 
 type Partition struct {
-	Start      uint64
-	End        uint64
-	Size       uint64
-	PLabel     string
-	FileSystem string
-	FSLabel    string
-	PartNumber int
+	Start       uint64
+	End         uint64
+	Size        uint64
+	PLabel      string
+	FileSystem  string
+	FSLabel     string
+	PartNumber  int
+	MkfsOptions []string
 }
 
 type MkfsCall struct {
@@ -469,13 +470,14 @@ func (dev *Disk) AddPartitions(parts []schema.Partition, l logger.Interface, con
 		gptTable.Partitions = append(gptTable.Partitions, part)
 		// Now add it to the partitions to format list
 		addPart := Partition{
-			Start:      start,
-			End:        end,
-			Size:       size,
-			FileSystem: p.FileSystem,
-			PLabel:     p.PLabel,
-			FSLabel:    p.FSLabel,
-			PartNumber: len(gptTable.Partitions), // 1-indexed
+			Start:       start,
+			End:         end,
+			Size:        size,
+			FileSystem:  p.FileSystem,
+			PLabel:      p.PLabel,
+			FSLabel:     p.FSLabel,
+			PartNumber:  len(gptTable.Partitions), // 1-indexed
+			MkfsOptions: p.MkfsOptions,
 		}
 		switch p.FileSystem {
 		case "-", "none", NoFormat:
@@ -759,7 +761,7 @@ func formatPartition(part Partition, basedevice string, console Console) (string
 		device = basedevice
 	}
 
-	mkfs := MkfsCall{part: part, customOpts: []string{}, dev: device}
+	mkfs := MkfsCall{part: part, customOpts: part.MkfsOptions, dev: device}
 	return mkfs.Apply(console)
 }
 

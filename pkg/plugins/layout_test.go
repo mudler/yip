@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 
 	"github.com/diskfs/go-diskfs"
 	fileBackend "github.com/diskfs/go-diskfs/backend/file"
@@ -279,6 +280,68 @@ var _ = Describe("Layout", Label("layout"), func() {
 			deviceLabel = table.Partitions[0].Name
 			Expect(deviceLabel).To(Equal("FAKELABEL"))
 			Expect(table.Partitions[0].Size).To(Equal(uint64(100*1024*1024) - reservedSectorsInBytes))
+		})
+		It("Passes mkfs_options to mkfs on a linux filesystem", func() {
+			testConsole := console.New()
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
+			testConsole.AddCmd(console.CmdMock{
+				Cmd:       regexp.QuoteMeta("mkfs.ext4 -L COS_OEM -O ^metadata_csum_seed ") + fmt.Sprintf("/tmp/go-vfs-.*%s1", devicePath),
+				UseRegexp: true,
+			})
+			err := Layout(l, schema.Stage{
+				Layout: schema.Layout{
+					Device: &schema.Device{Path: devicePath},
+					Parts: []schema.Partition{{
+						PLabel:      label,
+						FSLabel:     "COS_OEM",
+						Size:        100,
+						FileSystem:  "ext4",
+						MkfsOptions: []string{"-O", "^metadata_csum_seed"},
+					}},
+				},
+			}, fs, testConsole)
+			Expect(err).Should(BeNil())
+		})
+		It("Passes mkfs_options to mkfs on a fat filesystem", func() {
+			testConsole := console.New()
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
+			testConsole.AddCmd(console.CmdMock{
+				Cmd:       fmt.Sprintf("mkfs.fat -n COS_GRUB -F 32 /tmp/go-vfs-.*%s1", devicePath),
+				UseRegexp: true,
+			})
+			err := Layout(l, schema.Stage{
+				Layout: schema.Layout{
+					Device: &schema.Device{Path: devicePath},
+					Parts: []schema.Partition{{
+						PLabel:      label,
+						FSLabel:     "COS_GRUB",
+						Size:        100,
+						FileSystem:  "vfat",
+						MkfsOptions: []string{"-F", "32"},
+					}},
+				},
+			}, fs, testConsole)
+			Expect(err).Should(BeNil())
+		})
+		It("Passes mkfs_options when the partition has no fsLabel", func() {
+			testConsole := console.New()
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
+			testConsole.AddCmd(console.CmdMock{
+				Cmd:       regexp.QuoteMeta("mkfs.ext4 -O ^metadata_csum_seed ") + fmt.Sprintf("/tmp/go-vfs-.*%s1", devicePath),
+				UseRegexp: true,
+			})
+			err := Layout(l, schema.Stage{
+				Layout: schema.Layout{
+					Device: &schema.Device{Path: devicePath},
+					Parts: []schema.Partition{{
+						PLabel:      label,
+						Size:        100,
+						FileSystem:  "ext4",
+						MkfsOptions: []string{"-O", "^metadata_csum_seed"},
+					}},
+				},
+			}, fs, testConsole)
+			Expect(err).Should(BeNil())
 		})
 		It("Adds a new partition by label", func() {
 			Expect(fs.Symlink(devicePath, "/dev/disk/by-label/SOMELABEL")).Should(BeNil())
