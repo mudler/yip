@@ -1134,7 +1134,9 @@ func kernelAddPartitions(l logger.Interface, d *disk.Disk, partitionsToFormat []
 					part.PartNumber)
 				continue
 			}
+			return fmt.Errorf("adding partition %d to the kernel: %w", part.PartNumber, err)
 		}
+		l.Debugf("Kernel added partition %d", part.PartNumber)
 	}
 	// fsync the disk to ensure all changes are written
 	if err := unix.Fsync(int(fd)); err != nil {
