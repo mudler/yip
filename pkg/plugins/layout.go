@@ -2,6 +2,7 @@ package plugins
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"unicode"
 	"unsafe"
@@ -344,6 +346,17 @@ func (dev *Disk) AddPartitions(parts []schema.Partition, l logger.Interface, con
 		l.Debug("No partitions to add, skipping")
 		return nil
 	}
+	// systemd-udevd resyncs the kernel partitions with the table when a writer
+	// closes the disk, and it may compare a table it read before our write with
+	// the partitions we have just added, then remove them. Hold its BSD lock from
+	// the table read until the kernel knows the new partitions, see
+	// https://systemd.io/BLOCK_DEVICE_LOCKING/
+	unlock, err := lockDisk(dev.Device)
+	if err != nil {
+		return fmt.Errorf("locking %s: %w", dev.Device, err)
+	}
+	defer unlock()
+
 	// Open disk
 	d, err = diskfs.Open(dev.Device, diskfs.WithOpenMode(diskfs.ReadWrite))
 	if err != nil {
@@ -549,6 +562,8 @@ func (dev *Disk) AddPartitions(parts []schema.Partition, l logger.Interface, con
 		return err
 	}
 
+	// udev holds back the events of a locked disk, so release it before settling.
+	unlock()
 	_, _ = console.Run("udevadm trigger && udevadm settle")
 	// Now format the partitions
 	for _, part := range partitionsToFormat {
@@ -767,6 +782,14 @@ func (dev *Disk) ExpandLastPartition(l logger.Interface, size uint64, console Co
 	if len(dev.Parts) == 0 {
 		return errors.New("no partition to expand")
 	}
+	// Same udev race as in AddPartitions: a resync from a stale table would
+	// shrink the kernel partition back under the filesystem grow.
+	unlock, err := lockDisk(dev.Device)
+	if err != nil {
+		return fmt.Errorf("locking %s: %w", dev.Device, err)
+	}
+	defer unlock()
+
 	// Open disk and close it when we finish
 	d, err := diskfs.Open(dev.Device, diskfs.WithOpenMode(diskfs.ReadWrite))
 	if err != nil {
@@ -833,9 +856,18 @@ func (dev *Disk) ExpandLastPartition(l logger.Interface, size uint64, console Co
 		// filesystem that already fills its partition is a no-op, and the
 		// ephemeral mount it takes to reach the ioctl races with the mount
 		// tree the initramfs is building at the same time.
-		l.Debugf("Partition already spans the rest of the disk (%d bytes), nothing to expand", currentSize)
+		if !extFilesystemShort(d, part) {
+			l.Debugf("Partition already spans the rest of the disk (%d bytes), nothing to expand", currentSize)
+			_ = d.Close()
+			return nil
+		}
+		// An earlier boot can grow the partition and fail before the
+		// filesystem, and nothing else would ever grow it.
+		l.Debugf("Partition already spans the rest of the disk, growing the filesystem that does not fill it")
+		unlock()
+		device := partitionDevicePath(resolveDevicePath(dev.Device), len(gptTable.Partitions))
 		_ = d.Close()
-		return nil
+		return DefaultGrowFsToMax.GrowFSToMax(device, Ext4)
 	}
 	// A fixed size smaller than the current one is a shrink, which we do not do.
 	if requestedSize <= currentSize {
@@ -872,7 +904,9 @@ func (dev *Disk) ExpandLastPartition(l logger.Interface, size uint64, console Co
 	// We have to set Size to 0 so the GPT library recalculates it
 	part.Size = 0
 	err = d.Partition(gptTable)
-	if err != nil {
+	// The table is on disk when only the kernel re-read was refused, and the
+	// kernel is told about the new size below.
+	if err != nil && !errors.Is(err, disk.ErrReReadDeferred) {
 		_ = d.Close()
 		return err
 	}
@@ -880,6 +914,14 @@ func (dev *Disk) ExpandLastPartition(l logger.Interface, size uint64, console Co
 	// in use the re-read fails.
 	_ = d.ReReadPartitionTable()
 	syscall.Sync()
+	partNumber := len(gptTable.Partitions)
+	// The re-read fails while any partition of the disk is in use, and the
+	// filesystem grow below reads the partition size from the kernel, so
+	// resize the kernel partition ourselves.
+	if err := kernelResizePartition(d, partNumber, part); err != nil {
+		l.Warnf("Could not resize partition %d in the kernel: %s", partNumber, err)
+	}
+	unlock()
 	_, _ = console.Run("udevadm trigger && udevadm settle")
 
 	// Now resize the underlying filesystem
@@ -890,18 +932,37 @@ func (dev *Disk) ExpandLastPartition(l logger.Interface, size uint64, console Co
 		return fmt.Errorf("could not detect filesystem type: %w", err)
 	}
 
-	partNumber := len(gptTable.Partitions)
-
-	resolvedDevPath, err := filepath.EvalSymlinks(dev.Device)
-	if err != nil {
-		// If resolving symlinks fails, fall back to the original device path
-		resolvedDevPath = dev.Device
-	}
-
-	device := partitionDevicePath(resolvedDevPath, partNumber)
+	device := partitionDevicePath(resolveDevicePath(dev.Device), partNumber)
 	_ = d.Close()
 
 	return DefaultGrowFsToMax.GrowFSToMax(device, filesystem)
+}
+
+// resolveDevicePath follows symlinks, falling back to the path as given.
+func resolveDevicePath(path string) string {
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return path
+	}
+	return resolved
+}
+
+// extFilesystemShort reports whether part holds an ext2/3/4 filesystem that
+// ends at least one filesystem block before the partition does.
+func extFilesystemShort(d *disk.Disk, part *gpt.Partition) bool {
+	sb := make([]byte, 1024)
+	if _, err := d.Backend.ReadAt(sb, int64(part.Start)*d.LogicalBlocksize+1024); err != nil {
+		return false
+	}
+	if binary.LittleEndian.Uint16(sb[0x38:]) != 0xEF53 {
+		return false
+	}
+	blockSize := uint64(1024) << binary.LittleEndian.Uint32(sb[0x18:])
+	blocks := uint64(binary.LittleEndian.Uint32(sb[0x04:]))
+	if binary.LittleEndian.Uint32(sb[0x60:])&0x80 != 0 { // INCOMPAT_64BIT
+		blocks |= uint64(binary.LittleEndian.Uint32(sb[0x150:])) << 32
+	}
+	return (blocks+1)*blockSize <= part.Size
 }
 
 func (dev *Disk) MatchPartitionFSLabel(label string) bool {
@@ -1120,7 +1181,9 @@ func kernelAddPartitions(l logger.Interface, d *disk.Disk, partitionsToFormat []
 					part.PartNumber)
 				continue
 			}
+			return fmt.Errorf("adding partition %d to the kernel: %w", part.PartNumber, err)
 		}
+		l.Debugf("Kernel added partition %d", part.PartNumber)
 	}
 	// fsync the disk to ensure all changes are written
 	if err := unix.Fsync(int(fd)); err != nil {
@@ -1148,4 +1211,41 @@ func blkpgIoctl(fd int, op int32, p *blkpg_partition) error {
 		return errno
 	}
 	return nil
+}
+
+// kernelResizePartition sets the kernel's view of partition partNumber to the
+// bounds of part. It does nothing on an image file.
+func kernelResizePartition(d *disk.Disk, partNumber int, part *gpt.Partition) error {
+	info, err := d.Backend.Stat()
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeDevice == 0 {
+		return nil
+	}
+	f, err := d.Backend.Sys()
+	if err != nil {
+		return err
+	}
+	lbs := d.LogicalBlocksize
+	return blkpgIoctl(int(f.Fd()), int32(unix.BLKPG_RESIZE_PARTITION), &blkpg_partition{
+		Pno:    int32(partNumber),
+		Start:  int64(part.Start) * lbs,
+		Length: int64(part.End-part.Start+1) * lbs,
+	})
+}
+
+// lockDisk takes an exclusive BSD lock on the disk and returns an idempotent
+// function that releases it.
+func lockDisk(path string) (func(), error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	if err := unix.Flock(int(f.Fd()), unix.LOCK_EX); err != nil {
+		_ = f.Close()
+		return nil, err
+	}
+	var once sync.Once
+	return func() { once.Do(func() { _ = f.Close() }) }, nil
 }

@@ -1,9 +1,12 @@
 package plugins_test
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"time"
 
 	"github.com/diskfs/go-diskfs"
 	fileBackend "github.com/diskfs/go-diskfs/backend/file"
@@ -18,7 +21,25 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs/v5"
 	"github.com/twpayne/go-vfs/v5/vfst"
+	"golang.org/x/sys/unix"
 )
+
+// diskLockProbe fails the "udevadm settle" call when the disk is still locked:
+// udevd holds back the events of a locked disk, so settling would hang.
+type diskLockProbe struct {
+	*console.TestConsoleMock
+	path string
+}
+
+func (c diskLockProbe) Run(cmd string, opts ...func(*exec.Cmd)) (string, error) {
+	if cmd == "udevadm trigger && udevadm settle" {
+		f, err := os.Open(c.path)
+		Expect(err).ToNot(HaveOccurred())
+		defer f.Close()
+		Expect(unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB)).To(Succeed(), "disk still locked when udev settles")
+	}
+	return c.TestConsoleMock.Run(cmd, opts...)
+}
 
 // This are the reserved sectors in a GPT partition table (2048 sectors of 512 bytes)
 const reservedSectorsInBytes = uint64(2048 * diskfs.SectorSize512)
@@ -258,6 +279,40 @@ var _ = Describe("Layout", Label("layout"), func() {
 			Expect(deviceLabel).To(Equal("FAKELABEL"), litter.Sdump(table.Partitions))
 			Expect(table.Partitions[0].Size).To(Equal(uint64(100*1024*1024)-reservedSectorsInBytes), litter.Sdump(table))
 		})
+		It("Waits for the disk lock before writing the partition table and releases it before udev settles", func() {
+			// udevd takes this lock while it syncs the kernel partitions with the table.
+			udevLock, err := os.Open(rawDevicePath)
+			Expect(err).ToNot(HaveOccurred())
+			defer udevLock.Close()
+			Expect(unix.Flock(int(udevLock.Fd()), unix.LOCK_SH)).To(Succeed())
+
+			testConsole := diskLockProbe{TestConsoleMock: console.New(), path: rawDevicePath}
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
+			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 /tmp/go-vfs-.*%s1", devicePath), UseRegexp: true})
+
+			done := make(chan error, 1)
+			go func() {
+				defer GinkgoRecover()
+				done <- Layout(l, schema.Stage{
+					Layout: schema.Layout{
+						Device: &schema.Device{Path: devicePath},
+						Parts:  []schema.Partition{{PLabel: label, Size: 100}},
+					},
+				}, fs, testConsole)
+			}()
+
+			Consistently(done, 500*time.Millisecond).ShouldNot(Receive())
+			d, err := fileBackend.OpenFromPath(rawDevicePath, true)
+			Expect(err).ToNot(HaveOccurred())
+			table, err := gpt.Read(d, int(diskfs.SectorSize512), int(diskfs.SectorSize512))
+			Expect(d.Close()).To(Succeed())
+			Expect(err).ToNot(HaveOccurred())
+			Expect(table.Partitions).To(BeEmpty())
+
+			Expect(unix.Flock(int(udevLock.Fd()), unix.LOCK_UN)).To(Succeed())
+			Eventually(done, 10*time.Second).Should(Receive(BeNil()))
+			Expect(testConsole.Cmds.Len()).To(Equal(0))
+		})
 		It("Adds a new partition by path with fsLabel", func() {
 			testConsole := console.New()
 			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
@@ -421,6 +476,53 @@ var _ = Describe("Layout", Label("layout"), func() {
 			Expect(table2.Partitions[0].Size).To(Equal(maxFixedExpandSize))
 
 		})
+		It("Waits for the disk lock before expanding the last partition and releases it before udev settles", func() {
+			testConsole := diskLockProbe{TestConsoleMock: console.New(), path: rawDevicePath}
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
+			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 /tmp/go-vfs-.*%s1", devicePath), UseRegexp: true})
+			Expect(Layout(l, schema.Stage{
+				Layout: schema.Layout{
+					Device: &schema.Device{Path: devicePath},
+					Parts:  []schema.Partition{{PLabel: label, Size: 512}},
+				},
+			}, fs, testConsole)).To(Succeed())
+
+			udevLock, err := os.Open(rawDevicePath)
+			Expect(err).ToNot(HaveOccurred())
+			defer udevLock.Close()
+			Expect(unix.Flock(int(udevLock.Fd()), unix.LOCK_SH)).To(Succeed())
+
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
+			done := make(chan error, 1)
+			go func() {
+				defer GinkgoRecover()
+				done <- Layout(l, schema.Stage{
+					Layout: schema.Layout{
+						Device: &schema.Device{Path: devicePath},
+						Expand: &schema.Expand{Size: 0},
+					},
+				}, fs, testConsole)
+			}()
+
+			Consistently(done, 500*time.Millisecond).ShouldNot(Receive())
+			d, err := fileBackend.OpenFromPath(rawDevicePath, true)
+			Expect(err).ToNot(HaveOccurred())
+			table, err := gpt.Read(d, int(diskfs.SectorSize512), int(diskfs.SectorSize512))
+			Expect(d.Close()).To(Succeed())
+			Expect(err).ToNot(HaveOccurred())
+			Expect(table.Partitions).To(HaveLen(1))
+			Expect(table.Partitions[0].Size).To(Equal(uint64(512*1024*1024) - reservedSectorsInBytes))
+
+			Expect(unix.Flock(int(udevLock.Fd()), unix.LOCK_UN)).To(Succeed())
+			Eventually(done, 10*time.Second).Should(Receive(BeNil()))
+			Expect(testConsole.Cmds.Len()).To(Equal(0))
+			d, err = fileBackend.OpenFromPath(rawDevicePath, true)
+			Expect(err).ToNot(HaveOccurred())
+			defer d.Close()
+			table, err = gpt.Read(d, int(diskfs.SectorSize512), int(diskfs.SectorSize512))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(table.Partitions[0].Size).To(Equal(maxExpandToAllSize))
+		})
 		It("Expands last partition to take all space", func() {
 			DefaultFilesystemDetector = MockFilesystemDetector{func(part *gpt.Partition, d *disk.Disk) (string, error) {
 				return "ext4", nil
@@ -530,6 +632,52 @@ var _ = Describe("Layout", Label("layout"), func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(table3.Partitions).To(HaveLen(1))
 			Expect(table3.Partitions[0].Size).To(Equal(maxExpandToAllSize))
+		})
+		It("Grows an ext filesystem that does not fill a partition already at max", func() {
+			grows := 0
+			DefaultGrowFsToMax = MockGrowFSToMax{func(device string, filesystem string) error {
+				grows++
+				Expect(filesystem).To(Equal(Ext4))
+				return nil
+			}}
+			testConsole := console.New()
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
+			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 /tmp/go-vfs-.*%s1", devicePath), UseRegexp: true})
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
+			Expect(Layout(l, schema.Stage{
+				Layout: schema.Layout{
+					Device: &schema.Device{Path: devicePath},
+					Parts:  []schema.Partition{{PLabel: label, Size: 512}},
+				},
+			}, fs, testConsole)).To(Succeed())
+			expand := schema.Stage{Layout: schema.Layout{Device: &schema.Device{Path: devicePath}, Expand: &schema.Expand{}}}
+			Expect(Layout(l, expand, fs, testConsole)).To(Succeed())
+			Expect(grows).To(Equal(1))
+
+			By("leaving behind an ext4 superblock of 1000 4K blocks, as a boot that failed before the grow does")
+			sb := make([]byte, 1024)
+			binary.LittleEndian.PutUint32(sb[0x04:], 1000)
+			binary.LittleEndian.PutUint32(sb[0x18:], 2)
+			binary.LittleEndian.PutUint16(sb[0x38:], 0xEF53)
+			f, err := os.OpenFile(rawDevicePath, os.O_RDWR, 0)
+			Expect(err).ToNot(HaveOccurred())
+			_, err = f.WriteAt(sb, int64(reservedSectorsInBytes)+1024)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(f.Close()).To(Succeed())
+
+			Expect(Layout(l, expand, fs, testConsole)).To(Succeed())
+			Expect(grows).To(Equal(2))
+
+			By("not growing it again once it fills the partition")
+			binary.LittleEndian.PutUint32(sb[0x04:], uint32(maxExpandToAllSize/4096))
+			f, err = os.OpenFile(rawDevicePath, os.O_RDWR, 0)
+			Expect(err).ToNot(HaveOccurred())
+			_, err = f.WriteAt(sb, int64(reservedSectorsInBytes)+1024)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(f.Close()).To(Succeed())
+			Expect(Layout(l, expand, fs, testConsole)).To(Succeed())
+			Expect(grows).To(Equal(2))
+			Expect(testConsole.Cmds.Len()).To(Equal(0))
 		})
 		It("Expands last partition after creating the partitions", func() {
 			testConsole := console.New()
