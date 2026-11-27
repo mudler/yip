@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"time"
 
 	"github.com/diskfs/go-diskfs"
 	fileBackend "github.com/diskfs/go-diskfs/backend/file"
@@ -18,7 +20,25 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/twpayne/go-vfs/v5"
 	"github.com/twpayne/go-vfs/v5/vfst"
+	"golang.org/x/sys/unix"
 )
+
+// diskLockProbe fails the "udevadm settle" call when the disk is still locked:
+// udevd holds back the events of a locked disk, so settling would hang.
+type diskLockProbe struct {
+	*console.TestConsoleMock
+	path string
+}
+
+func (c diskLockProbe) Run(cmd string, opts ...func(*exec.Cmd)) (string, error) {
+	if cmd == "udevadm trigger && udevadm settle" {
+		f, err := os.Open(c.path)
+		Expect(err).ToNot(HaveOccurred())
+		defer f.Close()
+		Expect(unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB)).To(Succeed(), "disk still locked when udev settles")
+	}
+	return c.TestConsoleMock.Run(cmd, opts...)
+}
 
 // This are the reserved sectors in a GPT partition table (2048 sectors of 512 bytes)
 const reservedSectorsInBytes = uint64(2048 * diskfs.SectorSize512)
@@ -257,6 +277,40 @@ var _ = Describe("Layout", Label("layout"), func() {
 			deviceLabel = table.Partitions[0].Name
 			Expect(deviceLabel).To(Equal("FAKELABEL"), litter.Sdump(table.Partitions))
 			Expect(table.Partitions[0].Size).To(Equal(uint64(100*1024*1024)-reservedSectorsInBytes), litter.Sdump(table))
+		})
+		It("Waits for the disk lock before writing the partition table and releases it before udev settles", func() {
+			// udevd takes this lock while it syncs the kernel partitions with the table.
+			udevLock, err := os.Open(rawDevicePath)
+			Expect(err).ToNot(HaveOccurred())
+			defer udevLock.Close()
+			Expect(unix.Flock(int(udevLock.Fd()), unix.LOCK_SH)).To(Succeed())
+
+			testConsole := diskLockProbe{TestConsoleMock: console.New(), path: rawDevicePath}
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
+			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 /tmp/go-vfs-.*%s1", devicePath), UseRegexp: true})
+
+			done := make(chan error, 1)
+			go func() {
+				defer GinkgoRecover()
+				done <- Layout(l, schema.Stage{
+					Layout: schema.Layout{
+						Device: &schema.Device{Path: devicePath},
+						Parts:  []schema.Partition{{PLabel: label, Size: 100}},
+					},
+				}, fs, testConsole)
+			}()
+
+			Consistently(done, 500*time.Millisecond).ShouldNot(Receive())
+			d, err := fileBackend.OpenFromPath(rawDevicePath, true)
+			Expect(err).ToNot(HaveOccurred())
+			table, err := gpt.Read(d, int(diskfs.SectorSize512), int(diskfs.SectorSize512))
+			Expect(d.Close()).To(Succeed())
+			Expect(err).ToNot(HaveOccurred())
+			Expect(table.Partitions).To(BeEmpty())
+
+			Expect(unix.Flock(int(udevLock.Fd()), unix.LOCK_UN)).To(Succeed())
+			Eventually(done, 10*time.Second).Should(Receive(BeNil()))
+			Expect(testConsole.Cmds.Len()).To(Equal(0))
 		})
 		It("Adds a new partition by path with fsLabel", func() {
 			testConsole := console.New()

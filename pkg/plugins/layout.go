@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"unicode"
 	"unsafe"
@@ -344,6 +345,17 @@ func (dev *Disk) AddPartitions(parts []schema.Partition, l logger.Interface, con
 		l.Debug("No partitions to add, skipping")
 		return nil
 	}
+	// systemd-udevd resyncs the kernel partitions with the table when a writer
+	// closes the disk, and it may compare a table it read before our write with
+	// the partitions we have just added, then remove them. Hold its BSD lock from
+	// the table read until the kernel knows the new partitions, see
+	// https://systemd.io/BLOCK_DEVICE_LOCKING/
+	unlock, err := lockDisk(dev.Device)
+	if err != nil {
+		return fmt.Errorf("locking %s: %w", dev.Device, err)
+	}
+	defer unlock()
+
 	// Open disk
 	d, err = diskfs.Open(dev.Device, diskfs.WithOpenMode(diskfs.ReadWrite))
 	if err != nil {
@@ -549,6 +561,8 @@ func (dev *Disk) AddPartitions(parts []schema.Partition, l logger.Interface, con
 		return err
 	}
 
+	// udev holds back the events of a locked disk, so release it before settling.
+	unlock()
 	_, _ = console.Run("udevadm trigger && udevadm settle")
 	// Now format the partitions
 	for _, part := range partitionsToFormat {
@@ -1120,7 +1134,9 @@ func kernelAddPartitions(l logger.Interface, d *disk.Disk, partitionsToFormat []
 					part.PartNumber)
 				continue
 			}
+			return fmt.Errorf("adding partition %d to the kernel: %w", part.PartNumber, err)
 		}
+		l.Debugf("Kernel added partition %d", part.PartNumber)
 	}
 	// fsync the disk to ensure all changes are written
 	if err := unix.Fsync(int(fd)); err != nil {
@@ -1148,4 +1164,19 @@ func blkpgIoctl(fd int, op int32, p *blkpg_partition) error {
 		return errno
 	}
 	return nil
+}
+
+// lockDisk takes an exclusive BSD lock on the disk and returns an idempotent
+// function that releases it.
+func lockDisk(path string) (func(), error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	if err := unix.Flock(int(f.Fd()), unix.LOCK_EX); err != nil {
+		_ = f.Close()
+		return nil, err
+	}
+	var once sync.Once
+	return func() { once.Do(func() { _ = f.Close() }) }, nil
 }
