@@ -475,6 +475,53 @@ var _ = Describe("Layout", Label("layout"), func() {
 			Expect(table2.Partitions[0].Size).To(Equal(maxFixedExpandSize))
 
 		})
+		It("Waits for the disk lock before expanding the last partition and releases it before udev settles", func() {
+			testConsole := diskLockProbe{TestConsoleMock: console.New(), path: rawDevicePath}
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
+			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 /tmp/go-vfs-.*%s1", devicePath), UseRegexp: true})
+			Expect(Layout(l, schema.Stage{
+				Layout: schema.Layout{
+					Device: &schema.Device{Path: devicePath},
+					Parts:  []schema.Partition{{PLabel: label, Size: 512}},
+				},
+			}, fs, testConsole)).To(Succeed())
+
+			udevLock, err := os.Open(rawDevicePath)
+			Expect(err).ToNot(HaveOccurred())
+			defer udevLock.Close()
+			Expect(unix.Flock(int(udevLock.Fd()), unix.LOCK_SH)).To(Succeed())
+
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
+			done := make(chan error, 1)
+			go func() {
+				defer GinkgoRecover()
+				done <- Layout(l, schema.Stage{
+					Layout: schema.Layout{
+						Device: &schema.Device{Path: devicePath},
+						Expand: &schema.Expand{Size: 0},
+					},
+				}, fs, testConsole)
+			}()
+
+			Consistently(done, 500*time.Millisecond).ShouldNot(Receive())
+			d, err := fileBackend.OpenFromPath(rawDevicePath, true)
+			Expect(err).ToNot(HaveOccurred())
+			table, err := gpt.Read(d, int(diskfs.SectorSize512), int(diskfs.SectorSize512))
+			Expect(d.Close()).To(Succeed())
+			Expect(err).ToNot(HaveOccurred())
+			Expect(table.Partitions).To(HaveLen(1))
+			Expect(table.Partitions[0].Size).To(Equal(uint64(512*1024*1024) - reservedSectorsInBytes))
+
+			Expect(unix.Flock(int(udevLock.Fd()), unix.LOCK_UN)).To(Succeed())
+			Eventually(done, 10*time.Second).Should(Receive(BeNil()))
+			Expect(testConsole.Cmds.Len()).To(Equal(0))
+			d, err = fileBackend.OpenFromPath(rawDevicePath, true)
+			Expect(err).ToNot(HaveOccurred())
+			defer d.Close()
+			table, err = gpt.Read(d, int(diskfs.SectorSize512), int(diskfs.SectorSize512))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(table.Partitions[0].Size).To(Equal(maxExpandToAllSize))
+		})
 		It("Expands last partition to take all space", func() {
 			DefaultFilesystemDetector = MockFilesystemDetector{func(part *gpt.Partition, d *disk.Disk) (string, error) {
 				return "ext4", nil

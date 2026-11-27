@@ -781,6 +781,14 @@ func (dev *Disk) ExpandLastPartition(l logger.Interface, size uint64, console Co
 	if len(dev.Parts) == 0 {
 		return errors.New("no partition to expand")
 	}
+	// Same udev race as in AddPartitions: a resync from a stale table would
+	// shrink the kernel partition back under the filesystem grow.
+	unlock, err := lockDisk(dev.Device)
+	if err != nil {
+		return fmt.Errorf("locking %s: %w", dev.Device, err)
+	}
+	defer unlock()
+
 	// Open disk and close it when we finish
 	d, err := diskfs.Open(dev.Device, diskfs.WithOpenMode(diskfs.ReadWrite))
 	if err != nil {
@@ -886,7 +894,9 @@ func (dev *Disk) ExpandLastPartition(l logger.Interface, size uint64, console Co
 	// We have to set Size to 0 so the GPT library recalculates it
 	part.Size = 0
 	err = d.Partition(gptTable)
-	if err != nil {
+	// The table is on disk when only the kernel re-read was refused, and the
+	// kernel is told about the new size below.
+	if err != nil && !errors.Is(err, disk.ErrReReadDeferred) {
 		_ = d.Close()
 		return err
 	}
@@ -894,6 +904,14 @@ func (dev *Disk) ExpandLastPartition(l logger.Interface, size uint64, console Co
 	// in use the re-read fails.
 	_ = d.ReReadPartitionTable()
 	syscall.Sync()
+	partNumber := len(gptTable.Partitions)
+	// The re-read fails while any partition of the disk is in use, and the
+	// filesystem grow below reads the partition size from the kernel, so
+	// resize the kernel partition ourselves.
+	if err := kernelResizePartition(d, partNumber, part); err != nil {
+		l.Warnf("Could not resize partition %d in the kernel: %s", partNumber, err)
+	}
+	unlock()
 	_, _ = console.Run("udevadm trigger && udevadm settle")
 
 	// Now resize the underlying filesystem
@@ -903,8 +921,6 @@ func (dev *Disk) ExpandLastPartition(l logger.Interface, size uint64, console Co
 		_ = d.Close()
 		return fmt.Errorf("could not detect filesystem type: %w", err)
 	}
-
-	partNumber := len(gptTable.Partitions)
 
 	resolvedDevPath, err := filepath.EvalSymlinks(dev.Device)
 	if err != nil {
@@ -1164,6 +1180,28 @@ func blkpgIoctl(fd int, op int32, p *blkpg_partition) error {
 		return errno
 	}
 	return nil
+}
+
+// kernelResizePartition sets the kernel's view of partition partNumber to the
+// bounds of part. It does nothing on an image file.
+func kernelResizePartition(d *disk.Disk, partNumber int, part *gpt.Partition) error {
+	info, err := d.Backend.Stat()
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeDevice == 0 {
+		return nil
+	}
+	f, err := d.Backend.Sys()
+	if err != nil {
+		return err
+	}
+	lbs := d.LogicalBlocksize
+	return blkpgIoctl(int(f.Fd()), int32(unix.BLKPG_RESIZE_PARTITION), &blkpg_partition{
+		Pno:    int32(partNumber),
+		Start:  int64(part.Start) * lbs,
+		Length: int64(part.End-part.Start+1) * lbs,
+	})
 }
 
 // lockDisk takes an exclusive BSD lock on the disk and returns an idempotent
