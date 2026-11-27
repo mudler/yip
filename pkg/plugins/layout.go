@@ -2,6 +2,7 @@ package plugins
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -855,9 +856,18 @@ func (dev *Disk) ExpandLastPartition(l logger.Interface, size uint64, console Co
 		// filesystem that already fills its partition is a no-op, and the
 		// ephemeral mount it takes to reach the ioctl races with the mount
 		// tree the initramfs is building at the same time.
-		l.Debugf("Partition already spans the rest of the disk (%d bytes), nothing to expand", currentSize)
+		if !extFilesystemShort(d, part) {
+			l.Debugf("Partition already spans the rest of the disk (%d bytes), nothing to expand", currentSize)
+			_ = d.Close()
+			return nil
+		}
+		// An earlier boot can grow the partition and fail before the
+		// filesystem, and nothing else would ever grow it.
+		l.Debugf("Partition already spans the rest of the disk, growing the filesystem that does not fill it")
+		unlock()
+		device := partitionDevicePath(resolveDevicePath(dev.Device), len(gptTable.Partitions))
 		_ = d.Close()
-		return nil
+		return DefaultGrowFsToMax.GrowFSToMax(device, Ext4)
 	}
 	// A fixed size smaller than the current one is a shrink, which we do not do.
 	if requestedSize <= currentSize {
@@ -922,16 +932,37 @@ func (dev *Disk) ExpandLastPartition(l logger.Interface, size uint64, console Co
 		return fmt.Errorf("could not detect filesystem type: %w", err)
 	}
 
-	resolvedDevPath, err := filepath.EvalSymlinks(dev.Device)
-	if err != nil {
-		// If resolving symlinks fails, fall back to the original device path
-		resolvedDevPath = dev.Device
-	}
-
-	device := partitionDevicePath(resolvedDevPath, partNumber)
+	device := partitionDevicePath(resolveDevicePath(dev.Device), partNumber)
 	_ = d.Close()
 
 	return DefaultGrowFsToMax.GrowFSToMax(device, filesystem)
+}
+
+// resolveDevicePath follows symlinks, falling back to the path as given.
+func resolveDevicePath(path string) string {
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return path
+	}
+	return resolved
+}
+
+// extFilesystemShort reports whether part holds an ext2/3/4 filesystem that
+// ends at least one filesystem block before the partition does.
+func extFilesystemShort(d *disk.Disk, part *gpt.Partition) bool {
+	sb := make([]byte, 1024)
+	if _, err := d.Backend.ReadAt(sb, int64(part.Start)*d.LogicalBlocksize+1024); err != nil {
+		return false
+	}
+	if binary.LittleEndian.Uint16(sb[0x38:]) != 0xEF53 {
+		return false
+	}
+	blockSize := uint64(1024) << binary.LittleEndian.Uint32(sb[0x18:])
+	blocks := uint64(binary.LittleEndian.Uint32(sb[0x04:]))
+	if binary.LittleEndian.Uint32(sb[0x60:])&0x80 != 0 { // INCOMPAT_64BIT
+		blocks |= uint64(binary.LittleEndian.Uint32(sb[0x150:])) << 32
+	}
+	return (blocks+1)*blockSize <= part.Size
 }
 
 func (dev *Disk) MatchPartitionFSLabel(label string) bool {

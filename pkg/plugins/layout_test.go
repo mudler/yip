@@ -1,6 +1,7 @@
 package plugins_test
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
@@ -631,6 +632,52 @@ var _ = Describe("Layout", Label("layout"), func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(table3.Partitions).To(HaveLen(1))
 			Expect(table3.Partitions[0].Size).To(Equal(maxExpandToAllSize))
+		})
+		It("Grows an ext filesystem that does not fill a partition already at max", func() {
+			grows := 0
+			DefaultGrowFsToMax = MockGrowFSToMax{func(device string, filesystem string) error {
+				grows++
+				Expect(filesystem).To(Equal(Ext4))
+				return nil
+			}}
+			testConsole := console.New()
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
+			testConsole.AddCmd(console.CmdMock{Cmd: fmt.Sprintf("mkfs.ext2 /tmp/go-vfs-.*%s1", devicePath), UseRegexp: true})
+			testConsole.AddCmd(console.CmdMock{Cmd: "udevadm trigger && udevadm settle"})
+			Expect(Layout(l, schema.Stage{
+				Layout: schema.Layout{
+					Device: &schema.Device{Path: devicePath},
+					Parts:  []schema.Partition{{PLabel: label, Size: 512}},
+				},
+			}, fs, testConsole)).To(Succeed())
+			expand := schema.Stage{Layout: schema.Layout{Device: &schema.Device{Path: devicePath}, Expand: &schema.Expand{}}}
+			Expect(Layout(l, expand, fs, testConsole)).To(Succeed())
+			Expect(grows).To(Equal(1))
+
+			By("leaving behind an ext4 superblock of 1000 4K blocks, as a boot that failed before the grow does")
+			sb := make([]byte, 1024)
+			binary.LittleEndian.PutUint32(sb[0x04:], 1000)
+			binary.LittleEndian.PutUint32(sb[0x18:], 2)
+			binary.LittleEndian.PutUint16(sb[0x38:], 0xEF53)
+			f, err := os.OpenFile(rawDevicePath, os.O_RDWR, 0)
+			Expect(err).ToNot(HaveOccurred())
+			_, err = f.WriteAt(sb, int64(reservedSectorsInBytes)+1024)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(f.Close()).To(Succeed())
+
+			Expect(Layout(l, expand, fs, testConsole)).To(Succeed())
+			Expect(grows).To(Equal(2))
+
+			By("not growing it again once it fills the partition")
+			binary.LittleEndian.PutUint32(sb[0x04:], uint32(maxExpandToAllSize/4096))
+			f, err = os.OpenFile(rawDevicePath, os.O_RDWR, 0)
+			Expect(err).ToNot(HaveOccurred())
+			_, err = f.WriteAt(sb, int64(reservedSectorsInBytes)+1024)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(f.Close()).To(Succeed())
+			Expect(Layout(l, expand, fs, testConsole)).To(Succeed())
+			Expect(grows).To(Equal(2))
+			Expect(testConsole.Cmds.Len()).To(Equal(0))
 		})
 		It("Expands last partition after creating the partitions", func() {
 			testConsole := console.New()
